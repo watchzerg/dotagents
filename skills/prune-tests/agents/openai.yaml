@@ -1,0 +1,3 @@
+interface:
+  display_name: "Prune Tests"
+  short_description: "Prune tests to core units and main workflow integrations"
