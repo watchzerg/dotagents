@@ -5,7 +5,7 @@
 ## clone 后怎么用
 
 1. 将本仓库 clone 到准备长期保留的位置，进入仓库目录。
-2. 确保宿主已有 just 和 Bash。macOS 自带 Bash；缺少 just 时运行 `brew install just`（需先安装 Homebrew）。
+2. 确保已有 Python 3.10+；setup 仅使用标准库。
 3. 在本仓库中打开 Codex，调用：
 
    ```text
@@ -15,12 +15,12 @@
    也可以直接在仓库目录的终端执行：
 
    ```sh
-   just setup
+   python3 .agents/skills/setup-dotagents/scripts/setup.py
    ```
 
 4. 完成后开启新的 Codex 会话，验证个人规则和 skills 已加载。
 
-调用链为 `$setup-dotagents` → `just setup` → 链接脚本。日常应用配置只需执行 setup，不需要安装 uv、Python 开发依赖或运行 `just install`。
+调用链为 `$setup-dotagents` → Python 链接脚本。脚本根据自身位置定位 checkout，也可从其他目录通过脚本绝对路径调用。日常应用配置不依赖 just、uv、第三方 Python 包或项目 `.venv`。
 
 setup 会自动定位当前 checkout，建立并核验软链接。已有正确链接会跳过，可以重复执行；遇到已有文件、目录或指向其他位置的链接时，会在创建前报告冲突，不自动覆盖。创建过程中若发生权限或 I/O 错误，可能保留已创建的链接，解决问题后重新执行即可。
 
@@ -36,7 +36,7 @@ setup 会自动定位当前 checkout，建立并核验软链接。已有正确�
 
 第三方 skills 由原安装工具管理，不纳入本仓库，也不由 setup 安装。
 
-`$setup-dotagents` 完成链接后，还会检查当前会话是否提供 `setup-matt-pocock-skills`。未发现时会建议安装 Matt Pocock 的 skill 套件，因为 dotagents 后续很多能力会围绕该套件构建。此检查不影响 setup 成功，也不自动安装；仅检查会话可用列表，不代表系统安装清单。直接运行 `just setup` 只处理软链接，不执行这项会话检查。
+`$setup-dotagents` 完成链接后，还会检查当前会话是否提供 `setup-matt-pocock-skills`。未发现时会建议安装 Matt Pocock 的 skill 套件，因为 dotagents 后续很多能力会围绕该套件构建。此检查不影响 setup 成功，也不自动安装；仅检查会话可用列表，不代表系统安装清单。直接运行 `setup.py` 只处理软链接，不执行这项会话检查。
 
 ## 加载关系
 
@@ -82,7 +82,7 @@ just install
 just gate-full
 ```
 
-宿主 uv/just 由 Homebrew 管理，项目 Python 补丁版本由 `.python-version` 固定，开发依赖由 `uv.lock` 锁定。`just install` 安装开发环境，`just setup` 应用个人配置。
+宿主 uv/just 由 Homebrew 管理，项目 Python 补丁版本由 `.python-version` 固定，开发依赖由 `uv.lock` 锁定。`just install` 安装开发环境；应用个人配置直接运行 setup skill 的 Python 脚本。
 
 | 命令 | 用途 |
 | --- | --- |

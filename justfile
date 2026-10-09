@@ -6,10 +6,6 @@ UV_MANAGED_PYTHON := "1"
 default:
     @just --list
 
-# 将当前 checkout 的个人规则与 skills 链接到用户目录。
-setup:
-    bash .agents/skills/setup-dotagents/scripts/setup.sh
-
 # 安装项目 Python，并按锁文件同步开发依赖；不升级宿主工具。
 install:
     uv python install "$(cat .python-version)"

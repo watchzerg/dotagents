@@ -3,36 +3,18 @@
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
-SCRIPT = Path(__file__).resolve().parents[1] / ".agents/skills/setup-dotagents/scripts/setup.sh"
-
-
-def test_just_setup_from_another_directory(checkout: Path, tmp_path: Path) -> None:
-    shutil.copyfile(Path(__file__).resolve().parents[1] / "justfile", checkout / "justfile")
-    home = tmp_path / "home"
-    env = os.environ.copy()
-    env["HOME"] = str(home)
-    env.pop("CODEX_HOME", None)
-    result = subprocess.run(
-        ["just", "--justfile", str(checkout / "justfile"), "setup"],
-        cwd=tmp_path,
-        env=env,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert result.returncode == 0, result.stdout + result.stderr
-    assert (home / ".codex/AGENTS.md").resolve() == checkout / "global/AGENTS.md"
-    assert (home / ".agents/skills/commit").resolve() == checkout / "skills/commit"
+SCRIPT = Path(__file__).resolve().parents[1] / ".agents/skills/setup-dotagents/scripts/setup.py"
 
 
 @pytest.fixture
 def checkout(tmp_path: Path) -> Path:
     root = tmp_path / "checkout with spaces"
-    script = root / ".agents/skills/setup-dotagents/scripts/setup.sh"
+    script = root / ".agents/skills/setup-dotagents/scripts/setup.py"
     script.parent.mkdir(parents=True)
     shutil.copyfile(SCRIPT, script)
     (root / "global").mkdir()
@@ -50,11 +32,13 @@ def run_setup(
 ) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     env["HOME"] = str(home)
+    # 只提供 Python 解释器绝对路径，验证不调用 just、Bash、uv 等外部命令。
+    env["PATH"] = ""
     env.pop("CODEX_HOME", None)
     if codex_home is not None:
         env["CODEX_HOME"] = str(codex_home)
     return subprocess.run(
-        ["/bin/bash", str(root / ".agents/skills/setup-dotagents/scripts/setup.sh")],
+        [sys.executable, "-I", "-S", str(root / ".agents/skills/setup-dotagents/scripts/setup.py")],
         cwd=root.parent,
         env=env,
         capture_output=True,
@@ -164,4 +148,14 @@ def test_parent_conflicts_reject_before_any_changes(
     before = tree_snapshot(home)
     result = run_setup(checkout, home)
     assert result.returncode != 0
+    assert tree_snapshot(home) == before
+
+
+def test_overlapping_codex_home_rejects_before_any_changes(checkout: Path, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    before = tree_snapshot(home)
+    result = run_setup(checkout, home, home / ".agents")
+    assert result.returncode != 0
+    assert "CODEX_HOME" in result.stderr
     assert tree_snapshot(home) == before
