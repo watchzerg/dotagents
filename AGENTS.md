@@ -20,7 +20,8 @@ dotagents/
 │   └── AGENTS.md          # 跨项目生效的用户级规则
 └── skills/
     ├── commit/           # 个人本地提交 skill
-    └── prune-tests/      # 个人测试精简 skill
+    ├── prune-tests/      # 个人测试精简 skill
+    └── setup-project/    # 项目初始化 skill（目前仅 Beads 初始化）
 ```
 
 ## 维护边界
