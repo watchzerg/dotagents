@@ -21,13 +21,13 @@ dotagents/
 └── skills/
     ├── commit/           # 个人本地提交 skill
     ├── prune-tests/      # 个人测试精简 skill
-    └── setup-project/    # 项目初始化 skill（目前仅 Beads 初始化）
+    └── setup-project/    # 项目初始化 skill（Beads、文档结构模板）
 ```
 
 ## 维护边界
 
 - 本文件只约束 dotagents 的维护；跨项目的个人规则写入 `global/AGENTS.md`。
-- `skills/` 只收录个人维护的 skills，每个 skill 独立成目录，以 `SKILL.md` 为入口，配套资源留在该目录内。
+- `skills/` 只收录个人维护的 skills，每个 skill 独立成目录，以 `SKILL.md` 为入口，配套资源留在该目录内。修改某个 skill 前先读其 `references/design.md`（如有），完成后把新的决策和待验收项记回该文件。
 - 通过 `npx skills` 安装的第三方 skills 由原安装工具管理，不搬入本仓库；系统 skills、插件缓存、认证信息及会话数据同样不纳入。
 - 修改仓库内的源文件，保留用户目录中的加载入口。移动或重命名已安装的文件、目录时，同步检查对应软链接；具体映射见 `README.md`。
 - 目录职责或加载关系发生变化时，同步更新本文件与 `README.md`，保持说明简洁一致。
