@@ -47,10 +47,6 @@ typecheck:
 test *args:
     uv run --locked python -m pytest "$@"
 
-# 单独校验全部个人 skills，使用与完整测试相同的校验入口。
-validate-skill:
-    uv run --locked python -m pytest tests/test_skills.py
-
 # 完整门禁不接受测试筛选参数，并清除外部 PYTEST_ADDOPTS。
 gate-full:
     just check-toolchain

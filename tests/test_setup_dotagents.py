@@ -8,13 +8,13 @@ from pathlib import Path
 
 import pytest
 
-SCRIPT = Path(__file__).resolve().parents[1] / ".agents/skills/setup-dotagents/scripts/setup.py"
+SCRIPT = Path(__file__).resolve().parents[1] / ".claude/skills/setup-dotagents/scripts/setup.py"
 
 
 @pytest.fixture
 def checkout(tmp_path: Path) -> Path:
     root = tmp_path / "checkout with spaces"
-    script = root / ".agents/skills/setup-dotagents/scripts/setup.py"
+    script = root / ".claude/skills/setup-dotagents/scripts/setup.py"
     script.parent.mkdir(parents=True)
     shutil.copyfile(SCRIPT, script)
     (root / "global").mkdir()
@@ -28,17 +28,17 @@ def checkout(tmp_path: Path) -> Path:
 
 
 def run_setup(
-    root: Path, home: Path, codex_home: Path | None = None
+    root: Path, home: Path, claude_dir: Path | None = None
 ) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     env["HOME"] = str(home)
     # 只提供 Python 解释器绝对路径，验证不调用 just、Bash、uv 等外部命令。
     env["PATH"] = ""
-    env.pop("CODEX_HOME", None)
-    if codex_home is not None:
-        env["CODEX_HOME"] = str(codex_home)
+    env.pop("CLAUDE_CONFIG_DIR", None)
+    if claude_dir is not None:
+        env["CLAUDE_CONFIG_DIR"] = str(claude_dir)
     return subprocess.run(
-        [sys.executable, "-I", "-S", str(root / ".agents/skills/setup-dotagents/scripts/setup.py")],
+        [sys.executable, "-I", "-S", str(root / ".claude/skills/setup-dotagents/scripts/setup.py")],
         cwd=root.parent,
         env=env,
         capture_output=True,
@@ -62,49 +62,48 @@ def tree_snapshot(root: Path) -> dict[str, tuple[str, str | bytes]]:
     return entries
 
 
-@pytest.mark.parametrize("custom_codex_home", [False, True])
+@pytest.mark.parametrize("custom_claude_dir", [False, True])
 def test_install_is_idempotent_and_preserves_third_party(
-    checkout: Path, tmp_path: Path, custom_codex_home: bool
+    checkout: Path, tmp_path: Path, custom_claude_dir: bool
 ) -> None:
     home = tmp_path / "home with spaces"
-    codex = home / ("custom codex" if custom_codex_home else ".codex")
+    claude = home / ("custom claude" if custom_claude_dir else ".claude")
     third_party = home / ".agents/skills/third-party"
     third_party.mkdir(parents=True)
     (third_party / "SKILL.md").write_text("原有第三方内容\n")
-    codex_third_party = codex / "skills/third-party"
-    codex_third_party.mkdir(parents=True)
-    (codex_third_party / "SKILL.md").write_text("原有 Codex 内容\n")
-    requested_codex = codex if custom_codex_home else None
+    claude_third_party = claude / "skills/third-party"
+    claude_third_party.mkdir(parents=True)
+    (claude_third_party / "SKILL.md").write_text("原有 Claude 内容\n")
+    requested_claude = claude if custom_claude_dir else None
 
-    result = run_setup(checkout, home, requested_codex)
+    result = run_setup(checkout, home, requested_claude)
     assert result.returncode == 0, result.stdout + result.stderr
     links = {
         home / ".agents/AGENTS.md": checkout / "global/AGENTS.md",
-        codex / "AGENTS.md": home / ".agents/AGENTS.md",
-        codex / "skills/prune-tests": checkout / "skills/prune-tests",
-        home / ".agents/skills/commit": checkout / "skills/commit",
-        home / ".agents/skills/another skill": checkout / "skills/another skill",
+        claude / "CLAUDE.md": home / ".agents/AGENTS.md",
     }
+    for name in ("commit", "prune-tests", "another skill"):
+        links[home / ".agents/skills" / name] = checkout / "skills" / name
+        links[claude / "skills" / name] = home / ".agents/skills" / name
     for target, source in links.items():
         assert target.is_symlink()
         assert os.readlink(target) == str(source)
-    for parent in (home / ".agents", home / ".agents/skills", codex, codex / "skills"):
+    for parent in (home / ".agents", home / ".agents/skills", claude, claude / "skills"):
         assert parent.is_dir() and not parent.is_symlink()
     assert not (home / ".agents/skills/not-a-skill").exists()
-    assert not (home / ".agents/skills/prune-tests").exists()
     assert (third_party / "SKILL.md").read_text() == "原有第三方内容\n"
-    assert (codex_third_party / "SKILL.md").read_text() == "原有 Codex 内容\n"
-    if custom_codex_home:
-        assert not (home / ".codex").exists()
+    assert (claude_third_party / "SKILL.md").read_text() == "原有 Claude 内容\n"
+    if custom_claude_dir:
+        assert not (home / ".claude").exists()
     before = tree_snapshot(home)
-    result = run_setup(checkout, home, requested_codex)
+    result = run_setup(checkout, home, requested_claude)
     assert result.returncode == 0, result.stdout + result.stderr
     assert tree_snapshot(home) == before
 
 
 @pytest.mark.parametrize(
     "relative_target",
-    [".agents/AGENTS.md", ".codex/AGENTS.md", ".agents/skills/commit", ".codex/skills/prune-tests"],
+    [".agents/AGENTS.md", ".claude/CLAUDE.md", ".agents/skills/commit", ".claude/skills/commit"],
 )
 @pytest.mark.parametrize("kind", ["file", "directory", "wrong-link", "dangling-link"])
 def test_target_conflicts_reject_before_any_changes(
@@ -130,7 +129,7 @@ def test_target_conflicts_reject_before_any_changes(
 
 
 @pytest.mark.parametrize(
-    "relative_parent", [".agents", ".agents/skills", ".codex", ".codex/skills"]
+    "relative_parent", [".agents", ".agents/skills", ".claude", ".claude/skills"]
 )
 @pytest.mark.parametrize("kind", ["file", "link"])
 def test_parent_conflicts_reject_before_any_changes(
@@ -151,11 +150,11 @@ def test_parent_conflicts_reject_before_any_changes(
     assert tree_snapshot(home) == before
 
 
-def test_overlapping_codex_home_rejects_before_any_changes(checkout: Path, tmp_path: Path) -> None:
+def test_overlapping_claude_dir_rejects_before_any_changes(checkout: Path, tmp_path: Path) -> None:
     home = tmp_path / "home"
     home.mkdir()
     before = tree_snapshot(home)
     result = run_setup(checkout, home, home / ".agents")
     assert result.returncode != 0
-    assert "CODEX_HOME" in result.stderr
+    assert "CLAUDE_CONFIG_DIR" in result.stderr
     assert tree_snapshot(home) == before
