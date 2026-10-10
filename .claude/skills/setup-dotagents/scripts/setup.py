@@ -14,10 +14,9 @@ def setup(repo_root: Path, user_home: Path, claude_dir: Path) -> None:
 
     agents_dir = user_home / ".agents"
     if claude_dir.resolve() == agents_dir.resolve():
-        raise ValueError("CLAUDE_CONFIG_DIR 与 ~/.agents 重合，无法建立两级链接。")
+        raise ValueError("CLAUDE_CONFIG_DIR 与 ~/.agents 重合，无法建立 skills 两级链接。")
     links = {
-        agents_dir / "AGENTS.md": repo_root / "global/AGENTS.md",
-        claude_dir / "CLAUDE.md": agents_dir / "AGENTS.md",
+        claude_dir / "CLAUDE.md": repo_root / "global/AGENTS.md",
     }
     parents = (agents_dir, agents_dir / "skills", claude_dir, claude_dir / "skills")
     for skill in sorted((repo_root / "skills").iterdir()):

@@ -31,7 +31,7 @@ setup 会自动定位当前 checkout，建立并核验软链接。已有正确�
 | 调用 | 作用 | 使用范围 |
 | --- | --- | --- |
 | [`/setup-dotagents`](.claude/skills/setup-dotagents/SKILL.md) | 将当前仓库的个人规则和 skills 应用到用户环境，检查并补齐加载入口。 | 仅本仓库 |
-| [`/commit`](skills/commit/SKILL.md) | 将当前仓库的现有变更提交为一个本地 commit；默认包含全部未忽略变更，不自动测试或 push。 | setup 后用户级可用 |
+| [`/commit`](skills/commit/SKILL.md) | 将当前仓库的现有变更提交为一个本地 commit；默认包含全部未忽略变更，不附署名行，不自动测试或 push。 | setup 后用户级可用 |
 | [`/prune-tests`](skills/prune-tests/SKILL.md) | 大幅精简测试，保留核心规则与主要流程的代表性用例，删除重复和非核心测试并验证结果。 | setup 后用户级可用 |
 | [`/setup-project`](skills/setup-project/SKILL.md) | 通过 Python 脚本初始化项目 Beads；skills 设置、文档结构和开发环境等后续步骤仍待讨论。 | setup 后用户级可用 |
 
@@ -45,12 +45,11 @@ setup 会自动定位当前 checkout，建立并核验软链接。已有正确�
 
 | 用户目录入口 | 软链接目标 |
 | --- | --- |
-| `~/.agents/AGENTS.md` | `global/AGENTS.md` |
-| `~/.claude/CLAUDE.md` | `~/.agents/AGENTS.md` |
+| `~/.claude/CLAUDE.md` | `global/AGENTS.md` |
 | `~/.agents/skills/<name>` | `skills/<name>` |
 | `~/.claude/skills/<name>` | `~/.agents/skills/<name>` |
 
-设置了 `CLAUDE_CONFIG_DIR` 时，表中的 `~/.claude` 改用该绝对路径。`skills/` 下每个含 `SKILL.md` 的目录都按 `<name>` 建立上述两级链接。
+设置了 `CLAUDE_CONFIG_DIR` 时，表中的 `~/.claude` 改用该绝对路径。`skills/` 下每个含 `SKILL.md` 的目录都按 `<name>` 建立上述两级链接；skills 经 `~/.agents/skills` 中转，与 `npx skills` 等工具的安装位置保持一致。
 
 skill 逐个链接，用户级 skills 父目录保持为普通目录，已有第三方 skills、系统 skills 和插件缓存保留。项目级 `setup-dotagents` 不安装到用户目录。
 
