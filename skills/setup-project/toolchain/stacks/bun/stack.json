@@ -1,0 +1,20 @@
+{
+  "label": "Bun",
+  "home_when_shared": "frontend",
+  "host_tools": "`mise`（Homebrew）",
+  "install": [
+    {"args": ["mise", "trust"], "cwd": "root"},
+    {"args": ["mise", "install"], "cwd": "root"},
+    {"args": ["mise", "lock"], "cwd": "root"},
+    {"args": ["mise", "exec", "--", "bun", "install"], "cwd": "home"}
+  ],
+  "cells": {
+    "install": "`mise install` 按 `mise.lock` 安装 Bun，`bun install --frozen-lockfile` 按 `{{HOME}}bun.lock` 安装依赖",
+    "fmt": "Biome 格式化并修复可自动修复的 lint",
+    "lint": "Biome 检查",
+    "typecheck": "`tsc --noEmit`",
+    "test": "传 `bun test` 参数定向，如文件路径或 `-t 名称`",
+    "core": "`{{HOME}}tests/core/`（`bun test --fail-on-empty tests/core`）",
+    "full": "`{{HOME}}tests/full/`"
+  }
+}

@@ -21,7 +21,7 @@ dotagents/
 └── skills/
     ├── commit/           # 个人本地提交 skill
     ├── prune-tests/      # 个人测试精简 skill
-    └── setup-project/    # 项目初始化 skill（Beads、文档结构模板）
+    └── setup-project/    # 项目初始化 skill（Beads、文档结构模板、工具链模板）
 ```
 
 ## 维护边界

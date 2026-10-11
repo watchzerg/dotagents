@@ -1,0 +1,15 @@
+{
+  "label": "Python（uv）",
+  "home_when_shared": ".",
+  "host_tools": "`uv`（Homebrew）",
+  "install": [{"args": ["uv", "sync"], "cwd": "home"}],
+  "cells": {
+    "install": "`uv sync --locked` 按 `uv.lock` 同步开发依赖",
+    "fmt": "Ruff 格式化并修复可自动修复的 lint",
+    "lint": "Ruff 检查与格式校验",
+    "typecheck": "ty 类型检查",
+    "test": "传 pytest 参数定向，如 `-k 表达式` 或文件路径",
+    "core": "`{{HOME}}tests/core/`（pytest `testpaths`）",
+    "full": "`{{HOME}}tests/full/`"
+  }
+}

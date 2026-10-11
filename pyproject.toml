@@ -19,10 +19,13 @@ dev = [
 minversion = "9.1"
 testpaths = ["tests", "skills"]
 addopts = ["--import-mode=importlib", "-ra", "--strict-config", "--strict-markers"]
+# toolchain/ 下是复制到目标项目的模板，不是本仓库的测试与配置。
+norecursedirs = [".*", "build", "dist", "node_modules", "toolchain"]
 
 [tool.ruff]
 target-version = "py314"
 line-length = 100
+extend-exclude = ["skills/setup-project/toolchain/stacks/uv/home"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]

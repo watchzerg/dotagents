@@ -1,0 +1,41 @@
+# 项目命令契约：check-toolchain、install、fmt、lint、typecheck、test、docs-check、gate-core、gate-full 是必需入口，名称与职责保持稳定。
+# 本项目没有预置 stack：下列 recipe 保持非零退出并说明原因，不能用空命令冒充通过。
+# 接入时保留 recipe 名与职责，把实现封装在 recipe 或其调用脚本内；定义见 docs/development/workflow.md。
+set positional-arguments
+
+# 列出项目命令。
+default:
+    @just --list
+
+# 工具链检查：核对本项目实际使用的运行时与版本声明。
+check-toolchain:
+    @echo '错误：check-toolchain 尚未接入本项目工具链；见 docs/development/workflow.md。' >&2; exit 1
+
+# 安装依赖。
+install:
+    @echo '错误：install 尚未接入本项目工具链；见 docs/development/workflow.md。' >&2; exit 1
+
+# 格式化并修复可自动修复的 lint；会修改文件，不属于门禁。
+fmt *paths=".":
+    @echo '错误：fmt 尚未接入本项目工具链；见 docs/development/workflow.md。' >&2; exit 1
+
+lint:
+    @echo '错误：lint 尚未接入本项目工具链；见 docs/development/workflow.md。' >&2; exit 1
+
+typecheck:
+    @echo '错误：typecheck 尚未接入本项目工具链；见 docs/development/workflow.md。' >&2; exit 1
+
+# 默认运行 core 测试；接入后可传参数定向。
+test *args:
+    @echo '错误：test 尚未接入本项目测试 runner；见 docs/development/workflow.md。' >&2; exit 1
+
+# 检查本地文档链接、锚点与模块可达性，不联网。
+docs-check:
+    python3 scripts/check_docs.py
+
+# 可跨 worktree 并行：工具链、文档、静态检查与全部 core 测试。
+gate-core: check-toolchain docs-check lint typecheck test
+
+# 完整验收：gate-core 后串行运行 full 测试。
+gate-full: gate-core
+    @echo '错误：full 测试入口尚未接入；见 docs/development/workflow.md。' >&2; exit 1

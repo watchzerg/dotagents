@@ -13,7 +13,7 @@
 | 1.1 Beads 初始化 | 已确定 | `scripts/init_beads.py` |
 | 1.2 Matt setup 检查 | 已确定 | 检查 `docs/agents/issue-tracker.md` 与 `domain.md` 存在；阶段 2 脚本重复检查 |
 | 2 文档结构 | 已确定，未经真实 agent 验收 | `templates/` + `scripts/init_docs.py` + SKILL.md 的合并与待填规则 |
-| 3 开发环境 | 待讨论 | 预期产出 justfile、工具链文件，并填入 `docs/development/` 与 `testing.md` 的待填位 |
+| 3 工具链与门禁 | 已确定，uv、bun、uv+bun、swift 四种新项目已在临时项目真实跑通 gate-core | `toolchain/stacks/` + `scripts/init_toolchain.py`；规范见 toolchain.md |
 
 ## 关键决策
 
@@ -27,16 +27,28 @@
 - **`<待填 时机：说明>` 协议**：初始化不编造项目内容，留显式标记并注明可填时机（初始化、阶段3、首个模块、按需）；AGENTS.md 常驻约束要求每次交付前搜索并按时机填写，全部消失后该条自删。不另建待填清单文件：grep 即清单，独立文件会漂移。这是空项目里让文档"逐步长出来"的机制，也是因为用户在初始化时同样答不出架构类问题，所以不向用户询问。
 - **AGENTS.md 只放指针**：触发表唯一，细则进正文；retro 产出的规则落 `CODING_STANDARDS.md`。
 
+- **已有文档全自动收敛**：非空项目上，标准结构之外的文档由只读子 agent 分类、主 agent 执行合并或迁移，无法归类的保留原位并在 `docs/INDEX.md` 登记，使重跑幂等。不做执行前确认：本 skill 不 commit，工作区就是审阅点；删除可由 git 恢复。放弃"把删除改为移入 `docs/changes/`"，因为会污染增量目录。
+
+- **从代码补写文档单独成步并派子 agent**：范围限于 `首个模块` 类标记、按模板的模块页，以及已有工具链时的 `阶段3` 类标记；只写代码可证实的内容，冲突记为已知差异，术语只报告不写。子 agent 直接写文件，因为模块页经主 agent 转写没有意义；主 agent 复核一致性与链接。
+
+- **工具链按文件证据判定，已有工具链不改动**：lockfile、工程文件或 justfile 存在即视为已有，只补依赖偏好进文档；判定不出时退出码 3 交用户多选。新项目才创建工具链文件并运行安装。
+- **工具链按 stack 模块化，不按组合枚举**：项目是 stack 的集合（uv、bun、swift），每个 stack 在 `toolchain/stacks/<name>/` 自包含（manifest、私有 recipe、文件、文档片段），脚本负责拼合：根 justfile 的公开契约 recipe 聚合各 stack 的私有 `<stack>-*` recipe，多 stack 时 `fmt`/`test` 以 stack 名作 scope；文档由公共正文加占位符与各 stack 片段拼成，多 stack 时片段加三级标题。放弃按 uv-bun 这类组合各写一份，因为偏好改一处要同步多处，且加 swift 后组合数爆炸。新增 stack 只需加一个目录并登记名字。
+- **门禁契约固定，实现可换**：所有项目共用同一组公开 recipe 名；没有预置 stack 的项目 recipe 非零退出而非留空，沿用 Beadwork 的"验证未实现必须失败"。core/full 的定义写进目标项目文档正文，不只放 justfile 注释。
+- **swift 新项目只落 SwiftPM package，不生成 Xcode 工程**：`.xcodeproj` 无法可靠模板化；core 测试用 Swift Testing 的 `CoreTests` target，应用壳由用户在 Xcode 创建后把 package 作本地依赖，再把 `swift-*` recipe 切到 `xcodebuild`。`swift test` 零匹配退出 0，所以 recipe 自己检查零匹配；`tests/full/` 需要同步在 Package.swift 声明 target，否则 SwiftPM 对空目录 target 每次构建都告警。
+- **full 目录出现即收录**：`tests/full/` 不存在时 gate-full 打印提示而非失败，存在而无测试则失败。避免新项目的 gate-full 因零收集长期红灯，同时不给 skip 留口子。
+- **模板目录从本仓库的 pytest 与 Ruff 中排除**：`toolchain/` 下的 `pyproject.toml` 与测试文件是复制到目标项目的模板，不是本仓库的配置与测试。
+- **技术偏好只进 stack 片段，项目特有内容不进模板**：x-media-saver 与 media-glance 的 structlog 接线、Chrome 扩展、libmpv、Docker、CI 不搬；搬的是工具链路线、依赖政策与新增依赖偏好清单。
+
 ## 明确不做
 
 - 不生成模块页、ADR、调研文件的实例；这些由 Matt 的 skills 或日常迭代惰性创建。
 - 不处理 `CLAUDE.md` 与 `AGENTS.md` 并存的合并，SKILL.md 只要求 agent 把块移到 AGENTS.md 并让 CLAUDE.md 指向它。
-- 不提供文档链接检查工具；这属于阶段 3 的 justfile。
 
 ## 待验收
 
 - 在一个真实新项目上让 agent 完整执行阶段 2 的第 2 到 4 步，检查合并是否保留用户内容、待填是否被编造。
-- 阶段 3 落地后回看 `testing.md`、`workflow.md`、`technology-stack.md` 的待填位是否够用。
+- 在已有工具链的真实项目（如 media-glance、x-media-saver）上跑阶段 3，检查依赖偏好的补写与缺少 recipe 的提示是否准确；两者的临时克隆已验证判定与零改动，但它们没有阶段 2 标记，补写路径只在测试中覆盖。
+- uv+swift、bun+swift 的组合只经过脚本测试，没有真实跑通；两者都在根目录时 `tests/core/` 会混放两种语言的测试文件。
 
 ## 演进记录
 
@@ -45,5 +57,9 @@
 | 2026-10-09 | 阶段 1.1 Beads 脚本 | beads-init-research.md |
 | 2026-10-11 | 阶段 2 文档结构：梳理 Matt skills 的全部读写路径，对比 x-media-saver 与 media-glance，确定目录树与渐进发现层次 | docs-structure.md |
 | 2026-10-11 | review 后补充：合并重复的路径表、`<待填>` 协议、讨论结论落点表、AGENTS.md 防膨胀约束、模块页创建时机 | docs-structure.md 持续维护机制一节 |
+| 2026-10-11 | 阶段 3：类型判定、四套工具链模板、justfile 契约、docs-check、文档正文替换；uv、bun、uv-bun 三种新项目真实跑通 gate-core | toolchain.md |
+| 2026-10-11 | 阶段 3 改为 stack 模块化：`--kind` 改 `--stacks` 多选，uv/bun 拆成独立模块并由脚本拼合 justfile 与文档，新增 swift stack（SwiftPM + swift-format + Swift Testing）；补回 x-media-saver 的通用偏好 | toolchain.md |
+| 2026-10-11 | 新增第 4 步从代码补写文档：范围、证据标准、子 agent 分派与复核 | document-code.md |
+| 2026-10-11 | 新增第 3 步收敛已有文档：候选范围、分类表、子 agent 简报与执行顺序 | converge-docs.md |
 | 2026-10-11 | 待填标记带时机前缀，常驻约束改为交付前主动扫描并自删，取消"询问用户"兜底 | 本文关键决策 |
 | 2026-10-11 | AGENTS.md 改为按节合并并移除 Matt 的 `## Agent skills` 块，triage 行随 `triage-labels.md` 存在与否 | 本文关键决策 |
