@@ -40,6 +40,7 @@ lint:
     uv run --locked ruff check .
     uv run --locked ruff format --check .
 
+# 用 ty 做类型检查。
 typecheck:
     uv run --locked ty check .
 

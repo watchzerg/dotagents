@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-SKILL = Path(__file__).resolve().parents[1]
+SKILL = Path(__file__).resolve().parents[2] / "skills/setup-project"
 SCRIPT = SKILL / "scripts/init_docs.py"
 TEMPLATES = SKILL / "templates"
 TEMPLATE_FILES = sorted(

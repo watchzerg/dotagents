@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-SKILL = Path(__file__).resolve().parents[1]
+SKILL = Path(__file__).resolve().parents[2] / "skills/setup-project"
 INIT_DOCS = SKILL / "scripts/init_docs.py"
 SCRIPT = SKILL / "scripts/init_toolchain.py"
 TOOLS = ("uv", "mise", "bun", "just", "swift")

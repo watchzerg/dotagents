@@ -1,6 +1,6 @@
 # setup-project 设计说明
 
-维护本 skill 前先读本文。记录目标、阶段状态、关键决策和演进，只写代码与 git 历史看不出的意图；结构细节见 [docs-structure.md](docs-structure.md)，Beads 依据见 [beads-init-research.md](beads-init-research.md)。
+维护 [`skills/setup-project`](../../../skills/setup-project/SKILL.md) 前先读本文。记录目标、阶段状态、关键决策和演进，只写代码与 git 历史看不出的意图；结构细节见 [docs-structure.md](../../../skills/setup-project/references/docs-structure.md)，Beads 依据见 [beads-init-research.md](beads-init-research.md)。
 
 ## 目标与边界
 
@@ -67,3 +67,4 @@
 | 2026-10-11 | 待填标记带时机前缀，常驻约束改为交付前主动扫描并自删，取消"询问用户"兜底 | 本文关键决策 |
 | 2026-10-11 | AGENTS.md 改为按节合并并移除 Matt 的 `## Agent skills` 块，triage 行随 `triage-labels.md` 存在与否 | 本文关键决策 |
 | 2026-10-12 | 运行时 Python 下限从 3.10 提到 3.14，移除 `from __future__ import annotations` | 本文关键决策 |
+| 2026-10-12 | 维护材料移出 skill 目录：测试移到 `tests/setup_project/`，本文与 beads-init-research.md 移到 `docs/skills/setup-project/`，skill 目录只保留运行时内容 | 根 AGENTS.md 三层结构 |

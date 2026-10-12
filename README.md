@@ -5,7 +5,7 @@
 ## clone 后怎么用
 
 1. 将本仓库 clone 到准备长期保留的位置，进入仓库目录。
-2. 确保已有 Python 3.14+；setup 仅使用标准库。
+2. 确保 `python3` 为 3.14+；setup 仅使用标准库。macOS 自带版本不满足，可用 `brew install uv && uv python install 3.14 --default` 或 `brew install python@3.14` 安装。
 3. 在本仓库中打开 Claude Code，调用：
 
    ```text
@@ -19,6 +19,7 @@
    ```
 
 4. 完成后开启新的 Claude Code 会话，验证个人规则和 skills 已加载。
+5. 切换到目标项目，先执行 `/setup-matt-pocock-skills`，再调用 `/setup-project` 初始化该项目；之后在各项目中按需使用 `/commit`、`/prune-tests` 等。
 
 调用链为 `/setup-dotagents` → Python 链接脚本。脚本根据自身位置定位 checkout，也可从其他目录通过脚本绝对路径调用。日常应用配置不依赖 just、uv、第三方 Python 包或项目 `.venv`。
 
@@ -58,20 +59,22 @@ skill 逐个链接，用户级 skills 父目录保持为普通目录，已有第
 ```text
 dotagents/
 ├── AGENTS.md                       # 本仓库的维护规则
-├── global/AGENTS.md                # 跨项目生效的个人规则
-├── .claude/skills/setup-dotagents/ # 项目级安装 skill 与脚本
-├── skills/                        # 用户级个人 skills
-│   ├── commit/
-│   ├── prune-tests/
-│   └── setup-project/
-├── tests/                         # 安装行为测试
-├── justfile
-├── .python-version
-├── pyproject.toml
-└── uv.lock
+├── README.md                       # 使用说明、加载入口和链接关系
+├── global/AGENTS.md                # 跨项目生效的个人规则，安装为用户级 CLAUDE.md
+├── .claude/skills/setup-dotagents/ # 项目级安装 skill 与链接脚本
+├── skills/                         # 用户级个人 skills，按目录软链接，只含运行时内容
+│   ├── commit/                     # 本地提交
+│   ├── prune-tests/                # 测试精简
+│   └── setup-project/              # 项目初始化（Beads、文档结构模板、工具链模板）
+├── docs/skills/<name>/             # 各 skill 的设计说明与调研，维护者阅读
+├── tests/                          # 安装器测试与各 skill 脚本测试（tests/<name>/）
+├── justfile                        # 安装、检查和测试入口
+├── .python-version                 # uv 管理的开发 Python 补丁版本
+├── pyproject.toml                  # 开发依赖与检查配置
+└── uv.lock                         # 开发依赖锁文件
 ```
 
-在本仓库修改源文件并通过 Git 管理；根目录 `AGENTS.md` 不安装为全局规则。仓库不保存认证信息、会话数据或运行缓存。
+在本仓库修改源文件并通过 Git 管理；根目录 `AGENTS.md` 不安装为全局规则。仓库维护、安装器、用户级内容三层的职责划分及维护约束见 [AGENTS.md](AGENTS.md)。仓库不保存认证信息、会话数据或运行缓存。
 
 ## 开发与验证
 
@@ -94,4 +97,4 @@ just gate-full
 | `just test` | 运行全部 pytest 测试 |
 | `just gate-full` | 顺序执行工具链、diff 格式、lint、类型检查及全部测试 |
 
-测试自动发现 `tests/` 与 `skills/` 中的 `test_*.py`、`*_test.py`。自动检查不代表真实 agent 工作流已完成验收。
+测试自动发现 `tests/` 中的 `test_*.py`、`*_test.py`；`skills/` 只含运行时内容，不放测试。自动检查不代表真实 agent 工作流已完成验收。

@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-SCRIPT = Path(__file__).resolve().parents[1] / "scripts/init_beads.py"
+SCRIPT = Path(__file__).resolve().parents[2] / "skills/setup-project/scripts/init_beads.py"
 
 
 @pytest.fixture
