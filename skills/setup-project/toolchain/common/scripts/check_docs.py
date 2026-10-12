@@ -4,6 +4,7 @@
 模块页（docs/architecture/modules/*.md）必须能从 docs/architecture/INDEX.md 沿链接到达。
 """
 
+import argparse
 import re
 import unicodedata
 from pathlib import Path
@@ -104,7 +105,15 @@ def check_documents(root: Path) -> tuple[list[str], int, int]:
 
 
 def main() -> int:
-    errors, documents, links = check_documents(Path(__file__).resolve().parents[1])
+    parser = argparse.ArgumentParser(description="检查文档的本地链接、锚点与模块可达性。")
+    parser.add_argument(
+        "root",
+        nargs="?",
+        help="项目根目录；默认是本脚本所在 scripts/ 的上级，从别处调用时传目标项目根",
+    )
+    args = parser.parse_args()
+    root = Path(args.root).resolve() if args.root else Path(__file__).resolve().parents[1]
+    errors, documents, links = check_documents(root)
     if errors:
         print("\n".join(errors))
         return 1

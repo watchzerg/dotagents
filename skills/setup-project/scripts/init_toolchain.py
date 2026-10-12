@@ -6,6 +6,7 @@
 （要复制的文件）、`gitignore`、`overlay/`（镜像项目根的文档正文片段）。脚本按文件证据判定 stack 集合；已有工具链的
 项目不改动工具链与 justfile，只把各 stack 的依赖偏好补进文档；新项目复制 stack 文件、拼出根
 justfile、运行安装命令，并用拼合后的正文替换阶段 2 留下的 `<待填 阶段3：…>` 标记。所有文件缺失才创建。
+`--detect-only` 只打印判定结果，供初始化流程在落地前一次性收集需要用户回答的问题；门禁不在本脚本内运行。
 """
 
 import argparse
@@ -372,6 +373,19 @@ def append_gitignore(project: Path, fragment: Path, report: dict) -> None:
     report["gitignore"].extend(missing)
 
 
+def report_justfile(project: Path) -> None:
+    """已有工具链时提示 justfile 缺少的契约 recipe，或没有 justfile。"""
+    justfile_path = project / "justfile"
+    if justfile_path.is_file():
+        missing = missing_recipes(justfile_path)
+        if missing:
+            print("提示：justfile 缺少契约 recipe：" + "、".join(missing) + "；建议补齐。")
+    else:
+        print(
+            "提示：项目已有工具链但没有 justfile；可参考 toolchain/stacks/*/recipes.just 建立命令契约。"
+        )
+
+
 def missing_recipes(justfile: Path) -> list[str]:
     names = set(
         re.findall(r"^([A-Za-z_][\w-]*)[^:\n]*:", justfile.read_text(encoding="utf-8"), re.M)
@@ -400,7 +414,12 @@ def main() -> int:
         help=f"项目使用的 stack，可多选：{' '.join(STACKS)}；没有预置 stack 时写 {NONE}。无法自动判定时必须指定",
     )
     parser.add_argument("--name", help="项目名，默认取当前目录名")
-    parser.add_argument("--skip-install", action="store_true", help="不运行安装命令与 gate-core")
+    parser.add_argument("--skip-install", action="store_true", help="不运行安装命令")
+    parser.add_argument(
+        "--detect-only",
+        action="store_true",
+        help="只打印 stack、模式、证据与 justfile 缺少的契约 recipe，不写任何文件",
+    )
     args = parser.parse_args()
 
     project = Path.cwd()
@@ -436,6 +455,10 @@ def main() -> int:
     print(
         f"stacks：{'、'.join(names) or '无预置'}；模式：{mode}；证据：{'、'.join(evidence) or '空项目'}"
     )
+    if args.detect_only:
+        if mode == "existing":
+            report_justfile(project)
+        return 0
 
     stacks = [Stack(name, shared=len(names) > 1) for name in names]
     name = args.name or project.name
@@ -486,19 +509,11 @@ def main() -> int:
         print(f"已填写 {item}")
 
     if mode == "existing":
-        justfile_path = project / "justfile"
-        if justfile_path.is_file():
-            missing = missing_recipes(justfile_path)
-            if missing:
-                print("提示：justfile 缺少契约 recipe：" + "、".join(missing) + "；建议补齐。")
-        else:
-            print(
-                "提示：项目已有工具链但没有 justfile；可参考 toolchain/stacks/*/recipes.just 建立命令契约。"
-            )
+        report_justfile(project)
         return 0
 
     if args.skip_install:
-        print("已跳过安装与 gate-core。")
+        print("已跳过安装。")
         return 0
     for stack in stacks:
         for step in stack.install:
@@ -507,9 +522,8 @@ def main() -> int:
             if code != 0:
                 print(f"错误：{' '.join(step['args'])} 退出码 {code}。", file=sys.stderr)
                 return code
-    code = run(["just", "gate-core"], project)
-    print("gate-core 通过。" if code == 0 else f"gate-core 失败，退出码 {code}。")
-    return code
+    print("安装完成；门禁由初始化流程末尾统一运行。")
+    return 0
 
 
 if __name__ == "__main__":

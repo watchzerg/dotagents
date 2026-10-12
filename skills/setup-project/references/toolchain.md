@@ -1,6 +1,6 @@
 # 工具链与门禁
 
-阶段 3 的规范：stack 判定、每个 stack 落地的文件与命令、脚本如何把多个 stack 拼成一个项目、`gate-core` 与 `gate-full` 的定义。偏好来源：x-media-saver（uv + Bun）与 media-glance（Swift）两个项目的实践，2026-10-11 提取。
+工具链落地（SKILL.md 阶段 1 第 3、5 步）与门禁（阶段 3）的规范：stack 判定、每个 stack 落地的文件与命令、脚本如何把多个 stack 拼成一个项目、`gate-core` 与 `gate-full` 的定义。偏好来源：x-media-saver（uv + Bun）与 media-glance（Swift）两个项目的实践，2026-10-11 提取。
 
 ## 模型：项目是 stack 的集合
 
@@ -29,6 +29,8 @@
 多个证据同时命中就是多 stack 项目。`--stacks` 可多选覆盖判定；`none` 表示没有预置 stack，不能与其他值同用。
 
 **模式**：任一强证据（lockfile、工程文件、`justfile`）存在即为已有工具链，脚本不创建工具链文件、不运行安装、不碰 justfile，只填 `technology-stack.md` 的"依赖政策"节（各 stack 片段拼合）。否则为新项目。
+
+`--detect-only` 只做判定并打印 stack、模式、证据与 existing 模式下 justfile 缺少的契约 recipe，不写文件，退出码与正式运行一致。初始化流程先用它收集需要用户回答的问题，与项目描述一起只问一次，再正式落地。
 
 ## 各 stack 落地
 
@@ -87,9 +89,11 @@ uv+bun 选"后端根目录、前端子目录"：后端是仓库主体，`uv run`
 
 这些定义写入目标项目的 `docs/development/workflow.md`、`technology-stack.md` 与 `docs/agents/testing.md`。
 
-## 让门禁初始化完即通过
+## 门禁在流程末尾统一运行
 
-每个 stack 各带一个真实的工具链测试（Python 版本符合 `.python-version`、Bun 版本符合 `mise.toml`、Xcode 版本符合 `.xcode-version`），避免空测试集让 `gate-core` 以零收集失败。初始化最后运行 `just gate-core`，结果进报告。
+每个 stack 各带一个真实的工具链测试（Python 版本符合 `.python-version`、Bun 版本符合 `mise.toml`、Xcode 版本符合 `.xcode-version`），避免空测试集让 `gate-core` 以零收集失败。`init_toolchain.py` 只落地与安装，不运行门禁：agent 之后还会收敛旧文档、补写模块页，门禁放在这些改动之后才能覆盖它们。新项目在流程末尾运行 `just docs-check` 与 `just gate-core`，结果进报告。
+
+已有工具链的项目不复制 `check_docs.py`，由流程末尾直接调用 skill 自带的副本并传项目根目录：`python3 <skill目录>/toolchain/common/scripts/check_docs.py .`。它只依赖标准库，检查范围与项目内副本相同。这类项目本次没有改代码，不运行其自身的门禁；补过 recipe 时只用 `just --list` 确认 justfile 可解析。
 
 ## 不在范围内
 

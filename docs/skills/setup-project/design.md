@@ -10,10 +10,11 @@
 
 | 阶段 | 状态 | 实现方式 |
 | --- | --- | --- |
-| 1.1 Beads 初始化 | 已确定 | `scripts/init_beads.py` |
-| 1.2 Matt setup 检查 | 已确定 | 检查 `docs/agents/issue-tracker.md` 与 `domain.md` 存在；阶段 2 脚本重复检查 |
-| 2 文档结构 | 已确定，未经真实 agent 验收 | `templates/` + `scripts/init_docs.py` + SKILL.md 的合并与待填规则 |
-| 3 工具链与门禁 | 已确定，uv、bun、uv+bun、swift 四种新项目已在临时项目真实跑通 gate-core | `toolchain/stacks/` + `scripts/init_toolchain.py`；规范见 toolchain.md |
+| Beads 初始化（阶段 1 第 1 步） | 已确定 | `scripts/init_beads.py` |
+| Matt setup 检查（阶段 0） | 已确定 | 检查 `docs/agents/issue-tracker.md` 与 `domain.md` 存在；`init_docs.py` 重复检查 |
+| 文档结构（阶段 1 第 2 步 + 阶段 2） | 已确定，未经真实 agent 验收 | `templates/` + `scripts/init_docs.py` + SKILL.md 的合并与待填规则 |
+| 工具链与门禁（阶段 1 第 3、5 步 + 阶段 3） | 已确定，uv、bun、uv+bun、swift 四种新项目已在临时项目真实跑通 gate-core（重排前由脚本运行，重排后由流程末尾运行，未重新真实验收） | `toolchain/stacks/` + `scripts/init_toolchain.py`；规范见 toolchain.md |
+| 流程编排 | 2026-10-12 重排为脚本先行、agent 后置、末尾统一验证；未经真实 agent 验收 | SKILL.md 四个阶段 |
 
 ## 关键决策
 
@@ -24,7 +25,7 @@
 - **`## Agent skills` 块压缩进触发表**：Matt 的 setup 是本 skill 的前置，之后不再重跑，其三个指针并入触发表后该块被脚本移除。若有人重跑 Matt setup 追加了新块，再跑本 skill 会再次移除。
 - **AGENTS.md 按节合并而非整文件跳过**：它与 Matt setup、用户共用，所以以二级标题为单位，缺的节追加、已有的节不动、标题外内容保留，重复运行无变更。其他模板文件只属于本 skill，整文件缺失才创建即可。
 - **不设 `archive/`、`plans/`、ADR 索引**：参考项目里的归档层来自 Beads 之前的遗留文档；新项目用 tracker 承载增量，git 承载历史。
-- **`<待填 时机：说明>` 协议**：初始化不编造项目内容，留显式标记并注明可填时机（初始化、阶段3、首个模块、按需）；AGENTS.md 常驻约束要求每次交付前搜索并按时机填写，全部消失后该条自删。不另建待填清单文件：grep 即清单，独立文件会漂移。这是空项目里让文档"逐步长出来"的机制，也是因为用户在初始化时同样答不出架构类问题，所以不向用户询问。
+- **`<待填 时机：说明>` 协议**：初始化不编造项目内容，留显式标记并注明可填时机（初始化、阶段3、首个模块、按需；`阶段3` 沿用为"工具链落地后"的标记名，不随 SKILL.md 的阶段编号变动）；AGENTS.md 常驻约束要求每次交付前搜索并按时机填写，全部消失后该条自删。不另建待填清单文件：grep 即清单，独立文件会漂移。这是空项目里让文档"逐步长出来"的机制，也是因为用户在初始化时同样答不出架构类问题，所以不向用户询问。
 - **AGENTS.md 只放指针**：触发表唯一，细则进正文；retro 产出的规则落 `CODING_STANDARDS.md`。
 
 - **已有文档全自动收敛**：非空项目上，标准结构之外的文档由只读子 agent 分类、主 agent 执行合并或迁移，无法归类的保留原位并在 `docs/INDEX.md` 登记，使重跑幂等。不做执行前确认：本 skill 不 commit，工作区就是审阅点；删除可由 git 恢复。放弃"把删除改为移入 `docs/changes/`"，因为会污染增量目录。
@@ -39,6 +40,10 @@
 - **模板目录从本仓库的 pytest 与 Ruff 中排除**：`toolchain/` 下的 `pyproject.toml` 与测试文件是复制到目标项目的模板，不是本仓库的配置与测试。
 - **implement-spec 门禁靠触发词、审查项与主机锁，不加常驻约束**：目标是并行 worktree 的 ticket 只跑 `gate-core`，最终集成跑 `gate-full`，新测试持续遵守分层。规则正文在 testing.md，由触发表“执行 `implement-spec`”命中；分层归属的把关写进 CODING_STANDARDS，让 implement-spec 末尾的 code-review 检查。不复制 x-media-saver 的 6 条长版（通用流程常识）与收录表（和分层表重复）。x-media-saver 的做法是 full 测试在 ticket 阶段只写不跑，代价是 red → green 对 full 缺失、问题堆到最后才发现、implementer 有动机绕过规则；本 skill 改为给 `test-full` 与 `gate-full` 加主机级 `flock`，implementer 可定向跑自己的 full 测试并自动排队。选主机级而非仓库级，因为桌面与端口是主机资源，且各 worktree 的编译产物都在自己目录内。
 - **技术偏好只进 stack 片段，项目特有内容不进模板**：x-media-saver 与 media-glance 的 structlog 接线、Chrome 扩展、libmpv、Docker、CI 不搬；搬的是工具链路线、依赖政策与新增依赖偏好清单。
+- **脚本先行，agent 后置，问题一次问完**：三个脚本（Beads、文档结构、工具链）连续运行，之后才做收敛旧文档、补写模块页等 agent 工作，最后统一跑文档检查与 `gate-core`。原先 agent 步骤夹在 `init_docs.py` 与 `init_toolchain.py` 之间，有三个问题：空项目是主用例，判定必然退出码 3，加上项目描述就要在两个时点打断用户两次；补写文档的子 agent 在 existing 模式会先填 `阶段3` 标记，脚本随后找不到标记而跳过依赖偏好；子 agent 看到的工具链正文还是标记。为此 `init_toolchain.py` 加 `--detect-only`，在落地前把 stack 问题和项目描述合成一次提问；脚本内的 `gate-core` 运行移除，门禁只有流程末尾一个入口，覆盖 agent 对文档的改动。
+- **收敛旧文档的执行也交子 agent**：原先只读子 agent 分类、主 agent 执行合并，但合并才是重活，要通读旧文档并以标准正文为骨架改写；与第 4 步"模块页经主 agent 转写没有意义"的理由相同，改为分类表返回后由可写子 agent 执行合并、迁移、移动、删除，主 agent 只做链接修正、索引登记、建票据与复核。分批时每批一个执行子 agent 并行，同一目标文件串行。
+- **existing 模式也做机械文档检查**：已有工具链项目不复制 `check_docs.py`，但收敛与补写恰是这类项目的主要产出，原先链接正确性只靠主 agent 复核。`check_docs.py` 加可选的根目录参数，流程末尾直接调用 skill 自带副本检查目标项目。不运行这类项目自身的门禁：本次没改代码，其红绿与初始化无关，补过 recipe 时只验证 justfile 可解析。
+- **缺少 recipe 的实现建议并入补写文档的子 agent**：它本来就要读 `pyproject.toml`、`package.json`、`justfile` 等配置，顺带返回建议，主 agent 落到 justfile，省一次独立分派。
 - **运行时 Python 下限为 3.14**：skill 脚本与复制到目标项目的 `check_docs.py`、`with_lock.py` 都按 3.14+ 标准库编写，可直接使用最新语法，不再为 macOS 自带的 3.9 加 `from __future__` 之类的兼容；宿主 `python3` 由 uv `--default` 提供。代价是缺少 3.14 的机器会在解析阶段报语法错误，而非给出友好提示。
 
 ## 明确不做
@@ -48,8 +53,9 @@
 
 ## 待验收
 
-- 在一个真实新项目上让 agent 完整执行阶段 2 的第 2 到 4 步，检查合并是否保留用户内容、待填是否被编造。
-- 在已有工具链的真实项目（如 media-glance、x-media-saver）上跑阶段 3，检查依赖偏好的补写与缺少 recipe 的提示是否准确；两者的临时克隆已验证判定与零改动，但它们没有阶段 2 标记，补写路径只在测试中覆盖。
+- 在一个真实新项目上让 agent 完整执行重排后的四个阶段，检查：提问是否只发生一次、合并是否保留用户内容、待填是否被编造、末尾 `gate-core` 是否通过。
+- 在有旧文档的真实项目上验证执行子 agent 的合并质量与分批并行时同一目标文件的串行处理。
+- 在已有工具链的真实项目（如 media-glance、x-media-saver）上跑 existing 模式，检查依赖偏好的补写、缺少 recipe 的建议与 skill 自带 `check_docs.py` 的检查是否准确；两者的临时克隆已验证判定与零改动，但它们没有 `<待填` 标记，补写路径只在测试中覆盖。
 - uv+swift、bun+swift 的组合只经过脚本测试，没有真实跑通；两者都在根目录时 `tests/core/` 会混放两种语言的测试文件。
 
 ## 演进记录
@@ -67,4 +73,5 @@
 | 2026-10-11 | 待填标记带时机前缀，常驻约束改为交付前主动扫描并自删，取消"询问用户"兜底 | 本文关键决策 |
 | 2026-10-11 | AGENTS.md 改为按节合并并移除 Matt 的 `## Agent skills` 块，triage 行随 `triage-labels.md` 存在与否 | 本文关键决策 |
 | 2026-10-12 | 运行时 Python 下限从 3.10 提到 3.14，移除 `from __future__ import annotations` | 本文关键决策 |
+| 2026-10-12 | 流程重排为脚本先行、agent 后置、末尾统一验证：`init_toolchain.py` 加 `--detect-only`、移除脚本内 `gate-core`；收敛执行交可写子 agent；`check_docs.py` 加根目录参数供 existing 模式调用；缺少 recipe 的建议并入补写子 agent；SKILL.md 删去复述脚本内部行为的段落 | 本文关键决策 |
 | 2026-10-12 | 维护材料移出 skill 目录：测试移到 `tests/setup_project/`，本文与 beads-init-research.md 移到 `docs/skills/setup-project/`，skill 目录只保留运行时内容 | 根 AGENTS.md 三层结构 |

@@ -86,6 +86,27 @@ def test_empty_project_asks_for_stacks(project: Path, bin_dir: Path) -> None:
     assert invocations(project) == []
 
 
+def test_detect_only_writes_nothing_and_reports(project: Path, bin_dir: Path) -> None:
+    before = {p.relative_to(project).as_posix() for p in project.rglob("*") if p.is_file()}
+    undetermined = run_script(project, bin_dir, "--detect-only")
+    assert undetermined.returncode == 3
+    chosen = run_script(project, bin_dir, "--detect-only", "--stacks", "uv", "bun")
+    assert chosen.returncode == 0, chosen.stderr
+    assert "stacks：uv、bun；模式：new" in chosen.stdout
+    assert "已创建" not in chosen.stdout
+    (project / "uv.lock").write_text("")
+    (project / "justfile").write_text("default:\n    @just --list\n\ntest *args:\n    pytest\n")
+    existing = run_script(project, bin_dir, "--detect-only")
+    assert existing.returncode == 0, existing.stderr
+    assert "stacks：uv；模式：existing" in existing.stdout
+    assert "缺少契约 recipe：check-toolchain、install" in existing.stdout
+    assert "已填写" not in existing.stdout
+    after = {p.relative_to(project).as_posix() for p in project.rglob("*") if p.is_file()}
+    assert after == before | {"uv.lock", "justfile"}
+    assert "<待填 阶段3" in (project / "docs/development/technology-stack.md").read_text()
+    assert invocations(project) == []
+
+
 def test_none_cannot_combine_with_stacks(project: Path, bin_dir: Path) -> None:
     result = run_script(project, bin_dir, "--stacks", "none", "uv")
     assert result.returncode == 2
@@ -137,9 +158,8 @@ def test_new_uv_project(project: Path, bin_dir: Path) -> None:
     stack = (project / "docs/development/technology-stack.md").read_text()
     assert "typer" in stack and "beautifulsoup4" in stack
     calls = invocations(project)
-    assert calls[0].startswith("uv sync |")
-    assert calls[-1].startswith("just gate-core |")
-    assert len(calls) == 2
+    assert len(calls) == 1 and calls[0].startswith("uv sync |")
+    assert "门禁由初始化流程末尾统一运行" in result.stdout
 
 
 def test_new_uv_project_rerun_is_noop(project: Path, bin_dir: Path) -> None:
@@ -188,7 +208,6 @@ def test_new_uv_bun_project_layout_commands_and_scopes(project: Path, bin_dir: P
         "mise install",
         "mise lock",
         "mise exec -- bun install",
-        "just gate-core",
     ]
     assert calls[4].endswith("/frontend")
 
@@ -229,7 +248,7 @@ def test_new_swift_project(project: Path, bin_dir: Path) -> None:
     assert "Xcode（App Store" in workflow and "`CoreTests` target" in workflow
     assert "Package.resolved" in (project / "docs/development/technology-stack.md").read_text()
     commands = [call.split(" | ")[0] for call in invocations(project)]
-    assert commands == ["swift package resolve", "just gate-core"]
+    assert commands == ["swift package resolve"]
 
 
 def test_existing_swift_project_gets_dependency_policy_only(project: Path, bin_dir: Path) -> None:
@@ -318,6 +337,13 @@ def test_check_docs_passes_on_initialized_project_and_catches_broken_links(
     assert bad.returncode == 1
     assert "链接目标不存在" in bad.stdout
     assert "架构入口不可达" in bad.stdout
+    from_skill = subprocess.run(
+        [sys.executable, "-I", str(SKILL / "toolchain/common/scripts/check_docs.py"), str(project)],
+        cwd=project.parent,
+        capture_output=True,
+        text=True,
+    )
+    assert from_skill.returncode == 1 and "架构入口不可达" in from_skill.stdout
 
 
 def test_with_lock_serializes_and_reports_holder(tmp_path: Path) -> None:
