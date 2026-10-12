@@ -55,3 +55,7 @@ gate-full:
     just lint
     just typecheck
     env -u PYTEST_ADDOPTS uv run --locked python -m pytest
+
+# 在临时项目上用 headless Claude Code 真实执行 /setup-project 并检查产物；不属于门禁，需要网络与模型额度。
+e2e-setup-project *args:
+    uv run --locked python -m tests.setup_project.e2e.run "$@"

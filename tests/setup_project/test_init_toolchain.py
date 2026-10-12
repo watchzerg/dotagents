@@ -296,7 +296,8 @@ def test_existing_swift_project_gets_dependency_policy_only(project: Path, bin_d
     assert result.returncode == 0, result.stderr
     assert "stacks：swift；模式：existing" in result.stdout
     assert not (project / "justfile").exists()
-    assert not (project / "scripts/check_docs.py").exists()
+    assert (project / "scripts/check_docs.py").is_file()
+    assert not (project / "scripts/with_lock.py").exists()
     assert not (project / ".swift-format").exists()
     stack = (project / "docs/development/technology-stack.md").read_text()
     assert "Package.resolved" in stack and "<待填 阶段3：语言版本" in stack
@@ -332,6 +333,23 @@ def test_none_new_project_installs_contract_justfile(project: Path, bin_dir: Pat
     assert stage3_markers(project) == {}
 
 
+def test_existing_project_keeps_user_check_docs(project: Path, bin_dir: Path) -> None:
+    (project / "uv.lock").write_text("")
+    (project / "scripts").mkdir()
+    (project / "scripts/check_docs.py").write_text("# mine\n")
+    result = run_script(project, bin_dir)
+    assert result.returncode == 0, result.stderr
+    assert (project / "scripts/check_docs.py").read_text() == "# mine\n"
+
+
+def test_project_name_comes_from_agents_heading(project: Path, bin_dir: Path) -> None:
+    agents = project / "AGENTS.md"
+    agents.write_text(agents.read_text().replace("# my project", "# Demo App", 1))
+    result = run_script(project, bin_dir, "--stacks", "uv", "--skip-install")
+    assert result.returncode == 0, result.stderr
+    assert 'name = "demo-app"' in (project / "pyproject.toml").read_text()
+
+
 def test_detects_stacks_from_lockfiles(project: Path, bin_dir: Path) -> None:
     (project / "uv.lock").write_text("")
     (project / "frontend").mkdir()
@@ -348,7 +366,9 @@ def test_existing_project_only_gets_dependency_preferences(project: Path, bin_di
     result = run_script(project, bin_dir)
     assert result.returncode == 0, result.stderr
     assert not (project / "pyproject.toml").exists()
-    assert not (project / "scripts/check_docs.py").exists()
+    assert (project / "scripts/check_docs.py").is_file()
+    assert "已创建 scripts/check_docs.py" in result.stdout
+    assert not (project / "scripts/with_lock.py").exists()
     assert (project / "justfile").read_text().startswith("default:\n")
     assert (project / "docs/development/workflow.md").read_text() == before_workflow
     stack = (project / "docs/development/technology-stack.md").read_text()

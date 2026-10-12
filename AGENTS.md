@@ -45,3 +45,4 @@
 - 局部 Python 修改先运行相关测试、`just lint` 和 `just typecheck`；工具链、目录结构或跨 skill 约定变化时运行 `just gate-full`。
 - `just gate-full` 顺序执行工具链检查、`git diff --check`、Ruff lint/format check、ty 和全部 pytest，首错停止。`just fmt` 会修改文件，不属于门禁。
 - 纯文档变更核对说明、路径与实际行为，按需执行 `git diff --check`。格式校验和自动测试不代表真实 agent 已完成 skill 工作流验收，交付时区分验证范围。
+- 真实 agent 验收用 `just e2e-setup-project`：在临时项目上以 headless 会话执行 skill，再做确定性检查与 reviewer 复核。它不属于门禁、不被 pytest 收集；修改 SKILL.md、references 或工具链模板后至少跑受影响的用例，做法见 `docs/skills/setup-project/e2e.md`。

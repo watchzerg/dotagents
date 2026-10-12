@@ -96,5 +96,6 @@ just gate-full
 | `just fmt` | 格式化并修复可自动修复的 lint |
 | `just test` | 运行全部 pytest 测试 |
 | `just gate-full` | 顺序执行工具链、diff 格式、lint、类型检查及全部测试 |
+| `just e2e-setup-project` | 在临时项目上用 headless Claude Code 真实执行 `/setup-project` 并检查产物；不属于门禁，见 [docs/skills/setup-project/e2e.md](docs/skills/setup-project/e2e.md) |
 
 测试自动发现 `tests/` 中的 `test_*.py`、`*_test.py`；`skills/` 只含运行时内容，不放测试。自动检查不代表真实 agent 工作流已完成验收。

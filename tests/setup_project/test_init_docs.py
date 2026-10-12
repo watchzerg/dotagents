@@ -172,6 +172,46 @@ def test_agents_merge_keeps_user_content_and_removes_matt_block(
     assert "已创建 AGENTS.md" not in result.stdout
 
 
+def test_agents_with_only_matt_block_gets_template_head(project: Path, bin_dir: Path) -> None:
+    (project / "AGENTS.md").write_text(MATT_BLOCK)
+    result = run_script(project, bin_dir)
+    assert result.returncode == 0, result.stderr
+    merged = (project / "AGENTS.md").read_text()
+    assert merged.startswith("# project with spaces\n\n<待填 初始化：")
+    assert "## Agent skills" not in merged and "## 常驻约束" in merged
+    assert "已为 AGENTS.md 补上模板开头" in result.stdout
+    second = run_script(project, bin_dir)
+    assert second.returncode == 0 and (project / "AGENTS.md").read_text() == merged
+
+
+def test_project_name_comes_from_agents_heading(project: Path, bin_dir: Path) -> None:
+    (project / "AGENTS.md").write_text("# 我的项目\n\n" + MATT_BLOCK)
+    result = run_script(project, bin_dir)
+    assert result.returncode == 0, result.stderr
+    assert (project / "README.md").read_text().startswith("# 我的项目\n")
+    assert (project / "GLOSSARY.md").read_text().startswith("# 我的项目\n")
+
+
+def test_blank_existing_file_is_filled_from_template(project: Path, bin_dir: Path) -> None:
+    (project / "README.md").write_text("")
+    (project / "GLOSSARY.md").write_text(" \n\n")
+    result = run_script(project, bin_dir)
+    assert result.returncode == 0, result.stderr
+    assert (project / "README.md").read_text().startswith("# project with spaces\n")
+    assert "<待填 初始化" in (project / "GLOSSARY.md").read_text()
+    assert "已创建 README.md" in result.stdout and "跳过 README.md" not in result.stdout
+    assert "仍含 初始化 标记：AGENTS.md、README.md、GLOSSARY.md" in result.stdout
+
+
+def test_reports_no_pending_init_markers_when_filled(project: Path, bin_dir: Path) -> None:
+    (project / "AGENTS.md").write_text("# 我的项目\n\n已有描述。\n\n" + MATT_BLOCK)
+    (project / "README.md").write_text("# 我的项目\n\n已有说明。\n")
+    (project / "GLOSSARY.md").write_text("# 我的项目\n\n已有词汇表。\n")
+    result = run_script(project, bin_dir)
+    assert result.returncode == 0, result.stderr
+    assert "仍含 初始化 标记：无" in result.stdout
+
+
 def test_agents_merge_is_idempotent(project: Path, bin_dir: Path) -> None:
     (project / "AGENTS.md").write_text("# 我的项目\n\n" + MATT_BLOCK)
     assert run_script(project, bin_dir).returncode == 0

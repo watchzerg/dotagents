@@ -1,6 +1,6 @@
 # 从代码补写文档
 
-阶段 2 第 4 步的执行规范：项目已有代码时，派子 agent 读取代码与配置，填写标准结构中依赖代码的部分。已有代码指阶段 1 之前就存在的源码；只有阶段 1 生成的示例模块与工具链测试时视为空项目，跳过。
+阶段 2 第 4 步的执行规范：项目已有代码时，派子 agent 读取代码与配置，填写标准结构中依赖代码的部分。已有代码指阶段 1 之前就存在的源码；只有阶段 1 生成的脚手架（示例模块、工具链测试、`scripts/` 下的检查与锁脚本、各 stack 的配置与锁文件）时视为空项目，跳过。
 
 ## 范围
 
@@ -8,7 +8,7 @@
 
 - `docs/architecture/INDEX.md` 与 `module-boundaries.md` 中的 `首个模块` 类标记。
 - `docs/architecture/modules/<module>.md`：按 `docs/agents/documentation.md` 的模块页模板，每个识别出的模块一篇。第 3 步收敛已建出的模块页只补充"代码与验证入口"与已知差异，不改写已合并的正文。
-- 项目已有工具链配置（`pyproject.toml`、`package.json`、`justfile`、CI 配置等）时，`docs/development/`、`docs/agents/testing.md`、`README.md` 中仍剩余的 `阶段3` 类标记。阶段 1 的 `init_toolchain.py` 已先行处理过一轮：`new` 模式下这些标记已全部替换，本步无事可做；`existing` 模式下脚本只填了 `technology-stack.md` 的"依赖政策"节，其余标记由本步从配置中读出填写。
+- 项目已有工具链配置（`pyproject.toml`、`package.json`、`justfile`、CI 配置等）时，`docs/development/`、`docs/agents/testing.md`、`README.md` 中仍剩余的 `阶段3` 类标记。阶段 1 的 `init_toolchain.py` 已先行处理过一轮：`new` 模式下这些标记已全部替换，本步无事可做；`existing` 模式下脚本只填了 `technology-stack.md` 的"依赖政策"节，其余标记由本步从配置中读出填写。正文只写配置里的现状；从配置看出的缺口（如 justfile 调用了未声明的依赖）写进返回结果，由主 agent 列入报告与票据候选，不写进"已选依赖"等正文。
 - 项目有 justfile 且阶段 1 报告缺少契约 recipe 时，为每个缺少的 recipe 给出用项目现有命令实现的建议，写在返回结果里，不改 justfile；写入由主 agent 在阶段 2 第 5 步完成。契约职责见 [toolchain.md](toolchain.md#命令契约)。
 - 发现的术语候选只列入报告，不写 `GLOSSARY.md`：术语取舍需要用户拍板。
 
@@ -21,7 +21,7 @@
 
 ## 子 agent
 
-派通用子 agent，非 Fable 模型，中等思考强度，允许写文件。简报必须包含：本文路径、`docs/agents/documentation.md` 路径、第 3 步收敛的文件清单、当前 `<待填` 标记清单、写入范围、阶段 1 报告的缺少 recipe 清单（如有）。代码量大时按顶层目录分派多个子 agent 并行，各自只写自己范围的模块页；架构总览、模块边界与模块地图由主 agent 汇总填写。
+派通用子 agent，非 Fable 模型，允许写文件。简报必须包含：本文路径、`docs/agents/documentation.md` 路径、第 3 步收敛的文件清单、当前 `<待填` 标记清单、写入范围、阶段 1 报告的缺少 recipe 清单（如有）。代码量大时按顶层目录分派多个子 agent 并行，各自只写自己范围的模块页；架构总览、模块边界与模块地图由主 agent 汇总填写。
 
 子 agent 返回：写入的文件、填写的标记、记录的已知差异、术语候选、缺少 recipe 的实现建议、仍未填的标记及原因。
 

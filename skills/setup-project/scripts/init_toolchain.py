@@ -4,7 +4,7 @@
 项目由零到多个 stack 组成（uv、bun、swift），每个 stack 是 `toolchain/stacks/<name>/` 下的自包含模块：
 `stack.json`（标签、布局、安装命令、文档表格单元）、`recipes.just`（私有 recipe）、`home/` 与 `root/`
 （要复制的文件）、`gitignore`、`overlay/`（镜像项目根的文档正文片段）。脚本按文件证据判定 stack 集合；已有工具链的
-项目不改动工具链与 justfile，只把各 stack 的依赖偏好补进文档；新项目复制 stack 文件、拼出根
+项目不改动工具链与 justfile，只补缺 `scripts/check_docs.py` 并把各 stack 的依赖偏好补进文档；新项目复制 stack 文件、拼出根
 justfile、运行安装命令，并用拼合后的正文替换 init_docs.py 留下的 `<待填 阶段3：…>` 标记。所有文件缺失才创建。
 `--detect-only` 只打印判定结果，供初始化流程在落地前一次性收集需要用户回答的问题；门禁不在本脚本内运行。
 """
@@ -406,6 +406,30 @@ def missing_recipes(justfile: Path) -> list[str]:
     return [name for name in REQUIRED_RECIPES if name not in names]
 
 
+def heading_title(text: str) -> str | None:
+    """二级标题之前的一级标题，没有则 None；代码块内的不算。"""
+    preamble, _ = split_sections(text)
+    fenced = False
+    for line in preamble.splitlines():
+        if line.startswith("```"):
+            fenced = not fenced
+        elif not fenced and line.startswith("# "):
+            return line[2:].strip() or None
+    return None
+
+
+def project_name(project: Path, override: str | None) -> str:
+    """项目名：--name，否则 AGENTS.md 的一级标题，否则目录名；与 init_docs.py 一致。"""
+    if override:
+        return override
+    agents = project / "AGENTS.md"
+    if agents.is_file():
+        title = heading_title(agents.read_text(encoding="utf-8"))
+        if title:
+            return title
+    return project.name
+
+
 def dist_name(name: str) -> str:
     cleaned = re.sub(r"[^A-Za-z0-9]+", "-", name).strip("-").lower()
     return cleaned or "project"
@@ -474,7 +498,7 @@ def main() -> int:
         return 0
 
     stacks = [Stack(name, shared=len(names) > 1) for name in names]
-    name = args.name or project.name
+    name = project_name(project, args.name)
     placeholders = {
         "{{PROJECT_NAME}}": name,
         "{{DIST_NAME}}": dist_name(name),
@@ -494,6 +518,15 @@ def main() -> int:
         else:
             justfile = (TOOLCHAIN / "none/justfile").read_text(encoding="utf-8")
         write_generated(project / "justfile", justfile, report)
+    else:
+        # 已有工具链的项目不碰工具链文件，唯一例外是文档检查脚本：它只用标准库、与 stack 无关，
+        # 而文档正是本流程在这类项目上的主要产出；缺失才补，供 agent 写出可用的 docs-check recipe。
+        copy_file(
+            TOOLCHAIN / "common/scripts/check_docs.py",
+            project / "scripts/check_docs.py",
+            placeholders,
+            report,
+        )
 
     if stacks:
         docs = compose_docs(stacks, {**placeholders, **doc_placeholders(stacks)})
