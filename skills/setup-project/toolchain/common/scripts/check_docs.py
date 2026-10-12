@@ -4,8 +4,6 @@
 模块页（docs/architecture/modules/*.md）必须能从 docs/architecture/INDEX.md 沿链接到达。
 """
 
-from __future__ import annotations
-
 import re
 import unicodedata
 from pathlib import Path

@@ -19,6 +19,6 @@
 ## implement-spec 项目覆盖规则
 
 1. 主 agent 派发前读取本节，将本节与分层合同的链接传给 implementer、merger 和后续修复 agent。
-2. implementer 在自己的 worktree 内运行 core 范围的定向 red → green 验证；报告完成前在包含最新 integration branch 的代码上通过完整 core 门禁。
-3. full 测试的执行延后到最终集成验证；报告列出已运行的命令和结果，以及尚未运行的 full 测试与入口，不将延后测试记作已完成。
+2. implementer 在自己的 worktree 内运行 core 范围的定向 red → green 验证；报告完成前在包含最新 integration branch 的代码上通过完整 core 门禁。本 ticket 的 full 测试可用 `just test-full` 定向运行观察 red → green（入口带主机锁，自动排队，等待不是失败）；不直接调用底层 runner 运行 full 测试。
+3. 无筛选的完整 full 验证留到最终集成；报告列出已运行的命令和结果，以及尚未运行的 full 测试与入口，不把定向通过记作整体验收。
 4. 所有 ticket 合并、code-review 修复完成后，主 agent 在最终 integration branch 运行无筛选的完整门禁。通过前不关闭 spec、不将 PR 标记为 ready。

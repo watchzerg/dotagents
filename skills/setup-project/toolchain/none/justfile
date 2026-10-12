@@ -1,5 +1,6 @@
 # 项目命令契约：check-toolchain、install、fmt、lint、typecheck、test、docs-check、gate-core、gate-full 是必需入口，名称与职责保持稳定。
 # 本项目没有预置 stack：下列 recipe 保持非零退出并说明原因，不能用空命令冒充通过。
+# 接入 full 测试时让 test-full 与 gate-full 经 scripts/with_lock.py 的主机锁串行。
 # 接入时保留 recipe 名与职责，把实现封装在 recipe 或其调用脚本内；定义见 docs/development/workflow.md。
 set positional-arguments
 
@@ -28,6 +29,10 @@ typecheck:
 # 默认运行 core 测试；接入后可传参数定向。
 test *args:
     @echo '错误：test 尚未接入本项目测试 runner；见 docs/development/workflow.md。' >&2; exit 1
+
+# 运行 full 测试，经主机锁串行；接入后可传参数定向。
+test-full *args:
+    @echo '错误：test-full 尚未接入本项目测试 runner；见 docs/development/workflow.md。' >&2; exit 1
 
 # 检查本地文档链接、锚点与模块可达性，不联网。
 docs-check:

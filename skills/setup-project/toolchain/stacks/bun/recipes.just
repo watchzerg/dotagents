@@ -42,14 +42,14 @@ bun-test *args:
 bun-test-core:
     cd {{HOME_DIR}} && mise exec -- bun run test
 
-# tests/full 目录出现即纳入，存在而无测试视为失败。
+# tests/full 目录出现即纳入，存在而无测试视为失败；可传 bun test 参数定向。只经 test-full 或 gate-full 调用。
 [private]
-bun-test-full:
+bun-test-full *args:
     #!/usr/bin/env bash
     set -euo pipefail
     cd {{HOME_DIR}}
     if [ -d tests/full ]; then
-      mise exec -- bun test --fail-on-empty tests/full
+      mise exec -- bun test --fail-on-empty tests/full "$@"
     else
       echo '提示：{{HOME}}tests/full 不存在，{{LABEL}} 尚无 full 测试。'
     fi

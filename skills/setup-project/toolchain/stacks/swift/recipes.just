@@ -63,8 +63,9 @@ swift-test-core:
     @just swift-run-tests --filter CoreTests
 
 # tests/full 目录出现即纳入；目录存在但 Package.swift 未声明 FullTests 或零匹配视为失败。
+# 可传 swift test 参数定向（默认 --filter FullTests）。只经 test-full 或 gate-full 调用。
 [private]
-swift-test-full:
+swift-test-full *args:
     #!/usr/bin/env bash
     set -euo pipefail
     if [ ! -d {{HOME}}tests/full ]; then
@@ -72,4 +73,5 @@ swift-test-full:
       exit 0
     fi
     grep -q 'name: "FullTests"' {{HOME}}Package.swift || { echo '错误：{{HOME}}tests/full 已存在，但 Package.swift 未声明 FullTests target。' >&2; exit 1; }
-    just swift-run-tests --filter FullTests
+    if [ "$#" -eq 0 ]; then set -- --filter FullTests; fi
+    just swift-run-tests "$@"

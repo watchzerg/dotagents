@@ -32,7 +32,7 @@ dotagents/
 - 修改仓库内的源文件，保留用户目录中的加载入口。移动或重命名已安装的文件、目录时，同步检查对应软链接；具体映射见 `README.md`。
 - 目录职责或加载关系发生变化时，同步更新本文件与 `README.md`，保持说明简洁一致。
 
-- `.claude/skills/` 收录只在本仓库使用的项目级 skills；`setup-dotagents` 直接调用其 `scripts/setup.py`，不安装到用户目录。应用配置只依赖 Python 3.10+ 标准库，与依赖 uv/just 的开发环境分开。
+- `.claude/skills/` 收录只在本仓库使用的项目级 skills；`setup-dotagents` 直接调用其 `scripts/setup.py`，不安装到用户目录。应用配置只依赖 Python 3.14+ 标准库，与依赖 uv/just 的开发环境分开。
 
 ## 开发环境
 

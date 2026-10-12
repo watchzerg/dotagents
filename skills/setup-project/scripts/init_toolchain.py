@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""使用 Python 3.10+ 标准库初始化项目工具链、justfile 与开发文档。
+"""使用 Python 3.14+ 标准库初始化项目工具链、justfile 与开发文档。
 
 项目由零到多个 stack 组成（uv、bun、swift），每个 stack 是 `toolchain/stacks/<name>/` 下的自包含模块：
 `stack.json`（标签、布局、安装命令、文档表格单元）、`recipes.just`（私有 recipe）、`home/` 与 `root/`
@@ -7,8 +7,6 @@
 项目不改动工具链与 justfile，只把各 stack 的依赖偏好补进文档；新项目复制 stack 文件、拼出根
 justfile、运行安装命令，并用拼合后的正文替换阶段 2 留下的 `<待填 阶段3：…>` 标记。所有文件缺失才创建。
 """
-
-from __future__ import annotations
 
 import argparse
 import json
@@ -31,11 +29,12 @@ REQUIRED_RECIPES = (
     "lint",
     "typecheck",
     "test",
+    "test-full",
     "docs-check",
     "gate-core",
     "gate-full",
 )
-DISPATCHED = ("fmt", "test")
+LOCK = "python3 scripts/with_lock.py "
 AGGREGATED = {
     "check-toolchain": "# 工具链检查：核对各运行时与版本声明，不安装。",
     "install": "# 按 lock 安装依赖；不升级宿主工具。",
@@ -55,7 +54,8 @@ EXISTING_SECTIONS = {"docs/development/technology-stack.md": {"依赖政策"}}
 JUSTFILE_HEADER = """\
 # 项目命令契约：check-toolchain、install、fmt、lint、typecheck、test、docs-check、gate-core、gate-full 是必需入口，名称与职责保持稳定。
 # 验证不修改源码；fmt 是修改文件的入口。缺失能力须非零退出，不能用空命令冒充通过。
-# 公开 recipe 聚合各 stack 的私有 recipe（<stack>-*）；测试分层与门禁定义见 docs/development/workflow.md。
+# 公开 recipe 聚合各 stack 的私有 recipe（<stack>-*）；full 测试经 scripts/with_lock.py 的主机锁串行。
+# 测试分层与门禁定义见 docs/development/workflow.md。
 set positional-arguments
 
 # 列出项目命令。
@@ -232,24 +232,34 @@ def compose_docs(stacks: list[Stack], placeholders: dict[str, str]) -> dict[str,
     }
 
 
-def dispatch_recipe(name: str, stacks: list[Stack], comment: str) -> str:
+def all_target(name: str, stacks: list[Stack]) -> str:
+    """无参数时要运行的目标：单 stack 是其私有 recipe，多 stack 是私有聚合 recipe `<name>-all`。"""
+    return f"{stacks[0].name}-{name}" if len(stacks) == 1 else f"{name}-all"
+
+
+def dispatch_recipe(name: str, stacks: list[Stack], comment: str, prefix: str = "") -> str:
+    """公开 recipe 转发到各 stack 的私有 `<stack>-<name>`；多 stack 时第一个参数是 scope。
+
+    可变参数 recipe 会把命令行上后续的 recipe 名当作参数，所以多 stack 的"全部"路径经依赖式聚合
+    recipe 执行，而不是 `just a-x b-x`。
+    """
     names = [stack.name for stack in stacks]
     if len(names) == 1:
-        return f'{comment}\n{name} *args:\n    @just {names[0]}-{name} "$@"\n'
-    each = "\n".join(f"      just {n}-{name}" for n in names)
+        return f'{comment}\n{name} *args:\n    {prefix}just {names[0]}-{name} "$@"\n'
+    aggregate = f"[private]\n{name}-all: {' '.join(f'{n}-{name}' for n in names)}\n"
     return (
         f"{comment}\n"
         f"{name} *args:\n"
         "    #!/usr/bin/env bash\n"
         "    set -euo pipefail\n"
         '    if [ "$#" -eq 0 ]; then\n'
-        f"{each}\n"
-        "      exit 0\n"
+        f"      exec {prefix}just {name}-all\n"
         "    fi\n"
         '    case "$1" in\n'
-        f'      {"|".join(names)}) scope="$1"; shift; just "${{scope}}-{name}" "$@" ;;\n'
+        f'      {"|".join(names)}) scope="$1"; shift; exec {prefix}just "${{scope}}-{name}" "$@" ;;\n'
         f"      *) echo '错误：scope 必须是 {' 或 '.join(names)}。' >&2; exit 2 ;;\n"
-        "    esac\n"
+        "    esac\n\n"
+        f"{aggregate}"
     )
 
 
@@ -269,6 +279,15 @@ def render_justfile(stacks: list[Stack], placeholders: dict[str, str]) -> str:
             )
         elif recipe == "test":
             parts.append(dispatch_recipe("test", stacks, "# 默认运行全部 core 测试；传参可定向。"))
+        elif recipe == "test-full":
+            parts.append(
+                dispatch_recipe(
+                    "test-full",
+                    stacks,
+                    "# 运行 full 测试，经主机锁串行；默认全部，传参可定向。目录不存在时只打印提示。",
+                    LOCK,
+                )
+            )
         elif recipe == "docs-check":
             parts.append(
                 "# 检查本地文档链接、锚点与模块可达性，不联网。\ndocs-check:\n    python3 scripts/check_docs.py\n"
@@ -280,8 +299,8 @@ def render_justfile(stacks: list[Stack], placeholders: dict[str, str]) -> str:
             )
         elif recipe == "gate-full":
             parts.append(
-                "# 完整验收：gate-core 后串行运行各 stack 的 tests/full；目录出现即纳入，存在而无测试视为失败。\n"
-                f"gate-full: gate-core {deps('test-full')}\n"
+                "# 完整验收：gate-core 后在主机锁内串行运行各 stack 的 tests/full；目录出现即纳入，存在而无测试视为失败。\n"
+                f"gate-full: gate-core\n    {LOCK}just {all_target('test-full', stacks)}\n"
             )
     for stack in stacks:
         recipes = (stack.dir / "recipes.just").read_text(encoding="utf-8")

@@ -37,9 +37,9 @@
 | uv | 根目录 | `.python-version`（minor line）、`pyproject.toml`（Ruff、ty、pytest，`package = false`）、`tests/core/test_toolchain.py` | `uv sync` |
 | bun | 单独时根目录，与其他 stack 同在时 `frontend/`；`mise.toml` 始终在根 | `mise.toml`（Bun 版本 line）、`package.json`、`biome.json`、`tsconfig.json`、`scripts/check-bun.ts`、`tests/core/toolchain.test.ts` | `mise trust`、`mise install`、`mise lock`、`bun install`（在 home） |
 | swift | 根目录 | `.xcode-version`（major line）、`.swift-format`、`Package.swift`（library target + `CoreTests` target 指向 `tests/core`）、`Sources/<Module>/<Module>.swift`、`tests/core/ToolchainTests.swift` | `swift package resolve` |
-| 无预置 | 不落工具链文件 | `toolchain/none/justfile` 与 `scripts/check_docs.py` | 无 |
+| 无预置 | 不落工具链文件 | `toolchain/none/justfile`、`scripts/check_docs.py` 与 `scripts/with_lock.py` | 无 |
 
-工具链走 Homebrew → uv → Python、Homebrew → mise → Bun、Xcode 自带 Swift 工具链；Ruff/ty/pytest、Biome/`tsc --noEmit`/`bun test`、swift-format/`swift build`/Swift Testing 是各自的检查器与 runner。`scripts/check_docs.py` 对所有新项目复制，只依赖 Python 3.9+ 标准库，recipe 用 `python3` 调用。所有文件缺失才创建。
+工具链走 Homebrew → uv → Python、Homebrew → mise → Bun、Xcode 自带 Swift 工具链；Ruff/ty/pytest、Biome/`tsc --noEmit`/`bun test`、swift-format/`swift build`/Swift Testing 是各自的检查器与 runner。`scripts/check_docs.py` 与 `scripts/with_lock.py` 对所有新项目复制，只依赖 Python 3.14+ 标准库，recipe 用 `python3` 调用。所有文件缺失才创建。
 
 uv+bun 选"后端根目录、前端子目录"：后端是仓库主体，`uv run` 与 `pyproject.toml` 在根目录最顺手；前端是独立构建的产物，子目录边界清楚。swift 新项目只落 SwiftPM package：`.xcodeproj` 无法可靠模板化，应用壳由用户在 Xcode 创建后把 package 作本地依赖，再把 `swift-*` recipe 切到 `xcodebuild`。
 
@@ -50,10 +50,11 @@ uv+bun 选"后端根目录、前端子目录"：后端是仓库主体，`uv run`
 | recipe | 生成方式 |
 | --- | --- |
 | `check-toolchain`、`install`、`lint`、`typecheck` | 依赖列表：`lint: uv-lint bun-lint` |
-| `fmt *args`、`test *args` | 单 stack 直接转发 `just uv-fmt "$@"`；多 stack 无参数时逐个执行，有参数时第一个参数是 scope（stack 名），其余转发 |
+| `fmt *args`、`test *args` | 单 stack 直接转发 `just uv-fmt "$@"`；多 stack 无参数时执行私有聚合 recipe `fmt-all: uv-fmt bun-fmt`，有参数时第一个参数是 scope（stack 名），其余转发。不能写 `just uv-fmt bun-fmt`：可变参数 recipe 会把后一个名字当参数吞掉 |
 | `docs-check` | `python3 scripts/check_docs.py` |
 | `gate-core` | `check-toolchain docs-check lint typecheck` + 各 `<stack>-test-core` |
-| `gate-full` | `gate-core` + 各 `<stack>-test-full` |
+| `test-full *args` | 同 `fmt`/`test` 的转发，但整条命令包在 `python3 scripts/with_lock.py` 里 |
+| `gate-full` | 依赖 `gate-core`，正文 `with_lock.py just test-full-all`（单 stack 直接是 `<stack>-test-full`） |
 
 私有 recipe 标 `[private]`，`just --list` 只显示契约。stack 顺序固定为 uv、bun、swift，与 `--stacks` 的书写顺序无关。
 
@@ -70,6 +71,7 @@ uv+bun 选"后端根目录、前端子目录"：后端是仓库主体，`uv run`
 | `fmt` | 唯一修改文件的入口，不属于门禁 |
 | `lint`、`typecheck` | 静态检查 |
 | `test [scope] [参数]` | 默认全部 core 测试，传参定向；多 stack 时先写 scope |
+| `test-full [scope] [参数]` | full 测试，经主机锁串行；默认全部，传参定向 |
 | `docs-check` | 文档链接、锚点、模块页可达性 |
 | `gate-core` | check-toolchain → docs-check → lint → typecheck → 全部 core 测试，首错停止 |
 | `gate-full` | gate-core 后串行运行全部 full 测试 |
@@ -80,6 +82,7 @@ uv+bun 选"后端根目录、前端子目录"：后端是仓库主体，`uv run`
 
 - **core**：各 stack home 下的 `tests/core/`。单元测试和轻量、结果确定的测试，秒级完成；不启动真实服务、数据库、浏览器或桌面会话，不执行 E2E；不依赖共享可变状态、固定端口、桌面焦点。因此 `gate-core` 可在多个 worktree 并行运行。
 - **full**：各 stack home 下的 `tests/full/`。重型、真实基础设施集成、E2E 与独占资源测试；尽量隔离，无法隔离的串行；同一主机排队。目录出现即被 `gate-full` 收录，目录存在而无测试视为失败，目录不存在时打印提示。swift 的 `tests/full/` 需要同步在 `Package.swift` 声明 `FullTests` target，recipe 会检查。
+- **主机锁**：full 测试占用端口、桌面等主机资源，不同 worktree 的编译产物各在自己目录内，真正共享的只有主机。`scripts/with_lock.py` 用 `fcntl.flock` 锁 `~/.cache/gate-full.lock`（`GATE_LOCK_FILE` 可覆盖），`test-full` 与 `gate-full` 都经它运行，私有 `<stack>-test-full` 不再加锁以免重入。等待时每 30 秒打印持有者，`--timeout` 超时退出码 75 表示稍后重试。按主机而非按仓库加锁，因为桌面焦点和固定端口是主机级资源；代价是不相关项目的 full 也会排队。锁只覆盖 `just` 入口，直接调底层 runner 仍能绕过，这一条留给文档约束与 code-review。
 - 两个门禁不接受筛选参数；不得用 skip、收集过滤或弱化断言让门禁通过，零匹配不是通过。`swift test` 零匹配只告警，recipe 自行判为失败；`bun test` 用 `--fail-on-empty`；pytest 零收集本身非零。
 
 这些定义写入目标项目的 `docs/development/workflow.md`、`technology-stack.md` 与 `docs/agents/testing.md`。

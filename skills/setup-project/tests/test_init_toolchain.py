@@ -5,6 +5,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -120,8 +121,10 @@ def test_new_uv_project(project: Path, bin_dir: Path) -> None:
     assert {"uv-check-toolchain", "uv-test-core", "uv-test-full"} <= names
     text = justfile.read_text()
     assert "gate-core: check-toolchain docs-check lint typecheck uv-test-core" in text
-    assert "gate-full: gate-core uv-test-full" in text
-    assert 'test *args:\n    @just uv-test "$@"' in text
+    assert "gate-full: gate-core\n    python3 scripts/with_lock.py just uv-test-full\n" in text
+    assert 'test *args:\n    just uv-test "$@"' in text
+    assert 'test-full *args:\n    python3 scripts/with_lock.py just uv-test-full "$@"' in text
+    assert (project / "scripts/with_lock.py").is_file()
     assert "{{" not in text
     assert stage3_markers(project) == {}
     workflow = (project / "docs/development/workflow.md").read_text()
@@ -162,8 +165,11 @@ def test_new_uv_bun_project_layout_commands_and_scopes(project: Path, bin_dir: P
     assert "node_modules/" in (project / ".gitignore").read_text()
     text = (project / "justfile").read_text()
     assert "check-toolchain: uv-check-toolchain bun-check-toolchain" in text
-    assert "gate-full: gate-core uv-test-full bun-test-full" in text
-    assert 'uv|bun) scope="$1"; shift; just "${scope}-test" "$@" ;;' in text
+    assert "gate-full: gate-core\n    python3 scripts/with_lock.py just test-full-all\n" in text
+    assert "test-full-all: uv-test-full bun-test-full" in text
+    assert "fmt-all: uv-fmt bun-fmt" in text and "exec just test-all" in text
+    assert 'uv|bun) scope="$1"; shift; exec just "${scope}-test" "$@" ;;' in text
+    assert 'exec python3 scripts/with_lock.py just "${scope}-test-full" "$@" ;;' in text
     assert "cd frontend && mise exec -- bun install --frozen-lockfile" in text
     assert "{{" not in text
     testing = (project / "docs/agents/testing.md").read_text()
@@ -258,7 +264,7 @@ def test_none_new_project_installs_contract_justfile(project: Path, bin_dir: Pat
     assert result.returncode == 0, result.stderr
     assert "stacks：无预置；模式：new" in result.stdout
     justfile = (project / "justfile").read_text()
-    assert "尚未接入" in justfile and "gate-full: gate-core" in justfile
+    assert "尚未接入" in justfile and "gate-full: gate-core" in justfile and "test-full" in justfile
     assert (project / "scripts/check_docs.py").is_file()
     workflow = (project / "docs/development/workflow.md").read_text()
     assert "<待填 阶段3：宿主工具与安装方式>" in workflow
@@ -289,7 +295,7 @@ def test_existing_project_only_gets_dependency_preferences(project: Path, bin_di
     stack = (project / "docs/development/technology-stack.md").read_text()
     assert "typer" in stack and "<待填 阶段3：语言版本" in stack
     assert (
-        "缺少契约 recipe：check-toolchain、install、fmt、lint、typecheck、docs-check、gate-core、gate-full"
+        "缺少契约 recipe：check-toolchain、install、fmt、lint、typecheck、test-full、docs-check、gate-core、gate-full"
         in result.stdout
     )
     assert invocations(project) == []
@@ -312,3 +318,41 @@ def test_check_docs_passes_on_initialized_project_and_catches_broken_links(
     assert bad.returncode == 1
     assert "链接目标不存在" in bad.stdout
     assert "架构入口不可达" in bad.stdout
+
+
+def test_with_lock_serializes_and_reports_holder(tmp_path: Path) -> None:
+    lock = SKILL / "toolchain/common/scripts/with_lock.py"
+    env = {**os.environ, "GATE_LOCK_FILE": str(tmp_path / "gate.lock")}
+    holder = subprocess.Popen(
+        [sys.executable, "-I", str(lock), "sh", "-c", "sleep 3"],
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    try:
+        deadline = time.monotonic() + 5
+        while (
+            "pid=" not in (tmp_path / "gate.lock").read_text()
+            if (tmp_path / "gate.lock").exists()
+            else True
+        ):
+            assert time.monotonic() < deadline, "持有者未写入锁文件"
+            time.sleep(0.05)
+        waiter = subprocess.run(
+            [sys.executable, "-I", str(lock), "--timeout", "0.5", "sh", "-c", "echo got-lock"],
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        assert waiter.returncode == 75
+        assert "稍后重试" in waiter.stderr and "cmd=sh -c sleep 3" in waiter.stderr
+        assert "got-lock" not in waiter.stdout
+    finally:
+        holder.wait(timeout=10)
+    after = subprocess.run(
+        [sys.executable, "-I", str(lock), "sh", "-c", "echo got-lock; exit 7"],
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert after.returncode == 7 and "got-lock" in after.stdout

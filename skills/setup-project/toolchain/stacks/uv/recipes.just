@@ -45,14 +45,14 @@ uv-test *args:
 uv-test-core:
     cd {{HOME_DIR}} && env -u PYTEST_ADDOPTS uv run --locked python -m pytest
 
-# tests/full 目录出现即纳入，存在而无测试视为失败。
+# tests/full 目录出现即纳入，存在而无测试视为失败；可传 pytest 参数定向。只经 test-full 或 gate-full 调用。
 [private]
-uv-test-full:
+uv-test-full *args:
     #!/usr/bin/env bash
     set -euo pipefail
     cd {{HOME_DIR}}
     if [ -d tests/full ]; then
-      env -u PYTEST_ADDOPTS uv run --locked python -m pytest tests/full
+      env -u PYTEST_ADDOPTS uv run --locked python -m pytest tests/full "$@"
     else
       echo '提示：{{HOME}}tests/full 不存在，{{LABEL}} 尚无 full 测试。'
     fi

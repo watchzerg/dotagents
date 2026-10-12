@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
-"""使用 Python 3.10+ 标准库把标准化文档结构复制到当前项目。
+"""使用 Python 3.14+ 标准库把标准化文档结构复制到当前项目。
 
 除 AGENTS.md 外的文件缺失才创建，已有文件一律不覆盖。AGENTS.md 按二级标题合并：
 缺少的节追加，已有的节与标题外内容原样保留，Matt setup 写入的 `## Agent skills` 节移除。
 """
-
-from __future__ import annotations
 
 import argparse
 import subprocess

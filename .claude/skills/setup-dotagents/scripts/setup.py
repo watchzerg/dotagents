@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""使用 Python 3.10+ 标准库建立并核验用户级加载入口。"""
+"""使用 Python 3.14+ 标准库建立并核验用户级加载入口。"""
 
 import os
 import sys

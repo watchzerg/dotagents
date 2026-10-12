@@ -7,7 +7,7 @@ description: 将当前 dotagents checkout 的个人规则和 skills 通过软链
 
 直接执行 `python3 "<skill-dir>/scripts/setup.py"`，其中 `<skill-dir>` 为本 `SKILL.md` 所在目录的绝对路径。脚本根据自身位置定位 checkout，可从任意工作目录调用，不使用写死的机器路径。
 
-- 运行时只需要 Python 3.10+ 标准库，不依赖 just、uv、第三方包或项目 `.venv`。缺少合适的 Python 时说明缺失，不自动安装或升级宿主工具。
+- 运行时只需要 Python 3.14+ 标准库，不依赖 just、uv、第三方包或项目 `.venv`。缺少合适的 Python 时说明缺失，不自动安装或升级宿主工具。
 - 用户要求执行 setup 即授权建立缺失的用户级链接。
 - 脚本先检查全部入口：正确链接跳过，冲突时退出且不开始创建。遇到冲突，报告路径与现状，等待用户决定如何处理，不删除、覆盖或移动已有内容。
 - 保持脚本定义的链接映射，不链接仓库根目录的 `AGENTS.md`，不整体替换用户 skills 父目录，也不把本安装 skill 安装到用户目录。

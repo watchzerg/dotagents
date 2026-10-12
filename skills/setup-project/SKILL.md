@@ -59,7 +59,7 @@ stack 判定、各 stack 落什么、拼合规则与门禁定义见 [references/
    python3 "<skill目录>/scripts/init_toolchain.py"
    ```
 
-   脚本按文件证据判定项目由哪些 stack 组成（uv、bun、swift 的任意组合，或没有预置 stack）并区分模式：**已有工具链**（存在 lockfile、justfile 或其他语言的工程文件）只把各 stack 的依赖偏好补进 `docs/development/technology-stack.md`，不创建任何工具链文件，并列出 justfile 缺少的契约 recipe；**新项目**复制各 stack 的工具链文件与工具链测试，拼出根 `justfile`（公开契约 recipe 聚合各 stack 的私有 `<stack>-*` recipe），复制 `scripts/check_docs.py`，追加 `.gitignore`，运行安装命令，用拼合后的正文替换 `<待填 阶段3：…>` 标记，最后运行 `just gate-core`。退出码 3 表示无法判定。
+   脚本按文件证据判定项目由哪些 stack 组成（uv、bun、swift 的任意组合，或没有预置 stack）并区分模式：**已有工具链**（存在 lockfile、justfile 或其他语言的工程文件）只把各 stack 的依赖偏好补进 `docs/development/technology-stack.md`，不创建任何工具链文件，并列出 justfile 缺少的契约 recipe；**新项目**复制各 stack 的工具链文件与工具链测试，拼出根 `justfile`（公开契约 recipe 聚合各 stack 的私有 `<stack>-*` recipe），复制 `scripts/check_docs.py` 与 `scripts/with_lock.py`（full 测试的主机锁），追加 `.gitignore`，运行安装命令，用拼合后的正文替换 `<待填 阶段3：…>` 标记，最后运行 `just gate-core`。退出码 3 表示无法判定。
 
 2. 退出码 3 时向用户多选：uv、bun、swift 可任意组合，没有预置 stack 选 none；然后带 `--stacks <答案>` 重跑（如 `--stacks uv bun`）。不替用户选。
 

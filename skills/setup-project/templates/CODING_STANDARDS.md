@@ -8,6 +8,7 @@ code-review 按本文评审 diff。只写工具查不出的判断类标准；可
 - 同一规则只有一处实现，调用方消费而不复制。
 - 新抽象必须比直接实现更简单；为未来需求预留的参数、hook 和层应删除。
 - 命名使用 [GLOSSARY.md](GLOSSARY.md) 的术语，不引入术语表明确避免的同义词。
+- 新增或移动的测试归属正确：core 不启动真实服务、不占固定端口或桌面；full 已放入 `tests/full/` 并被 `gate-full` 收录。分层标准见 [docs/agents/testing.md](docs/agents/testing.md#分层)。
 
 ## 项目特定
 

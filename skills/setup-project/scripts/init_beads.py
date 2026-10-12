@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""使用 Python 3.10+ 标准库初始化项目 Beads。"""
+"""使用 Python 3.14+ 标准库初始化项目 Beads。"""
 
 import shutil
 import subprocess

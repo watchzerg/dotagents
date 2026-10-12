@@ -37,7 +37,9 @@
 - **swift 新项目只落 SwiftPM package，不生成 Xcode 工程**：`.xcodeproj` 无法可靠模板化；core 测试用 Swift Testing 的 `CoreTests` target，应用壳由用户在 Xcode 创建后把 package 作本地依赖，再把 `swift-*` recipe 切到 `xcodebuild`。`swift test` 零匹配退出 0，所以 recipe 自己检查零匹配；`tests/full/` 需要同步在 Package.swift 声明 target，否则 SwiftPM 对空目录 target 每次构建都告警。
 - **full 目录出现即收录**：`tests/full/` 不存在时 gate-full 打印提示而非失败，存在而无测试则失败。避免新项目的 gate-full 因零收集长期红灯，同时不给 skip 留口子。
 - **模板目录从本仓库的 pytest 与 Ruff 中排除**：`toolchain/` 下的 `pyproject.toml` 与测试文件是复制到目标项目的模板，不是本仓库的配置与测试。
+- **implement-spec 门禁靠触发词、审查项与主机锁，不加常驻约束**：目标是并行 worktree 的 ticket 只跑 `gate-core`，最终集成跑 `gate-full`，新测试持续遵守分层。规则正文在 testing.md，由触发表“执行 `implement-spec`”命中；分层归属的把关写进 CODING_STANDARDS，让 implement-spec 末尾的 code-review 检查。不复制 x-media-saver 的 6 条长版（通用流程常识）与收录表（和分层表重复）。x-media-saver 的做法是 full 测试在 ticket 阶段只写不跑，代价是 red → green 对 full 缺失、问题堆到最后才发现、implementer 有动机绕过规则；本 skill 改为给 `test-full` 与 `gate-full` 加主机级 `flock`，implementer 可定向跑自己的 full 测试并自动排队。选主机级而非仓库级，因为桌面与端口是主机资源，且各 worktree 的编译产物都在自己目录内。
 - **技术偏好只进 stack 片段，项目特有内容不进模板**：x-media-saver 与 media-glance 的 structlog 接线、Chrome 扩展、libmpv、Docker、CI 不搬；搬的是工具链路线、依赖政策与新增依赖偏好清单。
+- **运行时 Python 下限为 3.14**：skill 脚本与复制到目标项目的 `check_docs.py`、`with_lock.py` 都按 3.14+ 标准库编写，可直接使用最新语法，不再为 macOS 自带的 3.9 加 `from __future__` 之类的兼容；宿主 `python3` 由 uv `--default` 提供。代价是缺少 3.14 的机器会在解析阶段报语法错误，而非给出友好提示。
 
 ## 明确不做
 
@@ -58,8 +60,10 @@
 | 2026-10-11 | 阶段 2 文档结构：梳理 Matt skills 的全部读写路径，对比 x-media-saver 与 media-glance，确定目录树与渐进发现层次 | docs-structure.md |
 | 2026-10-11 | review 后补充：合并重复的路径表、`<待填>` 协议、讨论结论落点表、AGENTS.md 防膨胀约束、模块页创建时机 | docs-structure.md 持续维护机制一节 |
 | 2026-10-11 | 阶段 3：类型判定、四套工具链模板、justfile 契约、docs-check、文档正文替换；uv、bun、uv-bun 三种新项目真实跑通 gate-core | toolchain.md |
+| 2026-10-12 | 对照 x-media-saver 的 implement-spec 门禁提交：触发表加“执行 `implement-spec`”、CODING_STANDARDS 加测试分层审查项；否决其余 4 条通用行为约束进模板。新增 `test-full` 契约与 `scripts/with_lock.py` 主机锁，full 测试可在 ticket 阶段定向运行 | toolchain.md 主机锁 |
 | 2026-10-11 | 阶段 3 改为 stack 模块化：`--kind` 改 `--stacks` 多选，uv/bun 拆成独立模块并由脚本拼合 justfile 与文档，新增 swift stack（SwiftPM + swift-format + Swift Testing）；补回 x-media-saver 的通用偏好 | toolchain.md |
 | 2026-10-11 | 新增第 4 步从代码补写文档：范围、证据标准、子 agent 分派与复核 | document-code.md |
 | 2026-10-11 | 新增第 3 步收敛已有文档：候选范围、分类表、子 agent 简报与执行顺序 | converge-docs.md |
 | 2026-10-11 | 待填标记带时机前缀，常驻约束改为交付前主动扫描并自删，取消"询问用户"兜底 | 本文关键决策 |
 | 2026-10-11 | AGENTS.md 改为按节合并并移除 Matt 的 `## Agent skills` 块，triage 行随 `triage-labels.md` 存在与否 | 本文关键决策 |
+| 2026-10-12 | 运行时 Python 下限从 3.10 提到 3.14，移除 `from __future__ import annotations` | 本文关键决策 |

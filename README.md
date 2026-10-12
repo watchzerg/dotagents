@@ -5,7 +5,7 @@
 ## clone 后怎么用
 
 1. 将本仓库 clone 到准备长期保留的位置，进入仓库目录。
-2. 确保已有 Python 3.10+；setup 仅使用标准库。
+2. 确保已有 Python 3.14+；setup 仅使用标准库。
 3. 在本仓库中打开 Claude Code，调用：
 
    ```text
