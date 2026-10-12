@@ -56,7 +56,13 @@ def write(path: Path, text: str) -> None:
 
 def apply_matt(project: Path, triage: bool) -> None:
     """模拟 setup-matt-pocock-skills 的产物：docs/agents 三件套加 Agent skills 块。"""
-    shutil.copy(FIXTURES / "matt/docs/agents/issue-tracker.md", _mk(project / "docs/agents"))
+    tracker = (FIXTURES / "matt/docs/agents/issue-tracker.md").read_text(encoding="utf-8")
+    if not triage:
+        # 没装 triage 时 Matt setup 不会写标签映射，tracker 文件里也不会引用它。
+        tracker = "".join(
+            line for line in tracker.splitlines(keepends=True) if "triage-labels.md" not in line
+        )
+    write(_mk(project / "docs/agents") / "issue-tracker.md", tracker)
     shutil.copy(FIXTURES / "matt/docs/agents/domain.md", project / "docs/agents")
     if triage:
         shutil.copy(FIXTURES / "matt/docs/agents/triage-labels.md", project / "docs/agents")

@@ -319,9 +319,10 @@ def test_other_toolchain_without_stack_is_existing_and_untouched(
 
 
 def test_none_new_project_installs_contract_justfile(project: Path, bin_dir: Path) -> None:
-    result = run_script(project, bin_dir, "--stacks", "none", "--skip-install")
+    result = run_script(project, bin_dir, "--stacks", "none")
     assert result.returncode == 0, result.stderr
     assert "stacks：无预置；模式：new" in result.stdout
+    assert "无安装命令" in result.stdout and "安装完成" not in result.stdout
     justfile = (project / "justfile").read_text()
     assert "尚未接入" in justfile and "gate-full: gate-core" in justfile and "test-full" in justfile
     assert (project / "scripts/check_docs.py").is_file()

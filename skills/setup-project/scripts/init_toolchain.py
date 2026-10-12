@@ -572,7 +572,10 @@ def main() -> int:
                     file=sys.stderr,
                 )
                 return 1
-    print("安装完成；门禁由初始化流程末尾统一运行。")
+    if any(stack.install for stack in stacks):
+        print("安装完成；门禁由初始化流程末尾统一运行。")
+    else:
+        print("无安装命令；门禁由初始化流程末尾统一运行。")
     return 0
 
 
