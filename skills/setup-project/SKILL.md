@@ -66,9 +66,9 @@ description: 按个人模板初始化新项目的 Beads、标准化文档结构�
 
 3. **收敛已有文档**：按 [references/converge-docs.md](references/converge-docs.md#候选范围) 列出四类候选：标准结构之外的文档，`AGENTS.md` 里模板节之外的全部二级节（含第 1 步从 `CLAUDE.md` 并入的），`docs/research/` 直接子级的验收与交付记录，以及章节与模板不一致的已有模块页；没有候选则跳过。有候选时先派只读子 agent 分类，再派可写子 agent 按分类表执行合并与迁移，主 agent 修正链接、登记索引、建票据、填可填标记。不 commit，用户提交前自行审阅工作区。
 
-4. **从代码补写文档**：已有代码指阶段 1 之前就存在的源码，即 `existing` 模式，或 `new` 模式下脚手架之外的源码；只有阶段 1 生成的脚手架（示例模块、工具链测试、`scripts/` 下的检查与锁脚本、各 stack 的配置与锁文件）时视为空项目，跳过。有代码时按 [references/document-code.md](references/document-code.md) 派可写子 agent 读取代码与配置，填写架构总览与模块边界的 `首个模块` 类标记、按模板建模块页；`existing` 模式下同时填写剩余的 `阶段3` 类标记，并为阶段 1 列出的缺少 recipe 返回实现建议；主 agent 随后把脚本写入的"依赖政策"与 `AGENTS.md` 常驻约束对照，与约束冲突的偏好条目（如项目禁止 ORM 而清单推荐 `sqlalchemy`）删去并在报告说明。空项目跳过。
+4. **从代码补写文档**：已有代码指阶段 1 之前就存在的源码，即 `existing` 模式，或 `new` 模式下脚手架之外的源码；只有阶段 1 生成的脚手架（示例模块、工具链测试、`scripts/` 下的检查与锁脚本、各 stack 的配置与锁文件）时视为空项目，跳过。有代码时按 [references/document-code.md](references/document-code.md) 派可写子 agent 读取代码与配置，填写架构总览与模块边界的 `首个模块` 类标记、按模板建模块页；`existing` 模式下同时填写剩余的 `阶段3` 类标记，并为阶段 1 列出的缺少 recipe 返回实现建议；主 agent 随后把脚本写入的"依赖政策"与 `AGENTS.md` 常驻约束对照，与约束冲突的偏好条目（如项目禁止 ORM 而清单推荐 `sqlalchemy`）删去并在报告说明。空项目跳过；第 3 步已把 `首个模块` 与 `阶段3` 标记全部填完、模块页齐全且没有缺少的 recipe 时也跳过，报告写明依据。
 
-5. **补齐缺少的契约 recipe**（仅 `existing` 模式且项目有 justfile）：先用 `just --summary` 核对脚本列出的 recipe 确实不存在（脚本按文本匹配，`import` 进来的 recipe 看不到），再按 [references/toolchain.md](references/toolchain.md#命令契约) 和上一步的建议写入 justfile，用项目现有命令实现；`docs-check` 用阶段 1 补上的 `python3 scripts/check_docs.py` 实现；`check-toolchain` 不得使用会同步环境的命令，参考各 stack 的 `recipes.just`；`test-full` 把项目现有的 full 测试命令包进 `python3 scripts/with_lock.py`；没有对应能力的 recipe 写成非零退出并说明原因。已有 recipe 只做两种改动：给已有的 `gate-core` 追加 `check-toolchain docs-check` 依赖，给已有的 `gate-full` 或 full 测试入口包上主机锁；其正文与其他已有 recipe 不动。脚本提示项目没有 justfile 时不创建，把提示写进报告。
+5. **补齐缺少的契约 recipe**（仅 `existing` 模式且项目有 justfile）：先用 `just --summary` 核对脚本列出的 recipe 确实不存在（脚本按文本匹配，`import` 进来的 recipe 看不到），再按 [references/toolchain.md](references/toolchain.md#命令契约) 和上一步的建议写入 justfile，用项目现有命令实现；`docs-check` 用阶段 1 补上的 `python3 scripts/check_docs.py` 实现；`check-toolchain` 不得使用会同步环境的命令，参考各 stack 的 `recipes.just`；`test-full` 把项目现有的 full 测试命令包进 `python3 scripts/with_lock.py`；没有对应能力的 recipe 写成非零退出并说明原因。已有 recipe 只做两种改动：给已有的 `gate-core` 追加 `check-toolchain docs-check` 依赖，给已有的 `gate-full` 或 full 测试入口包上主机锁，包完用收集或干跑（如 pytest 的 `--collect-only`）确认测试集与包锁前一致；其正文与其他已有 recipe 不动。脚本提示项目没有 justfile 时不创建，把提示写进报告。
 
 ## 阶段 3：统一验证与报告
 
@@ -87,4 +87,4 @@ description: 按个人模板初始化新项目的 Beads、标准化文档结构�
    - 补齐的 recipe。
    - 安装命令、文档检查、`gate-core` 的实际结果；没有安装步骤（stack 为 none 或 `existing` 模式）时写"无安装命令"，不写"成功"。错误来自前置 skill 产物（如 `docs/agents/` 里的链接）时注明来源，交用户处理。
    - 仍保留的 `<待填>` 标记。
-   - 需用户裁决的事项逐条写清涉及的文件、备选做法与推荐，不用项目外读者看不懂的简称。
+   - 有推荐做法的事项直接按推荐执行，在报告列为已决并写明依据；只有备选各有依据、自己无法推荐的才列为裁决项，逐条写清涉及的文件与备选做法，不用项目外读者看不懂的简称。
