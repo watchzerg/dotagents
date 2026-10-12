@@ -15,9 +15,19 @@ PLACEHOLDER = "{{PROJECT_NAME}}"
 MATT_SETUP_FILES = ("docs/agents/issue-tracker.md", "docs/agents/domain.md")
 TRIAGE_DOC = "docs/agents/triage-labels.md"
 AGENTS = "AGENTS.md"
+# 模板目录里混入的系统或缓存文件，复制时跳过；其余点文件照常复制。
+IGNORED_NAMES = {".DS_Store", "Thumbs.db"}
 MATT_SECTION = "Agent skills"
 
 Section = tuple[str, str]
+
+
+def ignored(relative: Path) -> bool:
+    return (
+        relative.name in IGNORED_NAMES
+        or relative.suffix == ".pyc"
+        or "__pycache__" in relative.parts
+    )
 
 
 def in_git_work_tree() -> bool:
@@ -89,6 +99,8 @@ def main() -> int:
     created: list[str] = []
     skipped: list[str] = []
     for source in sorted(path for path in TEMPLATES.rglob("*") if path.is_file()):
+        if ignored(source.relative_to(TEMPLATES)):
+            continue
         relative = source.relative_to(TEMPLATES).as_posix()
         target = project / relative
         content = source.read_text(encoding="utf-8").replace(PLACEHOLDER, name)

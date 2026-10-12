@@ -1,3 +1,9 @@
+## 环境
+
+宿主工具：`just`（Homebrew）与 Python 3.14+ 的 `python3`（运行 `scripts/check_docs.py` 与 `scripts/with_lock.py`）。项目运行时与依赖管理尚未接入。
+
+<待填 按需：接入工具链后记录宿主工具、运行时版本声明与安装方式>
+
 ## 命令与门禁
 
 根 `justfile` 已建立命令契约，但各 recipe 尚未接入本项目的工具链，当前一律非零退出并说明原因。接入时保留 recipe 名与职责，把实现封装在 recipe 或其调用脚本内，不留空命令。

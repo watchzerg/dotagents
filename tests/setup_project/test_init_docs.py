@@ -12,7 +12,9 @@ SKILL = Path(__file__).resolve().parents[2] / "skills/setup-project"
 SCRIPT = SKILL / "scripts/init_docs.py"
 TEMPLATES = SKILL / "templates"
 TEMPLATE_FILES = sorted(
-    path.relative_to(TEMPLATES).as_posix() for path in TEMPLATES.rglob("*") if path.is_file()
+    path.relative_to(TEMPLATES).as_posix()
+    for path in TEMPLATES.rglob("*")
+    if path.is_file() and path.name != ".DS_Store"
 )
 MATT_FILES = ("docs/agents/issue-tracker.md", "docs/agents/domain.md")
 
@@ -99,6 +101,25 @@ def test_creates_every_template_with_project_name(project: Path, bin_dir: Path) 
         assert f"已创建 {relative}" in result.stdout
     assert (project / "AGENTS.md").read_text().startswith("# project with spaces\n")
     assert (project / "docs/agents/domain.md").read_text() == "matt setup 产出\n"
+
+
+def test_stray_system_files_are_not_copied(tmp_path: Path, project: Path, bin_dir: Path) -> None:
+    skill = tmp_path / "skill"
+    shutil.copytree(SKILL / "scripts", skill / "scripts")
+    shutil.copytree(TEMPLATES, skill / "templates")
+    (skill / "templates/.DS_Store").write_bytes(b"\x00\x05\x16\x07\xff\xfe")
+    (skill / "templates/docs/.DS_Store").write_bytes(b"\xff\x00")
+    result = subprocess.run(
+        [sys.executable, "-I", "-S", str(skill / "scripts/init_docs.py")],
+        cwd=project,
+        env={**os.environ, "PATH": str(bin_dir)},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert (project / "docs/INDEX.md").is_file()
+    assert not list(project.rglob(".DS_Store"))
 
 
 def test_name_override(project: Path, bin_dir: Path) -> None:

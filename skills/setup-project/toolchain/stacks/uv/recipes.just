@@ -1,13 +1,13 @@
 # ---- {{LABEL}}：{{HOME_DIR}} ----
 
-# 工具链检查：uv 存在，解释器符合 .python-version 的版本 line；不安装依赖。
+# 工具链检查：uv 存在，解释器符合 .python-version 的版本 line；不安装依赖，也不下载解释器。
 [private]
 uv-check-toolchain:
     #!/usr/bin/env bash
     set -euo pipefail
     cd {{HOME_DIR}}
     command -v uv >/dev/null || { echo '错误：缺少 uv；macOS 请运行 brew install uv。' >&2; exit 1; }
-    uv run --no-project --no-env-file --python "$(cat .python-version)" python -B - <<'PY'
+    uv run --no-project --no-env-file --no-python-downloads --python "$(cat .python-version)" python -B - <<'PY'
     import pathlib
     import sys
 
@@ -35,7 +35,7 @@ uv-lint:
 uv-typecheck:
     cd {{HOME_DIR}} && uv run --locked ty check .
 
-# 默认运行 tests/core；可传 pytest 参数定向。
+# 默认运行 tests/core（pytest testpaths）；可传 pytest 参数定向，给出路径时只运行该路径。
 [private]
 uv-test *args:
     cd {{HOME_DIR}} && uv run --locked python -m pytest "$@"
@@ -45,14 +45,16 @@ uv-test *args:
 uv-test-core:
     cd {{HOME_DIR}} && env -u PYTEST_ADDOPTS uv run --locked python -m pytest
 
-# tests/full 目录出现即纳入，存在而无测试视为失败；可传 pytest 参数定向。只经 test-full 或 gate-full 调用。
+# tests/full 下出现 pytest 测试文件（test_*.py、*_test.py）即纳入，此时零收集视为失败；目录不存在或只有
+# 其他 stack 的文件时打印提示并通过。默认范围用 -o testpaths=tests/full 指定，所以 -k 等参数在 tests/full
+# 内筛选，给出路径时只运行该路径。只经 test-full 或 gate-full 调用。
 [private]
 uv-test-full *args:
     #!/usr/bin/env bash
     set -euo pipefail
     cd {{HOME_DIR}}
-    if [ -d tests/full ]; then
-      env -u PYTEST_ADDOPTS uv run --locked python -m pytest tests/full "$@"
-    else
-      echo '提示：{{HOME}}tests/full 不存在，{{LABEL}} 尚无 full 测试。'
+    if [ ! -d tests/full ] || [ -z "$(find tests/full -type f \( -name 'test_*.py' -o -name '*_test.py' \) -print -quit)" ]; then
+      echo '提示：{{HOME}}tests/full 下没有 pytest 测试文件，{{LABEL}} 尚无 full 测试。'
+      exit 0
     fi
+    env -u PYTEST_ADDOPTS uv run --locked python -m pytest -o testpaths=tests/full "$@"

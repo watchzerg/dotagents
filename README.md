@@ -34,7 +34,7 @@ setup 会自动定位当前 checkout，建立并核验软链接。已有正确�
 | [`/setup-dotagents`](.claude/skills/setup-dotagents/SKILL.md) | 将当前仓库的个人规则和 skills 应用到用户环境，检查并补齐加载入口。 | 仅本仓库 |
 | [`/commit`](skills/commit/SKILL.md) | 将当前仓库的现有变更提交为一个本地 commit；默认包含全部未忽略变更，不附署名行，不自动测试或 push。 | setup 后用户级可用 |
 | [`/prune-tests`](skills/prune-tests/SKILL.md) | 大幅精简测试，保留核心规则与主要流程的代表性用例，删除重复和非核心测试并验证结果。 | setup 后用户级可用 |
-| [`/setup-project`](skills/setup-project/SKILL.md) | 通过 Python 脚本初始化项目 Beads，检查 Matt skills 设置，按模板建立标准化文档结构并收敛已有文档，再按 stack 组合（uv、Bun、Swift）初始化工具链、拼出 justfile 与 gate-core / gate-full 门禁。 | setup 后用户级可用 |
+| [`/setup-project`](skills/setup-project/SKILL.md) | 检查 Matt skills 设置后，用 Python 脚本初始化 Beads、按模板建立标准化文档结构、按 stack 组合（uv、Bun、Swift）初始化工具链与 gate-core / gate-full 门禁；再由 agent 收敛已有文档、从代码补写模块页，最后统一运行文档检查与门禁。 | setup 后用户级可用 |
 
 第三方 skills 由原安装工具管理，不纳入本仓库，也不由 setup 安装。
 

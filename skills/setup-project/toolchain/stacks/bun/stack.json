@@ -13,8 +13,8 @@
     "fmt": "Biome 格式化并修复可自动修复的 lint",
     "lint": "Biome 检查",
     "typecheck": "`tsc --noEmit`",
-    "test": "传 `bun test` 参数定向，如文件路径或 `-t 名称`",
-    "core": "`{{HOME}}tests/core/`（`bun test --fail-on-empty tests/core`）",
-    "full": "`{{HOME}}tests/full/`"
+    "test": "传 `bun test` 参数定向：`-t 名称` 在默认目录内筛选；给出已存在的路径（相对 Bun 目录）时只运行该路径，不再附加默认目录",
+    "core": "`{{HOME}}tests/core/`（`bun test tests/core`）",
+    "full": "`{{HOME}}tests/full/` 下的 `*.test.ts` 等 bun 测试文件"
   }
 }

@@ -44,19 +44,32 @@
 - **收敛旧文档的执行也交子 agent**：原先只读子 agent 分类、主 agent 执行合并，但合并才是重活，要通读旧文档并以标准正文为骨架改写；与第 4 步"模块页经主 agent 转写没有意义"的理由相同，改为分类表返回后由可写子 agent 执行合并、迁移、移动、删除，主 agent 只做链接修正、索引登记、建票据与复核。分批时每批一个执行子 agent 并行，同一目标文件串行。
 - **existing 模式也做机械文档检查**：已有工具链项目不复制 `check_docs.py`，但收敛与补写恰是这类项目的主要产出，原先链接正确性只靠主 agent 复核。`check_docs.py` 加可选的根目录参数，流程末尾直接调用 skill 自带副本检查目标项目。不运行这类项目自身的门禁：本次没改代码，其红绿与初始化无关，补过 recipe 时只验证 justfile 可解析。
 - **缺少 recipe 的实现建议并入补写文档的子 agent**：它本来就要读 `pyproject.toml`、`package.json`、`justfile` 等配置，顺带返回建议，主 agent 落到 justfile，省一次独立分派。
+- **2026-10-12 全面探查后的修正**（四个只读子 agent 分别审脚本、模板、工具链、指令文本，主 agent 核实后保留 25 条）。有取舍的几条：
+  - full 测试按各 stack 自己的测试文件判定，不按目录存在：uv+swift 共用 `tests/full/` 时，按目录判定会让任一方加 full 测试就令另一方失败。`Package.swift` 的 `exclude` 改为按实际存在的非 Swift 文件动态计算，因为静态列表在文件不存在时 SwiftPM 会告警 Invalid Exclude；配套 `--manifest-cache none` 让新文件即时生效。
+  - 去掉 `bun test --fail-on-empty`：bun 没有这个 flag 且静默忽略未知 flag，零匹配非零是 bun 的默认行为；禁用 `--pass-with-no-tests`。
+  - 定向语义统一为"名字筛选在默认目录内筛，路径参数替换默认目录"：uv 用 `-o testpaths`，bun 因位置参数是并集，参数中有已存在路径时不再追加默认目录。
+  - Biome 排除 `.beads/` 并启用 `vcs.useIgnoreFile`：`bd init` 写出的 `metadata.json` 无末尾换行，bun 单 stack 时 `just lint` 初始化完即红。`vcs.root` 用 `{{ROOT}}`，否则 `frontend/` 布局找不到 `.gitignore`。
+  - `with_lock.py` 改为父进程持锁、子进程运行命令：原先锁 fd 可继承且 `execvp`，测试留下的后台进程会一直占住主机锁。终端前台时不重复转发 SIGINT，避免 pytest 类 runner 收到两次 Ctrl-C 硬中止。
+  - `check_docs.py` 标题锚点从原始行计算、只去反引号：原先先删行内代码再算 slug，含代码的标题全部误报。
+  - 安装失败固定返回 1 并提示 `just install`：new 模式先落地再安装，失败后重跑会被判为 existing 而静默跳过安装；安装失败是唯一不中止流程的脚本失败。
+  - 一句话描述的提问条件改为三个文件任一含 `初始化` 标记：`AGENTS.md` 已存在时合并会丢弃模板开头，标记只剩 README 与 GLOSSARY，原条件在主用例下永不触发。
+  - 收敛执行改为全部分类后再执行、tracker 类源文件建票后才删、按批预分配 ADR 编号段、目标文件重叠的批串行。
+  - `阶段3` 标记在 none 模式由 none overlay 改写为 `按需`，不再残留"时机已到"的标记诱导编造。
+  - `<待填` 清单改用带时机前缀的精确 pattern，规则正文里的 `<待填` 字样不再自命中，"全部消失后自删"才可能触发。
 - **运行时 Python 下限为 3.14**：skill 脚本与复制到目标项目的 `check_docs.py`、`with_lock.py` 都按 3.14+ 标准库编写，可直接使用最新语法，不再为 macOS 自带的 3.9 加 `from __future__` 之类的兼容；宿主 `python3` 由 uv `--default` 提供。代价是缺少 3.14 的机器会在解析阶段报语法错误，而非给出友好提示。
 
 ## 明确不做
 
 - 不生成模块页、ADR、调研文件的实例；这些由 Matt 的 skills 或日常迭代惰性创建。
-- 不处理 `CLAUDE.md` 与 `AGENTS.md` 并存的合并，SKILL.md 只要求 agent 把块移到 AGENTS.md 并让 CLAUDE.md 指向它。
+- 不为项目创建 `CLAUDE.md`：Claude Code 直接读取 `AGENTS.md`。`CLAUDE.md` 已存在时 SKILL.md 要求 agent 把其中内容按节并入 `AGENTS.md`，只留一行 `@AGENTS.md`，不丢弃用户内容。
 
 ## 待验收
 
 - 在一个真实新项目上让 agent 完整执行重排后的四个阶段，检查：提问是否只发生一次、合并是否保留用户内容、待填是否被编造、末尾 `gate-core` 是否通过。
 - 在有旧文档的真实项目上验证执行子 agent 的合并质量与分批并行时同一目标文件的串行处理。
 - 在已有工具链的真实项目（如 media-glance、x-media-saver）上跑 existing 模式，检查依赖偏好的补写、缺少 recipe 的建议与 skill 自带 `check_docs.py` 的检查是否准确；两者的临时克隆已验证判定与零改动，但它们没有 `<待填` 标记，补写路径只在测试中覆盖。
-- uv+swift、bun+swift 的组合只经过脚本测试，没有真实跑通；两者都在根目录时 `tests/core/` 会混放两种语言的测试文件。
+- uv+swift、bun+swift 的组合只经过脚本测试和子 agent 对渲染结果的 `just`、`swift build`、`bun test` 单项验证，没有真实跑通完整 `gate-core`/`gate-full`；两者都在根目录时 `tests/core/` 会混放两种语言的测试文件。
+- 重写后的 `with_lock.py` 与动态 exclude 的 `Package.swift` 未在真实 full 测试场景下验收。
 
 ## 演进记录
 
@@ -74,4 +87,5 @@
 | 2026-10-11 | AGENTS.md 改为按节合并并移除 Matt 的 `## Agent skills` 块，triage 行随 `triage-labels.md` 存在与否 | 本文关键决策 |
 | 2026-10-12 | 运行时 Python 下限从 3.10 提到 3.14，移除 `from __future__ import annotations` | 本文关键决策 |
 | 2026-10-12 | 流程重排为脚本先行、agent 后置、末尾统一验证：`init_toolchain.py` 加 `--detect-only`、移除脚本内 `gate-core`；收敛执行交可写子 agent；`check_docs.py` 加根目录参数供 existing 模式调用；缺少 recipe 的建议并入补写子 agent；SKILL.md 删去复述脚本内部行为的段落 | 本文关键决策 |
+| 2026-10-12 | 全面探查修正 25 条：脚本（锚点、锁、安装失败、复制忽略、recipe 识别）、工具链（Biome/.beads、per-stack full 判定、bun flag、定向语义、swift lock 安装、check-toolchain 不下载、none overlay）、指令（提问条件、同义节、CLAUDE.md、已有代码定义、收敛顺序与并行、候选排除）、模板与仓库文档漂移 | 本文关键决策 |
 | 2026-10-12 | 维护材料移出 skill 目录：测试移到 `tests/setup_project/`，本文与 beads-init-research.md 移到 `docs/skills/setup-project/`，skill 目录只保留运行时内容 | 根 AGENTS.md 三层结构 |

@@ -6,8 +6,9 @@
 
 候选 = 满足全部条件的文件：
 
-- 扩展名为 `md`、`txt`、`rst`、`adoc`，或与某候选同目录且被其引用的附件（图片、HTML 原型、JSON 证据等）。
-- 不在标准结构内：标准结构指模板创建的全部路径，以及 `docs/` 下按需目录（`adr/`、`architecture/modules/`、`architecture/collaborations.md`、`specs/`、`operations/`、`changes/`、`research/`）。
+- 扩展名为 `md`、`txt`、`rst`、`adoc`，或与某候选同目录且被其引用的附件（图片、HTML 原型、JSON 证据等）。`txt` 只收录内容为说明文字的文件：`requirements*.txt`、`CMakeLists.txt` 等配置不是候选。
+- 不在标准结构内：标准结构指模板创建的全部路径，`docs/agents/` 下 Matt setup 产出的全部文件，根目录的 `GLOSSARY-MAP.md`、`CLAUDE.md`、`CONTRIBUTING.md`、`LICENSE*`，以及 `docs/` 下按需目录（`adr/`、`architecture/modules/`、`architecture/collaborations.md`、`specs/`、`operations/`、`changes/`、`research/`）。
+- 不在测试目录或 fixture 目录内（`tests/`、`fixtures/`）。
 - 受 Git 管理或未被忽略：忽略规则排除的文件（缓存、输出、凭据）不是候选。
 - 不在工具目录内：`.beads`、`.claude`、`.agents`、`.codex`、`.cursor`、`.github`、`.scratch`、`.out-of-scope`。
 - 未在 `docs/INDEX.md` 的"项目特有入口"中登记。
@@ -17,11 +18,12 @@
 ```sh
 git ls-files --cached --others --exclude-standard \
   | grep -E '\.(md|txt|rst|adoc)$' \
-  | grep -vE '^(\.beads|\.claude|\.agents|\.codex|\.cursor|\.github|\.scratch|\.out-of-scope)/' \
+  | grep -vE '^(\.beads|\.claude|\.agents|\.codex|\.cursor|\.github|\.scratch|\.out-of-scope|docs/agents|tests|fixtures)/' \
+  | grep -vE '^(GLOSSARY-MAP|CLAUDE|CONTRIBUTING)\.md$|^LICENSE|requirements[^/]*\.txt$|CMakeLists\.txt$' \
   | sort
 ```
 
-从结果中去掉标准结构路径和已登记路径。没有候选时整步跳过。候选超过 30 个时按顶层目录分批，每批独立走完分析与执行。
+从结果中去掉标准结构路径和已登记路径。没有候选时整步跳过。候选超过 30 个时按顶层目录分批：全部批次先完成分类，再按下文执行。
 
 ## 分类表
 
@@ -45,7 +47,7 @@ git ls-files --cached --others --exclude-standard \
 
 ## 分类子 agent
 
-派一个只读的 Explore 类子 agent，非 Fable 模型，中等思考强度。简报必须包含：候选清单、本文路径、`docs/agents/documentation.md` 路径、已填与未填的 `<待填` 标记清单。要求它读完每个候选后返回一张表，不做任何修改：
+派一个只读的通用子 agent，非 Fable 模型，中等思考强度；不用 Explore 类，它只读片段，而分类需要通读全文。简报必须包含：候选清单、本文路径、`docs/agents/documentation.md` 路径、已填与未填的 `<待填` 标记清单。要求它读完每个候选后返回一张表，不做任何修改：
 
 | 候选路径 | 分类 | 动作 | 目标路径 | 引用该文件的位置 | 可据此填写的待填标记 |
 | --- | --- | --- | --- | --- | --- |
@@ -54,20 +56,22 @@ git ls-files --cached --others --exclude-standard \
 
 ## 执行子 agent
 
-分类表返回后，派一个可写的通用子 agent，非 Fable 模型，中等思考强度，执行下面执行顺序的第 1、2 步。合并需要通读旧文档并以标准正文为骨架改写，经主 agent 转写没有意义，因此由子 agent 直接写文件。简报必须包含：分类表、本文路径、`docs/agents/documentation.md` 路径、模块页模板所在位置、ADR 起始编号。候选按顶层目录分批时每批一个执行子 agent 并行，各自只改自己分批内的候选及其目标文件；多个分批写同一目标文件（如 `GLOSSARY.md`）时串行。
+分类表返回后，派一个可写的通用子 agent，非 Fable 模型，中等思考强度，执行下面执行顺序的第 1、2 步。合并需要通读旧文档并以标准正文为骨架改写，经主 agent 转写没有意义，因此由子 agent 直接写文件。简报必须包含：分类表、本文路径、`docs/agents/documentation.md` 路径、模块页模板所在位置、分配给它的 ADR 编号段。分类为 tracker 的源文件不由它删除。
 
-子 agent 返回：改写或创建的目标文件、移动与删除的源文件、按表填写的待填标记、与分类表不一致的处理及原因。
+分批时每批一个执行子 agent：主 agent 派发前比对各批的目标路径，目标文件有重叠的批（常见于 `GLOSSARY.md`、`architecture/INDEX.md`）串行，其余并行；为每批预分配互不重叠的 ADR 编号段，避免并行撞号。
+
+子 agent 返回：改写或创建的目标文件、移动与删除的源文件、与分类表不一致的处理及原因。
 
 ## 执行顺序
 
 顺序固定，第 1、2 步由执行子 agent 完成，第 3 到 7 步由主 agent 完成：
 
 1. 先合并与迁移内容：创建或改写目标文件，ADR 编号接续，模块页按模板建。
-2. 再移动与删除源文件。
+2. 再移动与删除源文件；分类为 tracker 的源文件保留，待第 6 步建票后由主 agent 删除。
 3. 用 grep 找出所有指向旧路径的链接并改为新路径；被删除文件的链接改指吸收位置。
 4. 在 `docs/INDEX.md` 登记保留的文件；在 `docs/research/INDEX.md` 登记迁入的研究。
 5. 按表填写可填的 `<待填` 标记。
-6. 把需要进 tracker 的计划项创建为票据，按 `docs/agents/issue-tracker.md` 操作。
+6. 把需要进 tracker 的计划项创建为票据，按 `docs/agents/issue-tracker.md` 操作；票据建好后删除这些源文件。
 7. 复核子 agent 的返回与分类表一致，把每个候选的动作与目标、保留登记清单、删除清单及依据、更新的链接数、仍未填的标记汇入最终报告。
 
 不 commit。重跑时已登记和已迁移的文件不再是候选，因此第二次执行无动作。

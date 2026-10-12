@@ -36,7 +36,7 @@
 | 领域术语 | `GLOSSARY.md` | 初始化，第一个术语敲定时填入 | 正文首次出现关键术语时给一句白话解释 |
 | diff 评审的判断类标准 | `CODING_STANDARDS.md` | 初始化，随 retro 追加 | 测试专项规则留在 `agents/testing.md`，互链 |
 | 冷启动路径、各入口回答什么 | `docs/INDEX.md` | 初始化 | 不含触发表与维护规则 |
-| tracker、标签、领域文档约定 | `docs/agents/` 中 Matt setup 产出的三个文件 | Matt setup | 由 `AGENTS.md` 的 Agent skills 块指向 |
+| tracker、标签、领域文档约定 | `docs/agents/` 中 Matt setup 产出的三个文件 | Matt setup | 由 `AGENTS.md` 触发表指向，不另建 Agent skills 块 |
 | 测试归属、收录、分阶段验证 | `docs/agents/testing.md` | 初始化 | 命令与资源合同在 `development/workflow.md` |
 | 系统全貌、模块地图、依赖、不变量 | `docs/architecture/INDEX.md` | 初始化 | README 与文档索引只路由 |
 | 职责归属、依赖方向、状态所有者 | `docs/architecture/module-boundaries.md` | 初始化 | 模块页说明如何遵守，偏差就地注明 |
@@ -81,11 +81,17 @@
 2. 每个可交付切片完成时，改写受影响模块的完整当前行为与设计；删除失效条款。某职责首次有了可描述的行为和测试，就按模板建模块页并加入模块地图；新增或拆分模块时同步模块边界。
 3. 术语变化更新 `GLOSSARY.md`；满足 ADR 条件的决策新增 ADR；使用方式改变时更新 README 或 `operations/`。
 4. 交付说明列出已更新文档与验证范围。无文档影响时说明判断，不机械改动。
-5. 新增、移动或删除文档时同步 `docs/INDEX.md`、`AGENTS.md` 触发表、所属目录索引及所有引用；有链接检查命令时运行它。
+5. 新增、移动或删除文档时同步 `docs/INDEX.md`、所属目录索引及所有引用；仅当新文档成为某类任务的必读入口时才改 `AGENTS.md` 触发表。有链接检查命令时运行它。
 
 ## 待填标记
 
-初始化留下的 `<待填 时机：说明>` 是尚未成形的内容，`grep -r '<待填'` 即剩余清单，不另维护列表。时机取值：
+初始化留下的 `<待填 时机：说明>` 是尚未成形的内容，不另维护列表，剩余清单用下面的命令得到（规则正文里的 `<待填` 字样不含时机前缀，不会命中）：
+
+```sh
+grep -rnE '<待填 (初始化|阶段3|首个模块|按需)：' --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.venv --exclude-dir=.build .
+```
+
+时机取值：
 
 | 时机 | 何时可填 |
 | --- | --- |

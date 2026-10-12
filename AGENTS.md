@@ -14,7 +14,7 @@
 | 安装器 | `.claude/skills/setup-dotagents/` | 仅本 checkout，只需 Python 3.14+ 标准库 | 把用户级内容软链接到当前用户环境 |
 | 用户级内容 | `global/AGENTS.md`、`skills/` | 安装后，在目标机器的任意项目中 | 跨项目生效的个人规则与 skills |
 
-用户级 skills 再分两类：`setup-project` 是可重复运行、只补缺不覆盖的项目初始化器，自带模板与 overlay，向调用时所在的目标项目写入文件；`commit`、`prune-tests` 等是日常反复调用的常规 skill，不产出项目结构。
+用户级 skills 再分两类：`setup-project` 是可重复运行的项目初始化器，脚本部分只补缺不覆盖，agent 部分会把目标项目的旧文档合并进标准结构并补齐 justfile 契约；自带模板与 overlay，向调用时所在的目标项目写入文件；`commit`、`prune-tests` 等是日常反复调用的常规 skill，不产出项目结构。
 
 使用顺序为：clone 本仓库并长期保留 → 在本仓库执行 `/setup-dotagents` → 在目标项目先执行 `/setup-matt-pocock-skills` 再执行 `/setup-project` → 日常按需调用常规 skills。完整步骤与链接映射见 `README.md`。由此产生的维护约束：
 

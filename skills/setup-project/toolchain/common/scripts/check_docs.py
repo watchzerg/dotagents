@@ -13,37 +13,70 @@ from urllib.parse import unquote, urlsplit
 ROOT_DOCUMENTS = ("README.md", "AGENTS.md", "GLOSSARY.md", "CODING_STANDARDS.md")
 ARCHITECTURE_INDEX = Path("docs/architecture/INDEX.md")
 MODULES = Path("docs/architecture/modules")
-LINK = re.compile(r"!?\[[^\]\n]*\]\(\s*(<[^>\n]+>|[^\s)]+)(?:\s+\"[^\"\n]*\")?\s*\)")
+LINK_TITLE = r"""(?:\s+(?:"[^"\n]*"|'[^'\n]*'|\([^)\n]*\)))?"""
+LINK = re.compile(
+    r"!?\[(?P<text>[^\]\n]*)\]\(\s*(?P<dest><[^>\n]+>|[^\s)]+)" + LINK_TITLE + r"\s*\)"
+)
+REFERENCE = re.compile(
+    r"^ {0,3}\[(?P<label>[^\]\n]+)\]:\s*(?P<dest><[^>\n]+>|\S+)" + LINK_TITLE + r"\s*$"
+)
 INLINE_CODE = re.compile(r"`[^`\n]*`")
+FENCE = re.compile(r"^\s*(`{3,}|~{3,})(.*)$")
 
 
-def prose_lines(text: str) -> list[tuple[int, str]]:
-    """去掉围栏代码块与行内代码后的正文行。"""
+def body_lines(text: str) -> list[tuple[int, str]]:
+    """围栏代码块之外的原始行；围栏标记允许任意缩进，覆盖列表项内的代码块。"""
     lines = []
     fence = ""
     for number, line in enumerate(text.splitlines(), 1):
-        marker = re.match(r"^\s{0,3}(`{3,}|~{3,})", line)
+        marker = FENCE.match(line)
         if marker:
-            value = marker.group(1)
+            value, rest = marker.groups()
             if not fence:
                 fence = value
-            elif value[0] == fence[0] and len(value) >= len(fence):
+            elif value[0] == fence[0] and len(value) >= len(fence) and not rest.strip():
                 fence = ""
             continue
         if not fence:
-            lines.append((number, INLINE_CODE.sub("", line)))
+            lines.append((number, line))
     return lines
 
 
+def link_targets(lines: list[tuple[int, str]]) -> list[tuple[int, str]]:
+    """返回 (行号, 链接目标)：行内链接与引用式链接定义；行内代码中的内容不算链接。"""
+    targets = []
+    for number, line in lines:
+        prose = INLINE_CODE.sub("", line)
+        targets.extend((number, match.group("dest")) for match in LINK.finditer(prose))
+        reference = REFERENCE.match(prose)
+        if reference and not reference.group("label").startswith("^"):
+            targets.append((number, reference.group("dest")))
+    return targets
+
+
+def heading_title(raw: str) -> str:
+    """标题的可见文字：行内代码只去掉反引号保留内容，其余部分去掉 HTML 标签并把链接换成链接文字。"""
+    parts = re.split(r"(`[^`\n]*`)", raw)
+    visible = []
+    for index, part in enumerate(parts):
+        if index % 2:
+            visible.append(part.strip("`"))
+        else:
+            part = re.sub(r"<[^>]+>", "", part)
+            visible.append(LINK.sub(lambda match: match.group("text"), part))
+    return "".join(visible)
+
+
 def anchors(lines: list[tuple[int, str]]) -> set[str]:
+    """按 GitHub 规则生成章节锚点，重名标题依次加 -1、-2 后缀；另收集 HTML 的 id/name。"""
     result: set[str] = set()
     for _, line in lines:
-        result.update(re.findall(r'<(?:a|h[1-6])\b[^>]*(?:id|name)="([^"]+)"', line))
-        heading = re.match(r"^\s{0,3}#{1,6}\s+(.+?)(?:\s+#+)?$", line)
+        prose = INLINE_CODE.sub("", line)
+        result.update(re.findall(r'<(?:a|h[1-6])\b[^>]*(?:id|name)="([^"]+)"', prose))
+        heading = re.match(r"^\s{0,3}#{1,6}\s+(.+?)(?:\s+#+)?\s*$", line)
         if not heading:
             continue
-        title = re.sub(r"<[^>]+>", "", heading.group(1)).lower()
-        title = LINK.sub(lambda match: match.group(0).split("]", 1)[0].lstrip("!["), title)
+        title = heading_title(heading.group(1)).lower()
         slug = "".join(
             char for char in title if char in "-_ " or unicodedata.category(char)[0] in "LNM"
         ).replace(" ", "-")
@@ -65,33 +98,32 @@ def check_documents(root: Path) -> tuple[list[str], int, int]:
         if not path.is_file():
             errors.append(f"缺少文档：{path.relative_to(root)}")
         else:
-            documents[path] = prose_lines(path.read_text(encoding="utf-8"))
+            documents[path] = body_lines(path.read_text(encoding="utf-8"))
     sections = {path: anchors(lines) for path, lines in documents.items()}
     graph: dict[Path, set[Path]] = {path: set() for path in documents}
     links = 0
     for source, lines in documents.items():
-        for number, line in lines:
-            for match in LINK.finditer(line):
-                destination = match.group(1).strip("<>")
-                url = urlsplit(destination)
-                if url.scheme or url.netloc:
-                    continue
-                links += 1
-                target = (source.parent / unquote(url.path)).resolve() if url.path else source
-                location = f"{source.relative_to(root)}:{number}"
-                if not target.is_relative_to(root):
-                    errors.append(f"{location} 链接越出仓库：{destination}")
-                    continue
-                if not target.exists():
-                    errors.append(f"{location} 链接目标不存在：{destination}")
-                    continue
-                if target in documents:
-                    graph[source].add(target)
-                if url.fragment and target.suffix == ".md":
-                    if target not in sections:
-                        sections[target] = anchors(prose_lines(target.read_text(encoding="utf-8")))
-                    if unquote(url.fragment) not in sections[target]:
-                        errors.append(f"{location} 章节不存在：{destination}")
+        for number, raw in link_targets(lines):
+            destination = raw.strip("<>")
+            url = urlsplit(destination)
+            if url.scheme or url.netloc:
+                continue
+            links += 1
+            target = (source.parent / unquote(url.path)).resolve() if url.path else source
+            location = f"{source.relative_to(root)}:{number}"
+            if not target.is_relative_to(root):
+                errors.append(f"{location} 链接越出仓库：{destination}")
+                continue
+            if not target.exists():
+                errors.append(f"{location} 链接目标不存在：{destination}")
+                continue
+            if target in documents:
+                graph[source].add(target)
+            if url.fragment and target.suffix == ".md":
+                if target not in sections:
+                    sections[target] = anchors(body_lines(target.read_text(encoding="utf-8")))
+                if unquote(url.fragment) not in sections[target]:
+                    errors.append(f"{location} 章节不存在：{destination}")
     visited: set[Path] = set()
     pending = [root / ARCHITECTURE_INDEX]
     while pending:

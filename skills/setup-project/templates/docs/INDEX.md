@@ -18,7 +18,7 @@
 | [GLOSSARY.md](../GLOSSARY.md) | 领域术语是什么意思 |
 | [CODING_STANDARDS.md](../CODING_STANDARDS.md) | diff 评审按什么判断 |
 | [架构总览](architecture/INDEX.md) | 系统现在怎样组成与运行 |
-| [模块边界](architecture/module-boundaries.md) | 规则归谁、模块怎样协作 |
+| [模块边界](architecture/module-boundaries.md) | 规则归谁、依赖方向与状态所有权 |
 | `architecture/modules/` | 某个能力现在完整地怎样工作 |
 | `adr/` | 为什么做出重要决定 |
 | [调研索引](research/INDEX.md) | 比较与验证的证据和适用条件 |

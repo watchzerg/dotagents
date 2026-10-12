@@ -5,7 +5,7 @@
 `stack.json`（标签、布局、安装命令、文档表格单元）、`recipes.just`（私有 recipe）、`home/` 与 `root/`
 （要复制的文件）、`gitignore`、`overlay/`（镜像项目根的文档正文片段）。脚本按文件证据判定 stack 集合；已有工具链的
 项目不改动工具链与 justfile，只把各 stack 的依赖偏好补进文档；新项目复制 stack 文件、拼出根
-justfile、运行安装命令，并用拼合后的正文替换阶段 2 留下的 `<待填 阶段3：…>` 标记。所有文件缺失才创建。
+justfile、运行安装命令，并用拼合后的正文替换 init_docs.py 留下的 `<待填 阶段3：…>` 标记。所有文件缺失才创建。
 `--detect-only` 只打印判定结果，供初始化流程在落地前一次性收集需要用户回答的问题；门禁不在本脚本内运行。
 """
 
@@ -52,8 +52,12 @@ OTHER_MARKERS = (
     "CMakeLists.txt",
 )
 EXISTING_SECTIONS = {"docs/development/technology-stack.md": {"依赖政策"}}
+# 模板目录里混入的系统或缓存文件，复制时跳过；其余点文件（.python-version 等）照常复制。
+IGNORED_NAMES = {".DS_Store", "Thumbs.db"}
+RECIPE = re.compile(r"^@?([A-Za-z_][\w-]*)[^:\n]*:(?!=)", re.M)
+NOT_RECIPES = {"alias", "export", "set", "import", "mod"}
 JUSTFILE_HEADER = """\
-# 项目命令契约：check-toolchain、install、fmt、lint、typecheck、test、docs-check、gate-core、gate-full 是必需入口，名称与职责保持稳定。
+# 项目命令契约：check-toolchain、install、fmt、lint、typecheck、test、test-full、docs-check、gate-core、gate-full 是必需入口，名称与职责保持稳定。
 # 验证不修改源码；fmt 是修改文件的入口。缺失能力须非零退出，不能用空命令冒充通过。
 # 公开 recipe 聚合各 stack 的私有 recipe（<stack>-*）；full 测试经 scripts/with_lock.py 的主机锁串行。
 # 测试分层与门禁定义见 docs/development/workflow.md。
@@ -327,10 +331,20 @@ def apply_overlay(target: Path, bodies: dict[str, str], only: set[str] | None) -
     return replaced
 
 
+def ignored(relative: Path) -> bool:
+    return (
+        relative.name in IGNORED_NAMES
+        or relative.suffix == ".pyc"
+        or "__pycache__" in relative.parts
+    )
+
+
 def copy_tree(source_dir: Path, dest_dir: Path, placeholders: dict[str, str], report: dict) -> None:
     if not source_dir.is_dir():
         return
     for source in sorted(path for path in source_dir.rglob("*") if path.is_file()):
+        if ignored(source.relative_to(source_dir)):
+            continue
         relative = expand(source.relative_to(source_dir).as_posix(), placeholders)
         copy_file(source, dest_dir / relative, placeholders, report)
 
@@ -387,9 +401,8 @@ def report_justfile(project: Path) -> None:
 
 
 def missing_recipes(justfile: Path) -> list[str]:
-    names = set(
-        re.findall(r"^([A-Za-z_][\w-]*)[^:\n]*:", justfile.read_text(encoding="utf-8"), re.M)
-    )
+    """按行首 `[@]名称 ...:` 识别 recipe；`名称 := 值` 赋值与 alias/export/set/import/mod 行不算。"""
+    names = set(RECIPE.findall(justfile.read_text(encoding="utf-8"))) - NOT_RECIPES
     return [name for name in REQUIRED_RECIPES if name not in names]
 
 
@@ -430,7 +443,7 @@ def main() -> int:
         not (project / "docs/INDEX.md").is_file()
         or not (project / "docs/agents/testing.md").is_file()
     ):
-        print("错误：缺少阶段 2 的文档结构，请先运行 init_docs.py。", file=sys.stderr)
+        print("错误：缺少文档结构，请先运行 init_docs.py。", file=sys.stderr)
         return 1
 
     detected, evidence, existing = detect(project)
@@ -520,8 +533,12 @@ def main() -> int:
             cwd = project if step["cwd"] == "root" else project / stack.home
             code = run(step["args"], cwd)
             if code != 0:
-                print(f"错误：{' '.join(step['args'])} 退出码 {code}。", file=sys.stderr)
-                return code
+                print(
+                    f"错误：{' '.join(step['args'])} 退出码 {code}。修复宿主工具后在项目根目录运行"
+                    " just install；重跑本脚本会判定为 existing 并跳过安装。",
+                    file=sys.stderr,
+                )
+                return 1
     print("安装完成；门禁由初始化流程末尾统一运行。")
     return 0
 

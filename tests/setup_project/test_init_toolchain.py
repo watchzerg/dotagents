@@ -74,7 +74,8 @@ def stage3_markers(project: Path) -> dict[str, int]:
 
 
 def recipe_names(justfile: Path) -> set[str]:
-    return set(re.findall(r"^([A-Za-z_][\w-]*)[^:\n]*:", justfile.read_text(), re.M))
+    names = set(re.findall(r"^@?([A-Za-z_][\w-]*)[^:\n]*:(?!=)", justfile.read_text(), re.M))
+    return names - {"alias", "export", "set", "import", "mod"}
 
 
 def test_empty_project_asks_for_stacks(project: Path, bin_dir: Path) -> None:
@@ -95,11 +96,14 @@ def test_detect_only_writes_nothing_and_reports(project: Path, bin_dir: Path) ->
     assert "stacks：uv、bun；模式：new" in chosen.stdout
     assert "已创建" not in chosen.stdout
     (project / "uv.lock").write_text("")
-    (project / "justfile").write_text("default:\n    @just --list\n\ntest *args:\n    pytest\n")
+    (project / "justfile").write_text(
+        'install := "y"\n\ndefault:\n    @just --list\n\n@check-toolchain:\n    true\n\n'
+        "test *args:\n    pytest\n"
+    )
     existing = run_script(project, bin_dir, "--detect-only")
     assert existing.returncode == 0, existing.stderr
     assert "stacks：uv；模式：existing" in existing.stdout
-    assert "缺少契约 recipe：check-toolchain、install" in existing.stdout
+    assert "缺少契约 recipe：install、fmt" in existing.stdout
     assert "已填写" not in existing.stdout
     after = {p.relative_to(project).as_posix() for p in project.rglob("*") if p.is_file()}
     assert after == before | {"uv.lock", "justfile"}
@@ -160,6 +164,41 @@ def test_new_uv_project(project: Path, bin_dir: Path) -> None:
     calls = invocations(project)
     assert len(calls) == 1 and calls[0].startswith("uv sync |")
     assert "门禁由初始化流程末尾统一运行" in result.stdout
+
+
+def test_install_failure_returns_one_with_recovery_hint(project: Path, bin_dir: Path) -> None:
+    (bin_dir / "uv").write_text("#!/bin/sh\nexit 2\n")
+    result = run_script(project, bin_dir, "--stacks", "uv")
+    assert result.returncode == 1
+    assert "uv sync 退出码 2" in result.stderr and "just install" in result.stderr
+    assert (project / "pyproject.toml").is_file() and (project / "justfile").is_file()
+
+
+def copy_skill(tmp_path: Path, *parts: str) -> Path:
+    """把 skill 的指定子目录复制到临时位置，脚本按自身位置找到这份副本的资源。"""
+    copied = tmp_path / "skill"
+    for part in parts:
+        shutil.copytree(SKILL / part, copied / part)
+    return copied
+
+
+def test_stray_system_files_are_not_copied(tmp_path: Path, project: Path, bin_dir: Path) -> None:
+    skill = copy_skill(tmp_path, "scripts", "toolchain")
+    (skill / "toolchain/common/.DS_Store").write_bytes(b"\x00\x05\x16\x07\xff\xfe")
+    (skill / "toolchain/common/scripts/__pycache__").mkdir()
+    (skill / "toolchain/common/scripts/__pycache__/x.cpython-314.pyc").write_bytes(b"\xff\x00")
+    result = subprocess.run(
+        [sys.executable, "-I", "-S", str(skill / "scripts/init_toolchain.py"), "--stacks", "none"],
+        cwd=project,
+        env={**os.environ, "PATH": str(bin_dir)},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert (project / "scripts/check_docs.py").is_file()
+    assert not (project / ".DS_Store").exists()
+    assert not (project / "scripts/__pycache__").exists()
 
 
 def test_new_uv_project_rerun_is_noop(project: Path, bin_dir: Path) -> None:
@@ -286,10 +325,11 @@ def test_none_new_project_installs_contract_justfile(project: Path, bin_dir: Pat
     assert "尚未接入" in justfile and "gate-full: gate-core" in justfile and "test-full" in justfile
     assert (project / "scripts/check_docs.py").is_file()
     workflow = (project / "docs/development/workflow.md").read_text()
-    assert "<待填 阶段3：宿主工具与安装方式>" in workflow
     assert "`just gate-core`" in workflow and "<待填 按需：接入工具链后" in workflow
     assert "<待填 按需：本项目各层的位置" in (project / "docs/agents/testing.md").read_text()
-    assert "<待填 阶段3" in (project / "docs/development/technology-stack.md").read_text()
+    assert "<待填 按需：接入工具链后" in (project / "README.md").read_text()
+    assert "<待填 按需：" in (project / "docs/development/technology-stack.md").read_text()
+    assert stage3_markers(project) == {}
 
 
 def test_detects_stacks_from_lockfiles(project: Path, bin_dir: Path) -> None:
@@ -382,3 +422,43 @@ def test_with_lock_serializes_and_reports_holder(tmp_path: Path) -> None:
         text=True,
     )
     assert after.returncode == 7 and "got-lock" in after.stdout
+
+
+def test_with_lock_releases_despite_orphans_and_forwards_sigterm(tmp_path: Path) -> None:
+    lock = SKILL / "toolchain/common/scripts/with_lock.py"
+    lock_file = tmp_path / "gate.lock"
+    env = {**os.environ, "GATE_LOCK_FILE": str(lock_file)}
+    orphan = subprocess.run(
+        [sys.executable, "-I", str(lock), "sh", "-c", "(sleep 3 >/dev/null 2>&1 &); exit 0"],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert orphan.returncode == 0, orphan.stderr
+    after = subprocess.run(
+        [sys.executable, "-I", str(lock), "--timeout", "1", "echo", "ok"],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert after.returncode == 0, after.stderr
+    assert after.stdout == "ok\n"
+
+    holder = subprocess.Popen(
+        [sys.executable, "-I", str(lock), "sh", "-c", "exec sleep 30"],
+        env=env,
+        stdin=subprocess.DEVNULL,
+    )
+    try:
+        deadline = time.monotonic() + 5
+        while "cmd=sh -c exec sleep 30" not in lock_file.read_text():
+            assert time.monotonic() < deadline, "持有者未写入锁文件"
+            time.sleep(0.05)
+        assert f"pid={holder.pid} " in lock_file.read_text()
+        holder.terminate()
+        assert holder.wait(timeout=5) == 128 + 15
+    finally:
+        holder.kill()
+        holder.wait()

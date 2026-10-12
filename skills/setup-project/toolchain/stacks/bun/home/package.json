@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "preinstall": "bun scripts/check-bun.ts",
-    "test": "bun test --fail-on-empty tests/core",
+    "test": "bun test tests/core",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "fmt": "biome check --write ."
