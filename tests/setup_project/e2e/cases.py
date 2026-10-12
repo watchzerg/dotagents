@@ -295,8 +295,9 @@ CASES: dict[str, Case] = {
             "docs/INDEX.md",
             "docs/architecture/INDEX.md",
             "scripts/check_docs.py",
+            "scripts/with_lock.py",
         ),
-        absent=("scripts/with_lock.py", "tests/core/test_toolchain.py", "docs/setup.md"),
+        absent=("tests/core/test_toolchain.py", "docs/setup.md"),
         untouched=("pyproject.toml", "uv.lock", ".python-version", "src/demo_uv/ledger.py"),
         sentinels={
             "AGENTS.md": (
@@ -344,11 +345,18 @@ CASES: dict[str, Case] = {
         stacks=None,
         expect_mode="existing",
         expect_stacks=("swift",),
-        present=(".beads", "AGENTS.md", "docs/INDEX.md", "Package.swift", "scripts/check_docs.py"),
+        present=(
+            ".beads",
+            "AGENTS.md",
+            "docs/INDEX.md",
+            "Package.swift",
+            "scripts/check_docs.py",
+            "scripts/with_lock.py",
+        ),
         absent=("justfile", ".swift-format", "tests/core/ToolchainTests.swift"),
         untouched=("Package.swift",),
         description_targets=("GLOSSARY.md",),
-        notes="existing 模式且无 justfile：只补依赖偏好，报告写明没有 justfile。",
+        notes="existing 模式且无 justfile：只补依赖偏好与两个公共脚本，报告写明没有 justfile。",
     ),
     "uv-bun-new": Case(
         name="uv-bun-new",

@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """使用 Python 3.14+ 标准库把标准化文档结构复制到当前项目。
 
-除 AGENTS.md 外的文件缺失才创建，已有文件一律不覆盖。AGENTS.md 按二级标题合并：
-缺少的节追加，已有的节与标题外内容原样保留，Matt setup 写入的 `## Agent skills` 节移除，
-标题前没有内容时补模板开头。只有空白的文件视为缺失。项目名取 --name、AGENTS.md 一级标题或目录名。
+文件缺失才创建，已有文件一律不覆盖；AGENTS.md 与 docs/agents/testing.md 例外，按二级标题合并：
+缺少的节追加，已有的节与标题外内容原样保留，标题前没有内容时补模板开头，AGENTS.md 里 Matt setup
+写入的 `## Agent skills` 节移除。testing.md 也合并是因为模板里 CODING_STANDARDS.md 链接它的 `#分层`，
+项目自带的 testing.md 没有这一节时文档检查一开始就红。只有空白的文件视为缺失。
+项目名取 --name、AGENTS.md 一级标题或目录名。
 """
 
 import argparse
@@ -16,6 +18,8 @@ PLACEHOLDER = "{{PROJECT_NAME}}"
 MATT_SETUP_FILES = ("docs/agents/issue-tracker.md", "docs/agents/domain.md")
 TRIAGE_DOC = "docs/agents/triage-labels.md"
 AGENTS = "AGENTS.md"
+# 按二级标题合并而非整文件跳过的模板文件。
+MERGED_FILES = (AGENTS, "docs/agents/testing.md")
 # 模板目录里混入的系统或缓存文件，复制时跳过；其余点文件照常复制。
 IGNORED_NAMES = {".DS_Store", "Thumbs.db"}
 MATT_SECTION = "Agent skills"
@@ -146,7 +150,7 @@ def main() -> int:
             content = "".join(
                 line for line in content.splitlines(keepends=True) if TRIAGE_DOC not in line
             )
-        if relative == AGENTS and has_content(target):
+        if relative in MERGED_FILES and has_content(target):
             merged, added, removed, head_added = merge_agents(
                 target.read_text(encoding="utf-8"), content
             )

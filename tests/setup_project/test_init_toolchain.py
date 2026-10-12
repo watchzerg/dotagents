@@ -290,14 +290,16 @@ def test_new_swift_project(project: Path, bin_dir: Path) -> None:
     assert commands == ["swift package resolve"]
 
 
-def test_existing_swift_project_gets_dependency_policy_only(project: Path, bin_dir: Path) -> None:
+def test_existing_swift_project_gets_dependency_policy_and_common_scripts(
+    project: Path, bin_dir: Path
+) -> None:
     (project / "Package.swift").write_text("// swift\n")
     result = run_script(project, bin_dir)
     assert result.returncode == 0, result.stderr
     assert "stacks：swift；模式：existing" in result.stdout
     assert not (project / "justfile").exists()
     assert (project / "scripts/check_docs.py").is_file()
-    assert not (project / "scripts/with_lock.py").exists()
+    assert (project / "scripts/with_lock.py").is_file()
     assert not (project / ".swift-format").exists()
     stack = (project / "docs/development/technology-stack.md").read_text()
     assert "Package.resolved" in stack and "<待填 阶段3：语言版本" in stack
@@ -360,7 +362,9 @@ def test_detects_stacks_from_lockfiles(project: Path, bin_dir: Path) -> None:
     assert "stacks：uv、bun；模式：existing" in result.stdout
 
 
-def test_existing_project_only_gets_dependency_preferences(project: Path, bin_dir: Path) -> None:
+def test_existing_project_gets_dependency_preferences_and_common_scripts(
+    project: Path, bin_dir: Path
+) -> None:
     (project / "uv.lock").write_text("")
     (project / "justfile").write_text("default:\n    @just --list\n\ntest *args:\n    pytest\n")
     before_workflow = (project / "docs/development/workflow.md").read_text()
@@ -369,7 +373,7 @@ def test_existing_project_only_gets_dependency_preferences(project: Path, bin_di
     assert not (project / "pyproject.toml").exists()
     assert (project / "scripts/check_docs.py").is_file()
     assert "已创建 scripts/check_docs.py" in result.stdout
-    assert not (project / "scripts/with_lock.py").exists()
+    assert (project / "scripts/with_lock.py").is_file()
     assert (project / "justfile").read_text().startswith("default:\n")
     assert (project / "docs/development/workflow.md").read_text() == before_workflow
     stack = (project / "docs/development/technology-stack.md").read_text()

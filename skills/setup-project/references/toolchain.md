@@ -28,7 +28,7 @@
 
 多个证据同时命中就是多 stack 项目。`--stacks` 可多选覆盖判定；`none` 表示没有预置 stack，不能与其他值同用。
 
-**模式**：任一强证据（lockfile、工程文件、`justfile`）存在即为已有工具链，脚本不创建工具链文件、不运行安装、不碰 justfile，只填 `technology-stack.md` 的"依赖政策"节（各 stack 片段拼合），并补缺 `scripts/check_docs.py`：它只用标准库、与 stack 无关，而文档正是本流程在这类项目上的主要产出，是"不碰工具链文件"的唯一例外。因此会被 existing 模式复制的"依赖政策"节只能写对任何项目都成立的偏好，模板已设置的配置事实（如 uv 的 `prerelease`、bun 的 `preinstall`）写在"运行时与工具链"节。否则为新项目。
+**模式**：任一强证据（lockfile、工程文件、`justfile`）存在即为已有工具链，脚本不创建工具链文件、不运行安装、不碰 justfile，只填 `technology-stack.md` 的"依赖政策"节（各 stack 片段拼合），并补缺 `scripts/check_docs.py` 与 `scripts/with_lock.py`：两者只用标准库、与 stack 无关，前者让 `docs-check` 有实现，后者让已有的 full 测试入口能包进主机锁，是"不碰工具链文件"的仅有例外。因此会被 existing 模式复制的"依赖政策"节只能写对任何项目都成立的偏好，模板已设置的配置事实（如 uv 的 `prerelease`、bun 的 `preinstall`）写在"运行时与工具链"节。否则为新项目。
 
 `--detect-only` 只做判定并打印 stack、模式、证据与 existing 模式下 justfile 缺少的契约 recipe，不写文件，退出码与正式运行一致。初始化流程先用它收集需要用户回答的问题，与项目描述一起只问一次，再正式落地。
 
@@ -95,7 +95,7 @@ uv+bun 选"后端根目录、前端子目录"：后端是仓库主体，`uv run`
 
 每个 stack 各带一个真实的工具链测试（Python 版本符合 `.python-version`、Bun 版本符合 `mise.toml`、Xcode 版本符合 `.xcode-version`），避免空测试集让 `gate-core` 以零收集失败。`init_toolchain.py` 只落地与安装，不运行门禁：agent 之后还会收敛旧文档、补写模块页，门禁放在这些改动之后才能覆盖它们。新项目在流程末尾运行 `just docs-check` 与 `just gate-core`，结果进报告。
 
-已有工具链的项目同样得到 `scripts/check_docs.py`（缺失才复制），流程末尾在项目根目录运行 `python3 scripts/check_docs.py`；补齐 `docs-check` recipe 时就用这条命令实现，不再写成"尚未接入"。这类项目本次没有改代码，不运行其自身的门禁；补过 recipe 时只用 `just --list` 确认 justfile 可解析。
+已有工具链的项目同样得到 `scripts/check_docs.py` 与 `scripts/with_lock.py`（缺失才复制），流程末尾在项目根目录运行 `python3 scripts/check_docs.py`；补齐 `docs-check` recipe 时就用这条命令实现，不再写成"尚未接入"。已有的 `gate-core` 追加 `check-toolchain docs-check` 依赖，`test-full` 与 `gate-full` 的 full 测试命令包进 `with_lock.py`，已有 recipe 的正文不改。这类项目本次没有改代码，不运行其 lint、构建与测试；补过 recipe 时运行 `just --list` 确认可解析，并单独运行新增的 `check-toolchain` 与 `docs-check`。
 
 ## 不在范围内
 

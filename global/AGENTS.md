@@ -15,4 +15,4 @@
 ## 多 agent 协作
 
 - 存在可并行的独立子任务，或需要跨多文件阅读而只要结论时，拆给子 agent；拆分成本高于收益时自己做。子 agent 可用时允许继续委派。
-- 每次调用子 agent 都按子任务难度显式传 `model`（haiku、sonnet、opus 之一）和 `effort`，不依赖默认继承。所有层级的子 agent 均不得使用 Fable 系列模型。
+- 每次调用子 agent 都通过 Agent 工具的 `model`（haiku、sonnet、opus 之一）与 `effort` 参数按子任务难度显式指定，不写进 prompt 文本代替，不依赖默认继承。所有层级的子 agent 均不得使用 Fable 系列模型。

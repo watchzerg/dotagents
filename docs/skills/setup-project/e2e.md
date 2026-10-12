@@ -28,7 +28,7 @@ just e2e-setup-project --build-only --out /tmp/x   # 只造 fixture，人工进�
 | `empty` | 只有 Matt 产物 | 主用例：判定退出码 3、一次提问、uv 新项目、`gate-core` |
 | `uv-existing` | `uv init --package` 加模块与测试、`docs/old-notes.md`、`docs/setup.md`、含同义节 `## 约束` 与自定义节的 `AGENTS.md`、含 `## 代码风格` 的 `CLAUDE.md`、只有 `test`/`lint` 的 justfile | existing 模式、同义节合并、`CLAUDE.md` 收口、旧文档收敛、从代码补写模块页、补齐 recipe |
 | `bun-new-with-code` | 只有 `src/*.ts`，无工具链文件 | 有代码但判定退出码 3，选 bun 后 new 模式并补写模块页 |
-| `swift-existing` | `swift package init` | existing 且无 justfile，只补依赖偏好 |
+| `swift-existing` | `swift package init` | existing 且无 justfile，只补依赖偏好与两个公共脚本 |
 | `uv-bun-new` | 空 | 多 stack 拼合，`frontend/` 布局 |
 | `none-empty` | 空，Matt 产物不含 triage | none stack 的契约 recipe 非零退出、触发表无分诊行 |
 
