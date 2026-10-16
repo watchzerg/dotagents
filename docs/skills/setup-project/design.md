@@ -74,6 +74,7 @@
   - 报告列了 5 个裁决项，3 个 agent 自己已有推荐（可选 ADR 不建、增量规则改动只需说明、scratchpad 副本不必留）。报告规则改为有推荐的直接执行并列为已决，只有无法推荐的才裁决；被删源文件用 `git show HEAD:<path>` 对照。media-glance 已出现同一模式。
   - 顺手写明两处 agent 自行判断的做法：第 4 步在标记填完、模块页齐全且无缺 recipe 时跳过；full 入口包锁后用 `--collect-only` 之类确认测试集不变。
   - 用户事后删掉了迁入 `docs/research/acceptance/assets/` 的全部截图、日志与 jsonl（约 1.9MB），只留链接文字并注明删除日期。是否把"验收记录的二进制附件不迁入、删除并注明"写成通用规则，只有一个样本，留待下一个项目再定。
+- **文档同步只加提示词层面的三道规则，不加机械检查与 hook**（2026-10-16 评估后定）：整条"随交付同步"链路是软约束，`docs-check` 查不出正文过时；最可能的断点是空项目里建页条件"有了可描述的行为和测试"是判断题，agent 会一直推迟，其次是 code-review 的标准轴没有文档项、implement-spec 的子 agent 简报不传同步链接。据此把建页条件改为"行为首次被测试覆盖"（第五轮 e2e review 时搁置的"模块页门槛"由此定案）、`CODING_STANDARDS.md` 加漏改模块页的判断项、`testing.md` 的 implement-spec 规则传递同步链接并写明文档冲突由 merger 处理。暂缓两项：`check_docs.py` 核对反引号路径只抓改名且进门禁后误报会逼 agent 删反引号，等真实项目出现路径腐烂再做；Stop hook 比较 diff 是唯一硬约束候选，但只对 Claude Code 生效且多轮任务里每次停下都被挡，等三道规则在真实项目仍漏改时再考虑。
 - **真实 agent 验收用 headless harness，而不是再写一个测试 skill**：`tests/setup_project/e2e/` 在临时 Git 项目上造 fixture、起 `claude -p "/setup-project"`、做确定性检查并派 reviewer 会话，入口 `just e2e-setup-project`，做法见 [e2e.md](e2e.md)。`setup-matt-pocock-skills` 标了 `disable-model-invocation`，agent 无法调用，所以其产物用 fixture 模拟；阶段 1 第 4 步的提问在非交互下由预置答案代替，agent 在报告里列出"本应提问"供 reviewer 核对。它属于仓库维护层，不进门禁、不被 pytest 收集，因为需要模型额度且结果有判断成分。
 
 ## 明确不做
@@ -93,6 +94,7 @@
 - 已在 media-glance 上真实跑过 existing 模式（2026-10-12，session 2495c23b，opus，主流程约 15 分钟、7 个子 agent 约 72 万 token）：依赖偏好与常驻约束无冲突、缺少 recipe 的实现建议准确、`check_docs.py` 准确并暴露了 testing.md `#分层` 锚点缺陷；68 个文件的收敛结果经用户两轮裁决后提交。由此固化的七条规则见关键决策，尚未复跑 e2e 验证：testing.md 按节合并、existing 模式复制 `with_lock.py`、已有 gate 的最小改动、已有模块页重排、research 验收记录候选、术语删减、有描述不提问。x-media-saver 已于 2026-10-13 真实跑过（session 8b7d9721，见关键决策）：七条规则中 testing.md 按节合并、`with_lock.py` 补缺、已有 gate 的最小接线、有描述不提问四条在该次运行中生效且无摩擦；由该次运行新加的四条措辞（执行前确认、分批理由、`git grep`、裁决项只列无法推荐的）尚未复验，e2e 也没有超过 30 个候选、带附件与被忽略仓库副本的 fixture，无法自动复验。
 - uv+swift、bun+swift 的组合只经过脚本测试和子 agent 对渲染结果的 `just`、`swift build`、`bun test` 单项验证，没有真实跑通完整 `gate-core`/`gate-full`；两者都在根目录时 `tests/core/` 会混放两种语言的测试文件。
 - 重写后的 `with_lock.py` 与动态 exclude 的 `Package.swift` 未在真实 full 测试场景下验收。
+- 真实开发会话里的文档同步没有任何数据：e2e 只覆盖初始化。下一个用模板初始化的空项目跑过三到五个改代码的任务后，回看是否在行为首次被测试覆盖时建了模块页、模块页是否随后续改动更新、完成报告是否列出文档影响；漏改的位置决定是否启用暂缓的 `check_docs.py` 路径核对或 Stop hook。
 
 ## 演进记录
 
@@ -119,3 +121,4 @@
 | 2026-10-16 | 按需目录 `docs/specs/` 改名 `docs/behaviors/`，权威归属表补与增量 spec、`collaborations.md` 的分工 | docs-structure.md 取舍表 |
 | 2026-10-13 | x-media-saver 真实 existing 运行复盘：收敛不做执行前确认、分批先全部分类并写明理由、引用查找改 `git grep`、报告只把无法推荐的事项列为裁决、第 4 步跳过条件与包锁后的收集验证 | 本文关键决策 |
 | 2026-10-16 | 为 acceptance skill 补模板：`workflow.md` 新增 `## 本地运行与观测`（`按需` 标记，列出启动停止、数据、可写目录、观测手段、禁区）；`documentation.md` 新增行为规格模板，behaviors 与模块页用户可见部分同骨架。existing 模式不合并 workflow.md，缺节由 acceptance 起草 | [acceptance 设计说明](../acceptance/design.md) |
+| 2026-10-16 | 评估模板能否约束项目 agent 随交付同步文档：建页条件改为行为首次被测试覆盖、`CODING_STANDARDS.md` 加漏改模块页判断项、implement-spec 规则传递同步链接；`check_docs.py` 路径核对与 Stop hook 暂缓，真实项目文档同步列入待验收 | 本文关键决策与待验收、docs-structure.md 持续维护机制 |
