@@ -1,0 +1,35 @@
+# acceptance 设计说明
+
+维护 [`skills/acceptance`](../../../skills/acceptance/SKILL.md) 前先读本文。记录目标、关键决策、与 setup-project 的耦合和待验收项，只写代码与 git 历史看不出的意图。
+
+## 目标与边界
+
+让 agent 在用户本机的真实环境上，按项目的行为文档把功能从头到尾验收一遍：真实启动项目、逐项操作、同时观察界面、日志、数据与可写目录，发现偏差就地修复并重跑，直到一次零修复的全量通过，最后留下报告。定位是“agent 执行的真实环境验收回归”——QA 在 staging 上按功能清单手工过一遍的活，不是 e2e 自动化：一次运行不可重复、不进门禁；沉淀下来的是修复 commit、随修复补的自动化测试和 `docs/research/acceptance/` 下的记录。
+
+不假设目标项目有浏览器、数据库或网络服务：观测通道由项目自己的环境契约声明，CLI、后台任务、桌面应用同样适用。
+
+## 关键决策
+
+- **预期只来自文档，文档权威**：`docs/behaviors/` 优先，退到模块页“当前行为规格”；两处都没有就不验。代码里有而文档没写的功能列“未覆盖”不验，否则验收退化成“代码与自己一致”。文档与代码冲突时要改文档才能通过的项一律 DEFERRED 写票，agent 不裁决、不改文档迁就代码。
+- **环境契约是硬前提**：验收所需的启动、停止、就绪判定、日志、数据查询与重置、可写目录、禁区都来自目标项目 `docs/development/workflow.md` 的 `## 本地运行与观测` 节；缺节时从 justfile、README 与配置起草，并入唯一一次用户确认后写回项目。契约声明的命令跑不起来是硬阻塞。放弃让 agent 每次从代码猜环境，因为猜错的代价是对真实环境的误操作。
+- **只问一次**：清单推导后用一次 AskUserQuestion 确认清单与（如有）契约草稿，之后只在硬阻塞停下。清单是整次运行的边界，确认成本低、收益高；其余决定（就地修复还是写票、重跑范围）都有规则，不问。
+- **就地修复的边界与收敛条件**：局部、不改 schema、不改公共接口、不涉设计取舍的才就地修，先补失败测试再修（纯界面表现类可免），一处修复一个 commit 到当前分支；其余 DEFERRED 写票继续。修复后重跑同来源文件的项；全部项结束后若本次有过修复，重置、重启、全量零修复重跑一次才算完成。没有这个收敛条件，“边验边修”会让已通过的项失去意义。
+- **账本在临时目录，报告进项目**：账本是跨轮唯一真相（对话会被压缩），放会话临时目录避免污染仓库；最终报告落 `docs/research/acceptance/<topic>-<date>.md` 并登记索引，因为模板已为验收证据留了这个位置，且下次运行要能对比。
+- **与 `/goal` 的分工**：`/goal` 只能由用户输入（文档无任何模型或 skill 设 goal 的途径；Skill 工具可调的内置命令不含 `/goal`），但 goal 条件可以引用 skill（anthropics/claude-code#58348）。因此 SKILL.md 给出推荐的一行 `/goal /acceptance 直到打印"验收完成"，最多 80 轮`，skill 负责流程与判据，goal 负责“没跑完别停”。评估器只读 transcript，所以每轮结束打印固定格式摘要，`验收完成` 只在报告 commit 后打印。放弃 skill frontmatter 自带 prompt 型 Stop hook 的自包含路线（2026-10-16 用户决定不验证）：goal 可观测、可 `/goal clear`，验收这种一跑一小时的活可观测比省一行输入重要。
+- **服务脱离 harness 启动**：goal 评估在后台任务未结束时会跳过，用 Bash 后台模式起服务等于没设 goal。契约要求启动命令自行后台化（日志落文件、记 pid），修复时按契约反复启停。
+- **浏览器用 Playwright MCP，不用用户的 Chrome**：官方 marketplace 的 `playwright` 插件（`npx @playwright/mcp@latest`）是用户级的，启动独立浏览器实例，目标项目不用装 playwright，也不需要 just recipe。SKILL.md 明确禁用 `claude-in-chrome` 工具。插件是否安装不由 dotagents 管理，在 README 列为前提。
+- **与 setup-project 的耦合**：模板 `docs/development/workflow.md` 新增 `## 本地运行与观测` 节（`按需` 标记，列出要回答的问题）；`docs/agents/documentation.md` 新增行为规格模板，让 behaviors 与模块页的用户可见部分按“场景与前提 → 操作与可观察结果 → 边界与错误情况”写，验收清单可以逐段映射。模板保持功能描述的通用性，不写测试步骤。已有项目的 workflow.md 不由 setup-project 合并，缺节由本 skill 起草补上。
+
+## 待验收
+
+- 尚未在任何真实项目上跑过。首个目标：有 web 界面与数据库的项目各一次 all 模式、一次 topic 模式；再跑一个纯 CLI 项目验证“不假设浏览器与数据库”的措辞够用。
+- `/goal /acceptance 直到打印"验收完成"，最多 80 轮` 这一行是否能让首轮正确触发 skill、评估器是否按 `验收完成` 判定，需要真实运行确认；最短形式 `/goal /acceptance` 未验证。
+- AskUserQuestion 在 goal 激活期间的行为（阶段 1 的一次确认）需要确认不会被评估器判为失败。
+- 契约起草（environment.md）的证据来源是否够用，取决于真实项目的 justfile 与 README 质量。
+- Playwright 插件的工具名前缀按其他官方插件的规律推断为 `mcp__plugin_playwright_playwright__`，SKILL.md 只按“名字含 `playwright`”匹配；首次真实运行时核对。
+
+## 演进记录
+
+| 日期 | 变更 | 依据 |
+| --- | --- | --- |
+| 2026-10-16 | 首版：SKILL.md 五阶段流程、清单与账本规则、环境契约规则、报告模板；setup-project 模板加 `本地运行与观测` 节与行为规格模板 | 本文关键决策 |

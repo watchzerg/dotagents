@@ -118,3 +118,4 @@
 | 2026-10-16 | 核对 Matt 的 to-spec、implement-spec、code-review 路径约定：增量 spec 走 tracker，code-review 兜底搜 `docs/` 整目录且按分支名匹配文件名，因此 `changes/` 不改名为 `specs/`；模板补 topic 用分支名或功能 slug | documentation.md 权威归属表 |
 | 2026-10-16 | 按需目录 `docs/specs/` 改名 `docs/behaviors/`，权威归属表补与增量 spec、`collaborations.md` 的分工 | docs-structure.md 取舍表 |
 | 2026-10-13 | x-media-saver 真实 existing 运行复盘：收敛不做执行前确认、分批先全部分类并写明理由、引用查找改 `git grep`、报告只把无法推荐的事项列为裁决、第 4 步跳过条件与包锁后的收集验证 | 本文关键决策 |
+| 2026-10-16 | 为 acceptance skill 补模板：`workflow.md` 新增 `## 本地运行与观测`（`按需` 标记，列出启动停止、数据、可写目录、观测手段、禁区）；`documentation.md` 新增行为规格模板，behaviors 与模块页用户可见部分同骨架。existing 模式不合并 workflow.md，缺节由 acceptance 起草 | [acceptance 设计说明](../acceptance/design.md) |

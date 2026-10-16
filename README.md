@@ -19,7 +19,7 @@
    ```
 
 4. 完成后开启新的 Claude Code 会话，验证个人规则和 skills 已加载。
-5. 切换到目标项目，先执行 `/setup-matt-pocock-skills`，再调用 `/setup-project` 初始化该项目；之后在各项目中按需使用 `/commit`、`/prune-tests` 等。
+5. 切换到目标项目，先执行 `/setup-matt-pocock-skills`，再调用 `/setup-project` 初始化该项目；之后在各项目中按需使用 `/commit`、`/prune-tests`、`/acceptance` 等。有 web 界面的项目要用 `/acceptance` 验收时，先在 Claude Code 安装官方 marketplace 的 `playwright` 插件。
 
 调用链为 `/setup-dotagents` → Python 链接脚本。脚本根据自身位置定位 checkout，也可从其他目录通过脚本绝对路径调用。日常应用配置不依赖 just、uv、第三方 Python 包或项目 `.venv`。
 
@@ -35,6 +35,7 @@ setup 会自动定位当前 checkout，建立并核验软链接。已有正确�
 | [`/commit`](skills/commit/SKILL.md) | 将当前仓库的现有变更提交为一个本地 commit；默认包含全部未忽略变更，不附署名行，不自动测试或 push。 | setup 后用户级可用 |
 | [`/prune-tests`](skills/prune-tests/SKILL.md) | 大幅精简测试，保留核心规则与主要流程的代表性用例，删除重复和非核心测试并验证结果。 | setup 后用户级可用 |
 | [`/setup-project`](skills/setup-project/SKILL.md) | 检查 Matt skills 设置后，用 Python 脚本初始化 Beads、按模板建立标准化文档结构、按 stack 组合（uv、Bun、Swift）初始化工具链与 gate-core / gate-full 门禁；再由 agent 收敛已有文档、从代码补写模块页，最后统一运行文档检查与门禁。 | setup 后用户级可用 |
+| [`/acceptance`](skills/acceptance/SKILL.md) | 在本机真实环境按项目行为文档完整验收功能：按项目的环境契约启动服务，逐项操作并观察界面、日志、数据与文件，偏差就地修复并重跑，直到零修复全量通过后写验收记录。推荐配合 `/goal /acceptance 直到打印"验收完成"，最多 80 轮` 运行。 | setup 后用户级可用 |
 
 第三方 skills 由原安装工具管理，不纳入本仓库，也不由 setup 安装。
 
@@ -63,6 +64,7 @@ dotagents/
 ├── global/AGENTS.md                # 跨项目生效的个人规则，安装为用户级 CLAUDE.md
 ├── .claude/skills/setup-dotagents/ # 项目级安装 skill 与链接脚本
 ├── skills/                         # 用户级个人 skills，按目录软链接，只含运行时内容
+│   ├── acceptance/                 # 真实环境验收（清单与账本规则、环境契约规则、报告模板）
 │   ├── commit/                     # 本地提交
 │   ├── prune-tests/                # 测试精简
 │   └── setup-project/              # 项目初始化（Beads、文档结构模板、工具链模板）
