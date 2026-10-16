@@ -7,7 +7,7 @@
 候选 = 满足全部条件的文件：
 
 - 扩展名为 `md`、`txt`、`rst`、`adoc`，或与某候选同目录且被其引用的附件（图片、HTML 原型、JSON 证据等）。`txt` 只收录内容为说明文字的文件：`requirements*.txt`、`CMakeLists.txt` 等配置不是候选。
-- 不在标准结构内：标准结构指模板创建的全部路径，`docs/agents/` 下 Matt setup 产出的全部文件，根目录的 `GLOSSARY-MAP.md`、`CLAUDE.md`、`CONTRIBUTING.md`、`LICENSE*`，以及 `docs/` 下按需目录（`adr/`、`architecture/modules/`、`architecture/collaborations.md`、`specs/`、`operations/`、`changes/`、`research/`）。
+- 不在标准结构内：标准结构指模板创建的全部路径，`docs/agents/` 下 Matt setup 产出的全部文件，根目录的 `GLOSSARY-MAP.md`、`CLAUDE.md`、`CONTRIBUTING.md`、`LICENSE*`，以及 `docs/` 下按需目录（`adr/`、`architecture/modules/`、`architecture/collaborations.md`、`behaviors/`、`operations/`、`changes/`、`research/`）。
 - 不在测试目录或 fixture 目录内（`tests/`、`fixtures/`）。
 - 受 Git 管理或未被忽略：忽略规则排除的文件（缓存、输出、凭据）不是候选。
 - 不在工具目录内：`.beads`、`.claude`、`.agents`、`.codex`、`.cursor`、`.github`、`.scratch`、`.out-of-scope`。

@@ -42,7 +42,7 @@
 | 职责归属、依赖方向、状态所有者 | `docs/architecture/module-boundaries.md` | 初始化 | 模块页说明如何遵守，偏差就地注明 |
 | 某模块的行为规格、实现设计、代码与验证入口 | `docs/architecture/modules/<module>.md` | 该职责首次有可描述的行为和测试时 | 总览只摘要 |
 | 跨模块流程 | `docs/architecture/collaborations.md` | 流程涉及三个以上模块时 | 模块页链接参与的流程 |
-| 用户可见行为规格 | `docs/specs/<topic>.md` | 行为横跨多个模块或有非开发读者时；否则写在模块页 | 模块页引用不重写 |
+| 用户可见行为规格 | `docs/behaviors/<topic>.md` | 行为横跨多个模块或有非开发读者（如 QA、产品）时；否则写在模块页的当前行为规格章节 | 模块页引用不重写。它是存量当前正文，只写用户视角，不是工程 skills 所说的增量 spec（那些落 tracker 或 `changes/`）；模块怎样协作写 `collaborations.md` |
 | 重要决策的背景、选择与后果 | `docs/adr/NNNN-<slug>.md`，状态写 frontmatter | 第一条 ADR 时 | 当前正文采用最终规则；替代旧决定时双向链接 |
 | 调研、实验、验收证据 | `docs/research/`，验收在 `acceptance/` | 索引初始化，文件按需 | 历史证据不冒充当前覆盖 |
 | 工具链、命令、门禁、测试分层 | `docs/development/` | 初始化，阶段 3 填入 | 模块页链接测试入口，不复制执行说明 |

@@ -23,7 +23,7 @@
     │   ├── module-boundaries.md
     │   ├── collaborations.md        # 按需
     │   └── modules/<module>.md      # 按需，含"当前行为规格"章节
-    ├── specs/                       # 按需：行为跨模块或有非开发读者时
+    ├── behaviors/<topic>.md         # 按需：用户可见行为跨模块或有非开发读者时；存量正文，非增量 spec
     ├── adr/NNNN-<slug>.md           # Matt 惰性创建，无 INDEX，状态进 frontmatter
     ├── research/
     │   ├── INDEX.md
@@ -60,7 +60,8 @@
 | 分歧 | 选择 | 理由 |
 | --- | --- | --- |
 | 架构正文位置 | 全部在 `docs/architecture/`，根目录不放 `ARCHITECTURE.md` | x-media-saver 分散在三处；根目录只留生态按名查找的文件 |
-| 产品规格与模块页 | 默认只有模块页，行为规格是其一章；`specs/` 按需 | 两棵"当前真相"树的交叉链接是单人项目的负担 |
+| 产品规格与模块页 | 默认只有模块页，行为规格是其一章；`behaviors/` 按需 | 两棵"当前真相"树的交叉链接是单人项目的负担 |
+| 用户可见行为目录的命名 | `behaviors/`，不用 `specs/` | Matt 的 implement-spec 与 code-review 把 spec 当增量规格，`docs/specs/` 会被误读；behaviors 与模块页"当前行为规格"同词，表明它是该章的升格 |
 | 增量与归档 | tracker 为主，Markdown 兜底 `changes/`，吸收后删除；不设 `archive/`、`plans/` | git 保留历史；归档层及其 INDEX 是 Beads 之前遗留设计文档的产物 |
 | 研究与验收 | `research/` 常驻不归档，验收记录在 `research/acceptance/` | 证据自带时点，归档没有意义 |
 | 触发表 | 只在 `AGENTS.md` 一份 | 两个项目各有两到三张表，行会漂移 |
