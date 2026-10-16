@@ -122,3 +122,4 @@
 | 2026-10-13 | x-media-saver 真实 existing 运行复盘：收敛不做执行前确认、分批先全部分类并写明理由、引用查找改 `git grep`、报告只把无法推荐的事项列为裁决、第 4 步跳过条件与包锁后的收集验证 | 本文关键决策 |
 | 2026-10-16 | 为 acceptance skill 补模板：`workflow.md` 新增 `## 本地运行与观测`（`按需` 标记，列出启动停止、数据、可写目录、观测手段、禁区）；`documentation.md` 新增行为规格模板，behaviors 与模块页用户可见部分同骨架。existing 模式不合并 workflow.md，缺节由 acceptance 起草 | [acceptance 设计说明](../acceptance/design.md) |
 | 2026-10-16 | 评估模板能否约束项目 agent 随交付同步文档：建页条件改为行为首次被测试覆盖、`CODING_STANDARDS.md` 加漏改模块页判断项、implement-spec 规则传递同步链接；`check_docs.py` 路径核对与 Stop hook 暂缓，真实项目文档同步列入待验收 | 本文关键决策与待验收、docs-structure.md 持续维护机制 |
+| 2026-10-17 | 为 prune-tests skill 补模板：`workflow.md` 新增 `## 回归覆盖与保留范围`（`按需` 标记，精简后记录各层保留范围与不再维护的类别）；`testing.md` 编写与变更加一条，精简测试按 `/prune-tests` 执行 | [prune-tests 设计说明](../prune-tests/design.md) |
