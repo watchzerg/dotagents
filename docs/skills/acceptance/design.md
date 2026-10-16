@@ -17,7 +17,7 @@
 - **账本在临时目录，报告进项目**：账本是跨轮唯一真相（对话会被压缩），放会话临时目录避免污染仓库；最终报告落 `docs/research/acceptance/<topic>-<date>.md` 并登记索引，因为模板已为验收证据留了这个位置，且下次运行要能对比。
 - **与 `/goal` 的分工**：`/goal` 只能由用户输入（文档无任何模型或 skill 设 goal 的途径；Skill 工具可调的内置命令不含 `/goal`），但 goal 条件可以引用 skill（anthropics/claude-code#58348）。因此 SKILL.md 给出推荐的一行 `/goal /acceptance 直到打印"验收完成"，最多 80 轮`，skill 负责流程与判据，goal 负责“没跑完别停”。评估器只读 transcript，所以每轮结束打印固定格式摘要，`验收完成` 只在报告 commit 后打印。放弃 skill frontmatter 自带 prompt 型 Stop hook 的自包含路线（2026-10-16 用户决定不验证）：goal 可观测、可 `/goal clear`，验收这种一跑一小时的活可观测比省一行输入重要。
 - **服务脱离 harness 启动**：goal 评估在后台任务未结束时会跳过，用 Bash 后台模式起服务等于没设 goal。契约要求启动命令自行后台化（日志落文件、记 pid），修复时按契约反复启停。
-- **浏览器用 Playwright MCP，不用用户的 Chrome**：官方 marketplace 的 `playwright` 插件（`npx @playwright/mcp@latest`）是用户级的，启动独立浏览器实例，目标项目不用装 playwright，也不需要 just recipe。SKILL.md 明确禁用 `claude-in-chrome` 工具。插件是否安装不由 dotagents 管理，在 README 列为前提。
+- **浏览器用用户自己的 Chrome（Claude in Chrome 扩展）**：最接近真实使用环境，复用已有登录态，且能读 console 与 network，观测通道比 Playwright MCP 全。代价是操作的是真实浏览器与真实账号，所以 SKILL.md 把范围写死：只访问契约声明的地址、只在自己新建的标签页操作、不登出、不动其他标签页，禁区由契约声明（含不得触发的外部站点与操作）；原生对话框会阻塞扩展，列为硬阻塞。2026-10-16 首版曾选 Playwright MCP headless（独立实例、不占用户浏览器），同日用户改为 Chrome profile，理由是真实环境与登录态复用更不容易出错。目标项目不用装任何浏览器依赖，前提只是 Chrome 打开且扩展连接。
 - **与 setup-project 的耦合**：模板 `docs/development/workflow.md` 新增 `## 本地运行与观测` 节（`按需` 标记，列出要回答的问题）；`docs/agents/documentation.md` 新增行为规格模板，让 behaviors 与模块页的用户可见部分按“场景与前提 → 操作与可观察结果 → 边界与错误情况”写，验收清单可以逐段映射。模板保持功能描述的通用性，不写测试步骤。已有项目的 workflow.md 不由 setup-project 合并，缺节由本 skill 起草补上。
 
 ## 待验收
@@ -26,10 +26,11 @@
 - `/goal /acceptance 直到打印"验收完成"，最多 80 轮` 这一行是否能让首轮正确触发 skill、评估器是否按 `验收完成` 判定，需要真实运行确认；最短形式 `/goal /acceptance` 未验证。
 - AskUserQuestion 在 goal 激活期间的行为（阶段 1 的一次确认）需要确认不会被评估器判为失败。
 - 契约起草（environment.md）的证据来源是否够用，取决于真实项目的 justfile 与 README 质量。
-- Playwright 插件的工具名前缀按其他官方插件的规律推断为 `mcp__plugin_playwright_playwright__`，SKILL.md 只按“名字含 `playwright`”匹配；首次真实运行时核对。
+- Chrome 扩展在几十轮、一小时以上的运行里是否稳定（断连、标签页被用户误关）需要真实运行观察；断连已列为硬阻塞。
 
 ## 演进记录
 
 | 日期 | 变更 | 依据 |
 | --- | --- | --- |
 | 2026-10-16 | 首版：SKILL.md 五阶段流程、清单与账本规则、环境契约规则、报告模板；setup-project 模板加 `本地运行与观测` 节与行为规格模板 | 本文关键决策 |
+| 2026-10-16 | 浏览器从 Playwright MCP headless 改为用户自己的 Chrome：新建专用标签页、只访问契约地址、读 console 与 network 作证据、原生对话框列硬阻塞 | 本文关键决策 |

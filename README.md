@@ -19,7 +19,7 @@
    ```
 
 4. 完成后开启新的 Claude Code 会话，验证个人规则和 skills 已加载。
-5. 切换到目标项目，先执行 `/setup-matt-pocock-skills`，再调用 `/setup-project` 初始化该项目；之后在各项目中按需使用 `/commit`、`/prune-tests`、`/acceptance` 等。有 web 界面的项目要用 `/acceptance` 验收时，先在 Claude Code 安装官方 marketplace 的 `playwright` 插件。
+5. 切换到目标项目，先执行 `/setup-matt-pocock-skills`，再调用 `/setup-project` 初始化该项目；之后在各项目中按需使用 `/commit`、`/prune-tests`、`/acceptance` 等。有 web 界面的项目要用 `/acceptance` 验收时，需要 Chrome 已打开且 Claude in Chrome 扩展已连接，验收复用你自己的登录态。
 
 调用链为 `/setup-dotagents` → Python 链接脚本。脚本根据自身位置定位 checkout，也可从其他目录通过脚本绝对路径调用。日常应用配置不依赖 just、uv、第三方 Python 包或项目 `.venv`。
 
