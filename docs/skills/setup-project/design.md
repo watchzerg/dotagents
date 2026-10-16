@@ -115,5 +115,6 @@
 | 2026-10-12 | 新增端到端验收 harness `tests/setup_project/e2e/`（`just e2e-setup-project`），首轮跑通 `empty` 与 `uv-existing`，发现 AGENTS.md 空开头、空 README、existing 模式 docs-check 三个缺口 | e2e.md、本文待验收 |
 | 2026-10-12 | 维护材料移出 skill 目录：测试移到 `tests/setup_project/`，本文与 beads-init-research.md 移到 `docs/skills/setup-project/`，skill 目录只保留运行时内容 | 根 AGENTS.md 三层结构 |
 | 2026-10-12 | media-glance 真实 existing 运行复盘：`init_docs.py` 按节合并 testing.md，existing 模式复制 `with_lock.py` 并允许已有 gate 的最小接线，收敛候选加入已有模块页与 research 验收记录，术语只迁项目特有条目，有描述不提问，报告列跳过步骤 | 本文关键决策 |
+| 2026-10-16 | 核对 Matt 的 to-spec、implement-spec、code-review 路径约定：增量 spec 走 tracker，code-review 兜底搜 `docs/` 整目录且按分支名匹配文件名，因此 `changes/` 不改名为 `specs/`；模板补 topic 用分支名或功能 slug | documentation.md 权威归属表 |
 | 2026-10-16 | 按需目录 `docs/specs/` 改名 `docs/behaviors/`，权威归属表补与增量 spec、`collaborations.md` 的分工 | docs-structure.md 取舍表 |
 | 2026-10-13 | x-media-saver 真实 existing 运行复盘：收敛不做执行前确认、分批先全部分类并写明理由、引用查找改 `git grep`、报告只把无法推荐的事项列为裁决、第 4 步跳过条件与包锁后的收集验证 | 本文关键决策 |

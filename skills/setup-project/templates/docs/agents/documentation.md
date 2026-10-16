@@ -47,7 +47,7 @@
 | 调研、实验、验收证据 | `docs/research/`，验收在 `acceptance/` | 索引初始化，文件按需 | 历史证据不冒充当前覆盖 |
 | 工具链、命令、门禁、测试分层 | `docs/development/` | 初始化，阶段 3 填入 | 模块页链接测试入口，不复制执行说明 |
 | 部署、运行配置、发布与回滚 | `docs/operations/` | 有可部署产物时 | development 链接发布入口 |
-| Markdown 形式的增量规格 | `docs/changes/<topic>.md` | 用户要求时 | 吸收后删除 |
+| Markdown 形式的增量规格 | `docs/changes/<topic>.md`，topic 用分支名或功能 slug，便于 code-review 按分支名找到 | 用户要求时 | 吸收后删除 |
 
 ## 模块页模板
 
