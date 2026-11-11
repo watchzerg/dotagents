@@ -60,7 +60,7 @@ JUSTFILE_HEADER = """\
 # 项目命令契约：check-toolchain、install、fmt、lint、typecheck、test、test-full、docs-check、gate-core、gate-full 是必需入口，名称与职责保持稳定。
 # 验证不修改源码；fmt 是修改文件的入口。缺失能力须非零退出，不能用空命令冒充通过。
 # 公开 recipe 聚合各 stack 的私有 recipe（<stack>-*）；full 测试经 scripts/with_lock.py 的主机锁串行。
-# 测试分层与门禁定义见 docs/development/workflow.md。
+# 门禁定义见 docs/development/workflow.md，测试分层见 docs/development/test-layers.md。
 set positional-arguments
 
 # 列出项目命令。

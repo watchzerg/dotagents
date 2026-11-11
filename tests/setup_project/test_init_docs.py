@@ -63,6 +63,8 @@ def test_templates_cover_core_structure() -> None:
         "docs/architecture/module-boundaries.md",
         "docs/research/INDEX.md",
         "docs/development/workflow.md",
+        "docs/development/test-layers.md",
+        "docs/development/local-acceptance.md",
         "docs/development/technology-stack.md",
     } <= set(TEMPLATE_FILES)
     assert not any(name.startswith("docs/agents/issue-tracker") for name in TEMPLATE_FILES)

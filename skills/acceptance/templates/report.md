@@ -1,7 +1,7 @@
 # 验收记录 <all 或 topic> <YYYY-MM-DD>
 
 范围：<全部行为文档 或 behaviors/<topic>.md>；预期来源：<文件清单>。
-环境：<运行形态>；契约 `docs/development/workflow.md#本地运行与观测`<，本次起草>；数据<已重置 或 未重置>；分支 `<branch>`，起点 `<commit>`。
+环境：<运行形态>；契约 `docs/development/local-acceptance.md`<，本次起草>；数据<已重置 或 未重置>；分支 `<branch>`，起点 `<commit>`。
 结论：<N> 项，PASS <n>、FIXED <n>、DEFERRED <n>；最终全量重跑零修复<，或 未进行（本次无修复）>。
 
 ## 结果

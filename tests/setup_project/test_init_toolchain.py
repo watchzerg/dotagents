@@ -157,7 +157,16 @@ def test_new_uv_project(project: Path, bin_dir: Path) -> None:
     assert "`uv`（Homebrew）、`just`（Homebrew）" in workflow
     assert "Python 解释器由 uv" in workflow and "### " not in workflow
     assert "<待填 按需：有发布流程时" in workflow
-    assert "core：`tests/core/`" in (project / "docs/agents/testing.md").read_text()
+    assert "测试分层与资源边界" not in workflow and "local-acceptance.md" in workflow
+    layers = (project / "docs/development/test-layers.md").read_text()
+    assert (
+        "## 分层与资源边界" in layers
+        and "`tests/core/`（pytest `testpaths`）；由 `just test`" in layers
+    )
+    assert "<待填 按需：第一次用 `/prune-tests`" in layers
+    testing = (project / "docs/agents/testing.md").read_text()
+    assert "core：`tests/core/`" in testing
+    assert "../development/test-layers.md#分层与资源边界" in testing
     assert "just install" in (project / "README.md").read_text()
     stack = (project / "docs/development/technology-stack.md").read_text()
     assert "typer" in stack and "beautifulsoup4" in stack
@@ -287,7 +296,8 @@ def test_new_swift_project(project: Path, bin_dir: Path) -> None:
     assert "{{" not in text
     assert stage3_markers(project) == {}
     workflow = (project / "docs/development/workflow.md").read_text()
-    assert "Xcode（App Store" in workflow and "`CoreTests` target" in workflow
+    assert "Xcode（App Store" in workflow
+    assert "`CoreTests` target" in (project / "docs/development/test-layers.md").read_text()
     assert "Package.resolved" in (project / "docs/development/technology-stack.md").read_text()
     commands = [call.split(" | ")[0] for call in invocations(project)]
     assert commands == ["swift package resolve"]
@@ -334,6 +344,8 @@ def test_none_new_project_installs_contract_justfile(project: Path, bin_dir: Pat
     workflow = (project / "docs/development/workflow.md").read_text()
     assert "`just gate-core`" in workflow and "<待填 按需：接入工具链后" in workflow
     assert "<待填 按需：本项目各层的位置" in (project / "docs/agents/testing.md").read_text()
+    layers = (project / "docs/development/test-layers.md").read_text()
+    assert "<待填 按需：本项目各层的目录" in layers and "| core |" in layers
     assert "<待填 按需：接入工具链后" in (project / "README.md").read_text()
     assert "<待填 按需：" in (project / "docs/development/technology-stack.md").read_text()
     assert stage3_markers(project) == {}

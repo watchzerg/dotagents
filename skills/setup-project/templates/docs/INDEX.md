@@ -23,6 +23,8 @@
 | `adr/` | 为什么做出重要决定 |
 | [调研索引](research/INDEX.md) | 比较与验证的证据和适用条件 |
 | [开发工作流](development/workflow.md)、[技术选型](development/technology-stack.md) | 怎么开发、构建和验证 |
+| [测试分层合同](development/test-layers.md) | 各层测试放哪、由哪个入口收录、占用哪些资源；精简测试后保留了什么 |
+| [本地验收环境](development/local-acceptance.md) | 真实环境验收时怎么启动、停止、观测，哪些不能碰 |
 | [测试设计与门禁](agents/testing.md) | 测试怎么写、归哪类、过哪道门禁 |
 | [文档维护规则](agents/documentation.md) | 文档放哪、怎么同步 |
 | `agents/` 其余文件 | 工程 skills 的 tracker 与领域文档约定（装了 triage 时还有标签映射） |

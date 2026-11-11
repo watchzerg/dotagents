@@ -42,6 +42,8 @@ class Case:
     text_rules: tuple[tuple[str, str, bool], ...] = ()
     # 描述应出现在哪些文件：已有开头的 AGENTS.md 或已存在的 README.md 不留 初始化 标记，不会被填。
     description_targets: tuple[str, ...] = ("AGENTS.md", "README.md", "GLOSSARY.md")
+    # fixture 的 AGENTS.md 已有描述时流程不提问，其余文件由这句展开；描述检查改用它取片段。
+    existing_description: str | None = None
     notes: str = ""
 
 
@@ -253,6 +255,8 @@ def build_none_empty(project: Path) -> None:
 # ---------------------------------------------------------------- 用例表
 
 DESCRIPTION = "一个给个人用的命令行记账工具，记录收支并计算余额"
+# build_uv_existing 写进 AGENTS.md 的已有描述，两处保持一致。
+UV_EXISTING_DESCRIPTION = "个人记账小工具，命令行使用"
 
 CASES: dict[str, Case] = {
     "empty": Case(
@@ -283,6 +287,7 @@ CASES: dict[str, Case] = {
         name="uv-existing",
         build=build_uv_existing,
         description=DESCRIPTION,
+        existing_description=UV_EXISTING_DESCRIPTION,
         stacks=None,
         expect_mode="existing",
         expect_stacks=("uv",),

@@ -78,6 +78,7 @@
   - 用户事后删掉了迁入 `docs/research/acceptance/assets/` 的全部截图、日志与 jsonl（约 1.9MB），只留链接文字并注明删除日期。是否把"验收记录的二进制附件不迁入、删除并注明"写成通用规则，只有一个样本，留待下一个项目再定。
 - **文档同步只加提示词层面的三道规则，不加机械检查与 hook**（2026-10-16 评估后定）：整条"随交付同步"链路是软约束，`docs-check` 查不出正文过时；最可能的断点是空项目里建页条件"有了可描述的行为和测试"是判断题，agent 会一直推迟，其次是 code-review 的标准轴没有文档项、implement-spec 的子 agent 简报不传同步链接。据此把建页条件改为"行为首次被测试覆盖"（第五轮 e2e review 时搁置的"模块页门槛"由此定案）、`CODING_STANDARDS.md` 加漏改模块页的判断项、`testing.md` 的 implement-spec 规则传递同步链接并写明文档冲突由 merger 处理。暂缓两项：`check_docs.py` 核对反引号路径只抓改名且进门禁后误报会逼 agent 删反引号，等真实项目出现路径腐烂再做；Stop hook 比较 diff 是唯一硬约束候选，但只对 Claude Code 生效且多轮任务里每次停下都被挡，等三道规则在真实项目仍漏改时再考虑。
 - **功能地图是行为规格之上的索引层，不取代它**（2026-11-11）：起因是觉得 behavior 粒度太细，考虑改用社区的 feature-map。调研结论是两者分属两层：feature-map 类做法（`FEATURE-MAP.yaml`、`CODEMAP.md`）回答"有什么功能、落在哪"，没有统一标准；spec-driven 工具（OpenSpec 的 Requirement 加 Scenario、Kiro 的 EARS）的活规格粒度与行为规格相当或更细。只留地图时 agent 找得到位置却无法判断行为对错，`/acceptance` 也失去预期来源，所以行为规格不动。缺口是模块地图只有工程视角，"有哪些功能、行为写在哪"没有单一入口，因此在架构总览加一张功能地图表，每个功能一行并链接到行为规格。不建独立文件：只做索引的表放进已有总览不增加入口；登记时机沿用"首次被测试覆盖"，与模块页建页条件一致。`/acceptance` 仍直接扫描行为文档，不依赖这张表。
+- **skill 读写的项目合同独占一页**（2026-11-11）：`/prune-tests` 的测试分层合同与保留范围、`/acceptance` 的环境契约原先是 `workflow.md` 里的三节，skill 按节名读写。media-glance 实测改代码路径的共有必读量 16702 字符，其中这三节占 5632，而一般改代码任务用不上它们；存量项目还各自把某节移到了别处，skill 按节名找不到就在 `workflow.md` 重建，内容分叉。模板改为两张独占页 `docs/development/test-layers.md` 与 `local-acceptance.md`，skill 只认路径；`workflow.md` 只留命令与门禁。分层合同与保留范围合成一页而不是各占一页，因为它们是 `/prune-tests` 同一次运行的读和写。新页必须进文档图谱，不能只被 skill 读到：`test-layers.md` 由 `agents/testing.md` 入链，`local-acceptance.md` 由 `workflow.md` 开头的指路句入链，两页都登记在 `docs/INDEX.md` 入口分工表（模板没有 development 目录索引）与权威归属表。overlay 按节名替换的机制不变，分层正文从 `workflow.md` 的 overlay 移到同目录的 `test-layers.md` overlay；节名只是模板与 overlay 之间的内部约定，skill 不依赖它。
 - **真实 agent 验收用 headless harness，而不是再写一个测试 skill**：`tests/setup_project/e2e/` 在临时 Git 项目上造 fixture、起 `claude -p "/setup-project"`、做确定性检查并派 reviewer 会话，入口 `just e2e-setup-project`，做法见 [e2e.md](e2e.md)。`setup-matt-pocock-skills` 标了 `disable-model-invocation`，agent 无法调用，所以其产物用 fixture 模拟；阶段 1 第 4 步的提问在非交互下由预置答案代替，agent 在报告里列出"本应提问"供 reviewer 核对。它属于仓库维护层，不进门禁、不被 pytest 收集，因为需要模型额度且结果有判断成分。
 
 ## 明确不做
@@ -100,6 +101,7 @@
 - 重写后的 `with_lock.py` 与动态 exclude 的 `Package.swift` 未在真实 full 测试场景下验收。
 - 真实开发会话里的文档同步没有任何数据：e2e 只覆盖初始化。下一个用模板初始化的空项目跑过三到五个改代码的任务后，回看是否在行为首次被测试覆盖时建了模块页、模块页是否随后续改动更新、完成报告是否列出文档影响；漏改的位置决定是否启用暂缓的 `check_docs.py` 路径核对或 Stop hook。
 - 功能地图（2026-11-11）只改了模板与规则文本，未跑 e2e：existing 模式下补写文档的子 agent 与主 agent 是否按代码填出功能地图、真实开发会话里新增功能时是否登记，都没有数据；并入上一条的真实项目回看。
+- 合同独占页（2026-11-11）：`just gate-full` 通过；e2e 跑了 `empty`、`none-empty`、`uv-existing` 三个用例（未加 `--review`、`--rerun`），硬检查全部通过，含两张新页的存在与入链。`uv-existing` 前两次只失败 `description:GLOSSARY.md`，原因在 harness：fixture 的 `AGENTS.md` 已有描述，流程不提问，GLOSSARY 由那句描述展开，而检查拿预置答案的四字片段去比，命中与否取决于措辞。`Case` 加 `existing_description`，这类用例改用 fixture 里的描述取片段，第三次运行通过。其余用例未跑；真实项目上的 `/acceptance` 与 `/prune-tests` 未在新路径下运行过。
 
 ## 演进记录
 
@@ -125,9 +127,10 @@
 | 2026-10-16 | 核对 Matt 的 to-spec、implement-spec、code-review 路径约定：增量 spec 走 tracker，code-review 兜底搜 `docs/` 整目录且按分支名匹配文件名，因此 `changes/` 不改名为 `specs/`；模板补 topic 用分支名或功能 slug | documentation.md 权威归属表 |
 | 2026-10-16 | 按需目录 `docs/specs/` 改名 `docs/behaviors/`，权威归属表补与增量 spec、`collaborations.md` 的分工 | docs-structure.md 取舍表 |
 | 2026-10-13 | x-media-saver 真实 existing 运行复盘：收敛不做执行前确认、分批先全部分类并写明理由、引用查找改 `git grep`、报告只把无法推荐的事项列为裁决、第 4 步跳过条件与包锁后的收集验证 | 本文关键决策 |
-| 2026-10-16 | 为 acceptance skill 补模板：`workflow.md` 新增 `## 本地运行与观测`（`按需` 标记，列出启动停止、数据、可写目录、观测手段、禁区）；`documentation.md` 新增行为规格模板，behaviors 与模块页用户可见部分同骨架。existing 模式不合并 workflow.md，缺节由 acceptance 起草 | [acceptance 设计说明](../acceptance/design.md) |
+| 2026-10-16 | 为 acceptance skill 补模板：`workflow.md` 新增环境契约节（`按需` 标记，列出启动停止、数据、可写目录、观测手段、禁区）；`documentation.md` 新增行为规格模板，behaviors 与模块页用户可见部分同骨架。existing 模式不合并 workflow.md，缺节由 acceptance 起草 | [acceptance 设计说明](../acceptance/design.md) |
 | 2026-10-16 | 评估模板能否约束项目 agent 随交付同步文档：建页条件改为行为首次被测试覆盖、`CODING_STANDARDS.md` 加漏改模块页判断项、implement-spec 规则传递同步链接；`check_docs.py` 路径核对与 Stop hook 暂缓，真实项目文档同步列入待验收 | 本文关键决策与待验收、docs-structure.md 持续维护机制 |
-| 2026-10-17 | 为 prune-tests skill 补模板：`workflow.md` 新增 `## 回归覆盖与保留范围`（`按需` 标记，精简后记录各层保留范围与不再维护的类别）；`testing.md` 编写与变更加一条，精简测试按 `/prune-tests` 执行 | [prune-tests 设计说明](../prune-tests/design.md) |
+| 2026-10-17 | 为 prune-tests skill 补模板：`workflow.md` 新增保留范围节（`按需` 标记，精简后记录各层保留范围与不再维护的类别）；`testing.md` 编写与变更加一条，精简测试按 `/prune-tests` 执行 | [prune-tests 设计说明](../prune-tests/design.md) |
 | 2026-11-11 | 前端 stack 由 Bun 换为 Node + pnpm：`toolchain/stacks/bun/` 改为 `node/`，mise 管理 Node 与 pnpm，Vitest 取代 `bun test`，判定证据改为 `pnpm-lock.yaml`；React、Vite、Tailwind CSS、shadcn/ui、React Testing Library 作为固定选型写入依赖政策，不落应用骨架 | 本文关键决策与待验收、toolchain.md |
-| 2026-11-11 | 测试分层用词统一：`testing.md` 标题改为“测试设计与门禁”并补层的划分标准与“验收”只指 `/acceptance`，`gate-full` 注释改为“完整门禁”，`本地运行与观测` 标记补验收专用数据；分层结构不变 | 本文关键决策、[acceptance 设计说明](../acceptance/design.md) |
+| 2026-11-11 | 测试分层用词统一：`testing.md` 标题改为“测试设计与门禁”并补层的划分标准与“验收”只指 `/acceptance`，`gate-full` 注释改为“完整门禁”，环境契约标记补验收专用数据；分层结构不变 | 本文关键决策、[acceptance 设计说明](../acceptance/design.md) |
 | 2026-11-11 | 架构总览模板新增功能地图表（功能、一句话说明、行为规格链接、涉及模块），`documentation.md` 权威归属表与随交付同步补登记规则，文档索引、docs-structure.md、document-code.md 同步；行为规格与 `behaviors/` 不变 | 本文关键决策与待验收、docs-structure.md 取舍表 |
+| 2026-11-11 | 模板新增 `docs/development/test-layers.md`（分层合同与保留范围）与 `local-acceptance.md`（环境契约），`workflow.md` 删去对应三节只留指路句；overlay 的分层正文移到 `test-layers.md`；`CODING_STANDARDS.md`、`testing.md`、文档索引、权威归属表、docs-structure.md、toolchain.md 的入链与说明同步；e2e 确定性检查加两页存在与入链 | 本文关键决策、[acceptance 设计说明](../acceptance/design.md)、[prune-tests 设计说明](../prune-tests/design.md) |

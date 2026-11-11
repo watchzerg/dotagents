@@ -37,7 +37,7 @@
 | diff 评审的判断类标准 | `CODING_STANDARDS.md` | 初始化，随 retro 追加 | 测试专项规则留在 `agents/testing.md`，互链 |
 | 冷启动路径、各入口回答什么 | `docs/INDEX.md` | 初始化 | 不含触发表与维护规则 |
 | tracker、标签、领域文档约定 | `docs/agents/` 中 Matt setup 产出的三个文件 | Matt setup | 由 `AGENTS.md` 触发表指向，不另建 Agent skills 块 |
-| 测试归属、收录、分阶段验证 | `docs/agents/testing.md` | 初始化 | 命令与资源合同在 `development/workflow.md` |
+| 测试归属、收录、分阶段验证 | `docs/agents/testing.md` | 初始化 | 命令在 `development/workflow.md`，各层目录与资源合同在 `development/test-layers.md` |
 | 系统全貌、功能地图、模块地图、依赖、不变量 | `docs/architecture/INDEX.md` | 初始化 | README 与文档索引只路由 |
 | 有哪些用户可见功能、各自的行为规格在哪 | `docs/architecture/INDEX.md` 的功能地图 | 初始化，用户可见功能首次被测试覆盖时登记一行 | 只做索引，每个功能一句话；操作与可观察结果写在所链接的行为规格里，不在表中展开 |
 | 职责归属、依赖方向、状态所有者 | `docs/architecture/module-boundaries.md` | 初始化 | 模块页说明如何遵守，偏差就地注明 |
@@ -46,7 +46,9 @@
 | 用户可见行为规格 | `docs/behaviors/<topic>.md`，写法见[行为规格模板](#行为规格模板) | 行为横跨多个模块或有非开发读者（如 QA、产品）时；否则写在模块页的当前行为规格章节 | 模块页引用不重写。它是存量当前正文，只写用户视角，不是工程 skills 所说的增量 spec（那些落 tracker 或 `changes/`）；模块怎样协作写 `collaborations.md` |
 | 重要决策的背景、选择与后果 | `docs/adr/NNNN-<slug>.md`，状态写 frontmatter | 第一条 ADR 时 | 当前正文采用最终规则；替代旧决定时双向链接 |
 | 调研、实验、验收证据 | `docs/research/`，验收在 `acceptance/` | 索引初始化，文件按需 | 历史证据不冒充当前覆盖 |
-| 工具链、命令、门禁、测试分层 | `docs/development/` | 初始化，阶段 3 填入 | 模块页链接测试入口，不复制执行说明 |
+| 工具链、命令、门禁 | `docs/development/workflow.md`、`technology-stack.md` | 初始化，阶段 3 填入 | 模块页链接测试入口，不复制执行说明 |
+| 测试分层合同与精简后的保留范围 | `docs/development/test-layers.md`，`/prune-tests` 按此路径读写 | 初始化，阶段 3 填入；保留范围在第一次精简后填入 | `agents/testing.md` 链接，`workflow.md` 不复制 |
+| 真实环境验收的环境契约 | `docs/development/local-acceptance.md`，`/acceptance` 按此路径读取 | 初始化，项目有可运行形态后填入 | `workflow.md` 链接，不复制 |
 | 部署、运行配置、发布与回滚 | `docs/operations/` | 有可部署产物时 | development 链接发布入口 |
 | Markdown 形式的增量规格 | `docs/changes/<topic>.md`，topic 用分支名或功能 slug，便于 code-review 按分支名找到 | 用户要求时 | 吸收后删除 |
 

@@ -31,7 +31,7 @@ description: 在本机真实环境按项目的行为文档完整验收功能：�
 
 1. 当前目录是 Git 工作区根目录，且工作树干净。有未提交改动时停下：修复会逐个 commit 到当前分支，脏工作树会混入无关改动；让用户先提交或暂存。
 2. 预期来源：`docs/behaviors/*.md`，其次 `docs/architecture/modules/*.md` 的“当前行为规格”章节。两处都没有可用内容时停下说明“没有可验收的预期”，不读代码编预期。给了 `<topic>` 时只取对应文件；找不到就停下列出可选主题。
-3. 环境契约：`docs/development/workflow.md` 的 `## 本地运行与观测` 节，内容要求见 [references/environment.md](references/environment.md)。缺节或仍是 `<待填` 标记时，按该文件从 justfile、README 与配置起草一份，纳入阶段 1 的一次确认；契约声明的命令不存在或运行失败是硬阻塞。
+3. 环境契约：目标项目的 `docs/development/local-acceptance.md` 整页，只认这一个路径，内容要求见 [references/environment.md](references/environment.md)。文件缺失或仍是 `<待填` 标记时，按该文件从 justfile、README 与配置起草整页，纳入阶段 1 的一次确认；契约声明的命令不存在或运行失败是硬阻塞。
 4. 观测工具：契约声明 web 界面时先调用 `tabs_context_mcp` 确认 Chrome 扩展已连接，未连接是硬阻塞，提示用户打开 Chrome 并确认 Claude in Chrome 扩展在线；其他通道按契约声明的命令逐个核对可执行。
 5. 账本：在会话临时目录（有 scratchpad 时用它，否则 `mktemp -d`）建 `ledger.md`，把路径打印到对话；格式见 [references/checklist.md](references/checklist.md#账本)。
 
@@ -39,7 +39,7 @@ description: 在本机真实环境按项目的行为文档完整验收功能：�
 
 1. 按 [references/checklist.md](references/checklist.md) 从预期来源推导验收项：每项有来源（文件与章节）、前提、操作、各通道的预期观察。文档没写的功能不列入清单，记入账本的“未覆盖”段供报告。
 2. 把清单、（如有）契约草稿、将要执行的数据重置动作写入账本，用一次 AskUserQuestion 请用户确认：按清单执行，或指出要调整的项。此后不再因清单或契约提问。用户调整后更新账本。
-3. 契约草稿经确认后写入 `docs/development/workflow.md` 对应节（替换 `<待填` 标记），单独 commit。
+3. 契约草稿经确认后写入 `docs/development/local-acceptance.md`（文件缺失时新建并接入文档索引，做法见 [references/environment.md](references/environment.md#缺失时的起草)），单独 commit。
 
 ## 阶段 2：环境就绪
 

@@ -30,8 +30,10 @@
     │   ├── <topic>.md               # Matt research skill 落点
     │   └── acceptance/<topic>-<date>.md
     ├── development/
-    │   ├── workflow.md
-    │   └── technology-stack.md
+    │   ├── workflow.md              # 命令与门禁
+    │   ├── technology-stack.md
+    │   ├── test-layers.md           # 测试分层合同与保留范围，/prune-tests 按路径读写
+    │   └── local-acceptance.md      # 环境契约，/acceptance 按路径读取
     ├── operations/                  # 按需：有可部署产物时
     └── changes/<topic>.md           # 按需：Markdown 增量规格，吸收后删除
 ```
@@ -41,6 +43,7 @@
 - `GLOSSARY.md`、`GLOSSARY-MAP.md`、`docs/adr/`、`docs/agents/` 是 Matt skills 直接按路径读写的位置，不可改名或移动。media-glance 把术语表放 `docs/glossary.md` 并靠改写 `domain.md` 兜底，只对读过 `domain.md` 的 skill 生效，不采用。
 - `CODING_STANDARDS.md` 和 `CONTRIBUTING.md` 是 code-review 搜索编码规范时必须命中的文件名，位置不限，放根目录最稳。
 - Matt 的 setup 会在 `AGENTS.md` 追加 `## Agent skills` 块。它是本 skill 的前置且之后不再重跑，所以其指针并入触发表，脚本移除该块；重跑 Matt setup 会再次追加，再跑本 skill 即可再次移除。
+- `docs/development/test-layers.md` 与 `docs/development/local-acceptance.md` 分别是 `/prune-tests` 与 `/acceptance` 按精确路径读写的合同页，两个 skill 不设回退、不按节名查找，改名或移动后会被当成文件缺失而重新起草。每份合同独占一页，不放进 `workflow.md`：后者是改代码任务的必读页，这两份合同只在精简测试或真实环境验收时才用得上。
 - Matt 的 `code-review` 按分支名在 `docs/`、`specs/`、`.scratch/` 下找 spec，`docs/changes/<topic>.md` 可被命中。
 
 ## 渐进发现的层次

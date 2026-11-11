@@ -62,7 +62,7 @@ uv+node 选"后端根目录、前端子目录"：后端是仓库主体，`uv run
 
 私有 recipe 标 `[private]`，`just --list` 只显示契约。stack 顺序固定为 uv、node、swift，与 `--stacks` 的书写顺序无关。
 
-**文档**：`toolchain/overlay/` 是公共正文（README 开始使用、workflow 的环境/命令与门禁/测试分层、testing 的分层），表格单元用占位符 `{{INSTALL}}`、`{{FMT}}`、`{{LINT}}`、`{{TYPECHECK}}`、`{{TEST}}`、`{{CORE}}`、`{{FULL}}` 由各 stack 的 `cells` 填入，多 stack 时写成 `标签：单元；标签：单元`；`{{HOST_TOOLS}}`、`{{LAYOUT}}`、`{{ARGS}}`、`{{SCOPE_NOTE}}` 由 stack 集合推导。各 stack 的 `overlay/` 片段按同名节追加在公共正文之后，多 stack 时每段加 `### 标签`。只处理目标文档中仍含 `<待填 阶段3` 标记的同名节：删除该节中含标记的行，保留其余行，再把拼好的正文追加在节末。没有预置 stack 时用 `toolchain/none/overlay/`，只写定义，命令与位置留 `按需` 标记。
+**文档**：`toolchain/overlay/` 是公共正文（README 开始使用、workflow 的环境/命令与门禁、test-layers 的分层与资源边界、testing 的分层），表格单元用占位符 `{{INSTALL}}`、`{{FMT}}`、`{{LINT}}`、`{{TYPECHECK}}`、`{{TEST}}`、`{{CORE}}`、`{{FULL}}` 由各 stack 的 `cells` 填入，多 stack 时写成 `标签：单元；标签：单元`；`{{HOST_TOOLS}}`、`{{LAYOUT}}`、`{{ARGS}}`、`{{SCOPE_NOTE}}` 由 stack 集合推导。各 stack 的 `overlay/` 片段按同名节追加在公共正文之后，多 stack 时每段加 `### 标签`。只处理目标文档中仍含 `<待填 阶段3` 标记的同名节：删除该节中含标记的行，保留其余行，再把拼好的正文追加在节末。没有预置 stack 时用 `toolchain/none/overlay/`，只写定义，命令与位置留 `按需` 标记。
 
 ## 命令契约
 
@@ -91,7 +91,7 @@ uv+node 选"后端根目录、前端子目录"：后端是仓库主体，`uv run
 - **主机锁**：full 测试占用端口、桌面等主机资源，不同 worktree 的编译产物各在自己目录内，真正共享的只有主机。`scripts/with_lock.py` 用 `fcntl.flock` 锁 `~/.cache/gate-full.lock`（`GATE_LOCK_FILE` 可覆盖），`test-full` 与 `gate-full` 都经它运行，私有 `<stack>-test-full` 不再加锁以免重入。锁只由 `with_lock.py` 自身持有：命令作为子进程运行且不继承锁的文件描述符，命令退出即释放，命令留下的后台进程不会继续占锁；SIGINT/SIGTERM 转发给命令。等待时每 30 秒打印持有者，`--timeout` 超时退出码 75 表示稍后重试，等待中被中断退出码 130。按主机而非按仓库加锁，因为桌面焦点和固定端口是主机级资源；代价是不相关项目的 full 也会排队。锁只覆盖 `just` 入口，直接调底层 runner 仍能绕过，这一条留给文档约束与 code-review。
 - 两个门禁不接受筛选参数；不得用 skip、收集过滤或弱化断言让门禁通过，零匹配不是通过。`swift test` 零匹配只告警，recipe 自行判为失败；`vitest run` 没有匹配的测试文件时本身非零退出，不得加 `--passWithNoTests`；pytest 零收集本身非零。
 
-这些定义写入目标项目的 `docs/development/workflow.md`、`technology-stack.md` 与 `docs/agents/testing.md`。
+这些定义写入目标项目的 `docs/development/workflow.md`、`test-layers.md`、`technology-stack.md` 与 `docs/agents/testing.md`。
 
 ## 门禁在流程末尾统一运行
 

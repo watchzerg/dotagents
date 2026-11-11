@@ -30,7 +30,7 @@ SKILL.md 阶段 1 推导清单、阶段 3 记录结果时按本文执行。
 ```markdown
 # 验收账本 <项目> <日期> <all 或 topic>
 
-契约：<workflow.md 节 或 "本次起草，已确认">
+契约：<docs/development/local-acceptance.md 或 "本次起草，已确认">
 数据重置：<命令 或 "未重置">
 基线：<时间> 日志 <文件:行数> 数据 <摘要> 可写目录 <清单>
 

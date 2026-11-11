@@ -58,6 +58,7 @@ def check_project(case: Case, project: Path, baseline: dict[str, str]) -> list[C
             Check(f"untouched:{rel}", baseline.get(rel) == after.get(rel) and rel in after)
         )
 
+    checks.extend(_check_contract_pages(project))
     checks.extend(_check_agents_md(case, project))
     checks.extend(_check_claude_md(project, baseline))
     checks.extend(_check_markers(case, project))
@@ -66,6 +67,22 @@ def check_project(case: Case, project: Path, baseline: dict[str, str]) -> list[C
     checks.append(Check("beads-initialised", (project / ".beads").is_dir()))
     checks.append(_check_git_clean_of_commits(project, baseline))
     return checks
+
+
+def _check_contract_pages(project: Path) -> list[Check]:
+    """acceptance 与 prune-tests 按精确路径读写的两张页必须存在，且各有入链并登记在文档索引。"""
+    out: list[Check] = []
+    for page, linker in (
+        ("test-layers.md", "docs/agents/testing.md"),
+        ("local-acceptance.md", "docs/development/workflow.md"),
+    ):
+        rel = f"docs/development/{page}"
+        out.append(Check(f"present:{rel}", (project / rel).is_file()))
+        for source in (linker, "docs/INDEX.md"):
+            path = project / source
+            linked = path.is_file() and page in path.read_text(encoding="utf-8")
+            out.append(Check(f"linked:{page}<-{source}", linked))
+    return out
 
 
 def _check_agents_md(case: Case, project: Path) -> list[Check]:
@@ -146,9 +163,10 @@ def _check_description(case: Case, project: Path) -> list[Check]:
     if not case.description:
         return []
     # 描述允许被 agent 展开或改写措辞，只要求至少两个四字片段原样出现。
+    source = case.existing_description or case.description
     grams = {
         run[i : i + 4]
-        for run in re.findall(r"[\u4e00-\u9fff]{4,}", case.description)
+        for run in re.findall(r"[\u4e00-\u9fff]{4,}", source)
         for i in range(len(run) - 3)
     }
     out = []
