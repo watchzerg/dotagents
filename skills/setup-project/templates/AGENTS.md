@@ -17,7 +17,7 @@
 | 触发条件 | 必读入口 |
 | --- | --- |
 | 设计、修改或 review 代码 | [架构总览](docs/architecture/INDEX.md)，再进受影响的模块页；模块页尚不存在时按[文档维护规则](docs/agents/documentation.md#随交付同步)建页 |
-| 编写、修改、移动或 review 测试，制定测试计划，执行 `implement-spec` | [测试设计与验收](docs/agents/testing.md)；新增测试覆盖的行为还没有模块页时，先按[随交付同步](docs/agents/documentation.md#随交付同步)建页 |
+| 编写、修改、移动或 review 测试，制定测试计划，执行 `implement-spec` | [测试设计与门禁](docs/agents/testing.md)；新增测试覆盖的行为还没有模块页时，先按[随交付同步](docs/agents/documentation.md#随交付同步)建页 |
 | 运行命令、选择门禁、调整依赖或工具链 | [开发工作流](docs/development/workflow.md)、[技术选型](docs/development/technology-stack.md) |
 | 新增、移动、删除文档，或讨论形成明确结论 | [文档维护规则](docs/agents/documentation.md) |
 | 涉及领域术语、数据模型或与 ADR 冲突 | [GLOSSARY.md](GLOSSARY.md)、[领域文档规则](docs/agents/domain.md) |

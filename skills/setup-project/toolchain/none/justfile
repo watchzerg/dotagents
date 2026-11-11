@@ -41,6 +41,6 @@ docs-check:
 # 可跨 worktree 并行：工具链、文档、静态检查与全部 core 测试。
 gate-core: check-toolchain docs-check lint typecheck test
 
-# 完整验收：gate-core 后串行运行 full 测试。
+# 完整门禁：gate-core 后串行运行 full 测试。
 gate-full: gate-core
     @echo '错误：full 测试入口尚未接入；见 docs/development/workflow.md。' >&2; exit 1

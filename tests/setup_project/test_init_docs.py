@@ -254,13 +254,13 @@ def test_second_run_is_noop(project: Path, bin_dir: Path) -> None:
 
 def test_existing_testing_doc_gets_missing_template_sections(project: Path, bin_dir: Path) -> None:
     """项目自带 testing.md 时补缺节：模板 CODING_STANDARDS.md 链接它的 `#分层`，否则文档检查一开始就红。"""
-    own = "# 测试设计与验收\n\n项目自己的开头。\n\n## 测试编写与变更\n\n- 项目自己的规则\n"
+    own = "# 测试设计与门禁\n\n项目自己的开头。\n\n## 测试编写与变更\n\n- 项目自己的规则\n"
     (project / "docs/agents/testing.md").write_text(own)
     result = run_script(project, bin_dir)
     assert result.returncode == 0, result.stderr
     merged = (project / "docs/agents/testing.md").read_text()
     assert merged.startswith(
-        "# 测试设计与验收\n\n项目自己的开头。\n\n## 测试编写与变更\n\n- 项目自己的规则\n"
+        "# 测试设计与门禁\n\n项目自己的开头。\n\n## 测试编写与变更\n\n- 项目自己的规则\n"
     )
     assert "## 分层" in merged and "## implement-spec 项目覆盖规则" in merged
     assert (

@@ -306,7 +306,7 @@ def render_justfile(stacks: list[Stack], placeholders: dict[str, str]) -> str:
             )
         elif recipe == "gate-full":
             parts.append(
-                "# 完整验收：gate-core 后在主机锁内串行运行各 stack 的 tests/full；目录出现即纳入，存在而无测试视为失败。\n"
+                "# 完整门禁：gate-core 后在主机锁内串行运行各 stack 的 tests/full；目录出现即纳入，存在而无测试视为失败。\n"
                 f"gate-full: gate-core\n    {LOCK}just {all_target('test-full', stacks)}\n"
             )
     for stack in stacks:

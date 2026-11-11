@@ -1,4 +1,4 @@
-# 测试设计与验收
+# 测试设计与门禁
 
 编写、修改、移动或 review 测试，以及制定测试计划、执行 `implement-spec` 时按本文执行。命令、runner、目录与资源边界以[开发工作流](../development/workflow.md)为准。
 
@@ -6,6 +6,8 @@
 
 - **core**：无外部依赖、秒级完成、可在任意 worktree 并行运行；单 ticket 阶段的完整门禁只跑这一层。
 - **full**：需要真实服务、独占资源或显著运行成本；随 ticket 编写并接入标准入口，ticket 阶段只经 `just test-full` 定向运行（入口是否带主机锁以[开发工作流](../development/workflow.md)为准），无筛选的完整 full 验证留到最终集成。
+
+层按资源与运行成本划分，不按测试种类：full 内可以同时有接真实依赖的集成测试和针对部署形态的系统测试（构建产物或镜像的启动、初始化与停止），都由 `gate-full` 收录，不另设门禁。可重复且结果确定的验证写成自动化测试进 core 或 full；依赖真实账号、真实外部服务或人工判断的留给真实环境验收（`/acceptance`），它不进门禁。“验收”只指后者，门禁的结果称通过或失败。
 
 <待填 阶段3：本项目的具体分层标准、独占资源清单与串行约束>
 
@@ -21,5 +23,5 @@
 
 1. 主 agent 派发前读取本节，将本节、分层合同与[随交付同步](documentation.md#随交付同步)的链接传给 implementer、merger 和后续修复 agent。implementer 在自己的 worktree 内同步本 ticket 影响的模块页；多个 ticket 改同一页时，merger 按代码冲突同样处理文档冲突。
 2. implementer 在自己的 worktree 内运行 core 范围的定向 red → green 验证；报告完成前在包含最新 integration branch 的代码上通过完整 core 门禁。本 ticket 的 full 测试可用 `just test-full` 定向运行观察 red → green（入口带主机锁时自动排队，等待不是失败）；不直接调用底层 runner 运行 full 测试。
-3. 无筛选的完整 full 验证留到最终集成；报告列出已运行的命令和结果，以及尚未运行的 full 测试与入口，不把定向通过记作整体验收。
+3. 无筛选的完整 full 验证留到最终集成；报告列出已运行的命令和结果，以及尚未运行的 full 测试与入口，不把定向通过记作完整门禁通过。
 4. 所有 ticket 合并、code-review 修复完成后，主 agent 在最终 integration branch 运行无筛选的完整门禁。通过前不关闭 spec、不将 PR 标记为 ready。
