@@ -186,3 +186,68 @@ def test_module_and_behavior_heading_skeletons(tmp_path: Path) -> None:
         + "；实际：变更与决策来源、定位与阅读、当前行为规格、实现设计、接口与依赖、代码与验证入口",
         "docs/behaviors/bad.md 二级标题应依次为：场景与前提、操作与可观察结果、边界与错误情况、相关模块；实际：无",
     ]
+
+
+def test_covers_must_match_existing_files(tmp_path: Path) -> None:
+    (tmp_path / "src/app/empty").mkdir(parents=True)
+    (tmp_path / "src/app/main.py").write_text("")
+    page = "---\ncovers:\n  - src/app/**\n  - src/app\n  - src/*.py\n  - src/app/empty\n  - /src/app/main.py\n---\n# 模块\n"
+    result = check(tmp_path, linked("docs/page.md"), {"docs/page.md": page})
+    assert result.returncode == 1
+    assert result.stdout.splitlines() == [
+        "docs/page.md:5 covers 没有匹配的文件：src/*.py",
+        "docs/page.md:6 covers 没有匹配的文件：src/app/empty",
+        "docs/page.md:7 covers 须为仓库根相对路径：/src/app/main.py",
+    ]
+
+
+def git(root: Path, *args: str) -> None:
+    subprocess.run(
+        ["git", "-c", "user.name=t", "-c", "user.email=t@example.com", *args],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+
+
+def affected(root: Path, *args: str) -> str:
+    result = subprocess.run(
+        [sys.executable, "-I", str(SCRIPT), str(root), "--affected", *args],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    return result.stdout
+
+
+def test_affected_lists_pages_whose_covers_match_changes(tmp_path: Path) -> None:
+    files = {
+        "AGENTS.md": "# a\n",
+        "docs/download.md": "---\ncovers:\n  - src/download\n---\n# 下载\n",
+        "docs/storage.md": "---\ncovers:\n  - src/storage/**\n---\n# 存储\n",
+        "src/download/retry.py": "",
+        "src/storage/db.py": "",
+    }
+    for name, content in files.items():
+        (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / name).write_text(content)
+    git(tmp_path, "init", "-q")
+    git(tmp_path, "add", "-A")
+    git(tmp_path, "commit", "-qm", "init")
+    assert affected(tmp_path) == "相对 HEAD 的改动没有命中任何页面的 covers。\n"
+
+    (tmp_path / "src/download/retry.py").write_text("x = 1\n")
+    (tmp_path / "src/storage/new.py").write_text("")
+    (tmp_path / "docs/storage.md").write_text(files["docs/storage.md"] + "补一句。\n")
+    assert affected(tmp_path) == (
+        "相对 HEAD 的改动命中以下页面的 covers：\n"
+        "- docs/download.md（本次未修改）\n"
+        "- docs/storage.md\n"
+    )
+
+    git(tmp_path, "add", "-A")
+    git(tmp_path, "commit", "-qm", "change")
+    assert "没有命中" in affected(tmp_path)
+    assert "- docs/download.md（本次未修改）" in affected(tmp_path, "HEAD~1")
+    assert affected(tmp_path, "missing-ref").startswith("无法读取相对 missing-ref 的改动")

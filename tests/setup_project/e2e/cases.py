@@ -20,6 +20,7 @@ CONTRACT_RECIPES = (
     "test",
     "test-full",
     "docs-check",
+    "docs-affected",
     "gate-core",
     "gate-full",
 )

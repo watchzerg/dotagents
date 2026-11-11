@@ -7,7 +7,7 @@
 只写以下位置，不另起文件、不改其他正文：
 
 - `docs/architecture/INDEX.md` 与 `module-boundaries.md` 中的 `首个模块` 类标记。
-- `docs/architecture/modules/<module>.md`：按 `docs/agents/documentation.md` 的模块页模板，每个识别出的模块一篇，六个二级标题全部必备且按序，读不出内容的节写一句“未验证”或白话说明；写什么、不写什么按该文的取舍原则，超出体量预算时按拆页规则拆。第 3 步收敛已建出或按模板重排的模块页只补充"代码与验证入口"与已知差异，不改写已合并的正文。
+- `docs/architecture/modules/<module>.md`：按 `docs/agents/documentation.md` 的模块页模板，每个识别出的模块一篇，六个二级标题全部必备且按序，页首 `covers` 认领该模块描述的源码；读不出内容的节写一句“未验证”或白话说明；写什么、不写什么按该文的取舍原则，超出体量预算时按拆页规则拆。第 3 步收敛已建出或按模板重排的模块页只补充 `covers`、"代码与验证入口"与已知差异，不改写已合并的正文。
 - 项目已有工具链配置（`pyproject.toml`、`package.json`、`justfile`、CI 配置等）时，`docs/development/`、`docs/agents/testing.md`、`README.md` 中仍剩余的 `阶段3` 类标记。阶段 1 的 `init_toolchain.py` 已先行处理过一轮：`new` 模式下这些标记已全部替换，本步无事可做；`existing` 模式下脚本只填了 `technology-stack.md` 的"依赖政策"节，其余标记由本步从配置中读出填写。正文只写配置里的现状；从配置看出的缺口（如 justfile 调用了未声明的依赖）写进返回结果，由主 agent 列入报告与票据候选，不写进"已选依赖"等正文。
 - 项目有 justfile 且阶段 1 报告缺少契约 recipe 时，为每个缺少的 recipe 给出用项目现有命令实现的建议，写在返回结果里，不改 justfile；写入由主 agent 在阶段 2 第 5 步完成。契约职责见 [toolchain.md](toolchain.md#命令契约)。
 - 发现的术语候选只列入报告，不写 `GLOSSARY.md`：术语取舍需要用户拍板。

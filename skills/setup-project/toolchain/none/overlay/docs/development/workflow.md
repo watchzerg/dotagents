@@ -16,7 +16,8 @@
 | `just lint` / `just typecheck` | 静态检查，不修改源码 |
 | `just test [参数]` | 默认运行全部 core 测试；传参可定向 |
 | `just test-full [参数]` | 运行 full 测试，经 `scripts/with_lock.py` 主机锁串行；传参可定向 |
-| `just docs-check` | 文档链接与锚点、全量可达、索引登记、体量预算与标题骨架，规则见[文档维护规则](../agents/documentation.md#自动检查)（已可用） |
+| `just docs-check` | 文档链接与锚点、全量可达、索引登记、体量预算、标题骨架与 `covers` 有匹配，规则见[文档维护规则](../agents/documentation.md#自动检查)（已可用） |
+| `just docs-affected [基准]` | 改动提示：列出相对基准（默认 `HEAD`）的改动命中 `covers` 的文档页，标出本次未修改的页；总是成功，不属于门禁，用法见[随交付同步](../agents/documentation.md#随交付同步)（已可用） |
 | `just gate-core` | 工具链检查 → docs-check → lint → typecheck → 全部 core 测试，首错停止 |
 | `just gate-full` | gate-core 后在主机锁内串行运行全部 full 测试 |
 

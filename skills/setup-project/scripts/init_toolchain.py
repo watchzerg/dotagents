@@ -32,6 +32,7 @@ REQUIRED_RECIPES = (
     "test",
     "test-full",
     "docs-check",
+    "docs-affected",
     "gate-core",
     "gate-full",
 )
@@ -57,7 +58,7 @@ IGNORED_NAMES = {".DS_Store", "Thumbs.db"}
 RECIPE = re.compile(r"^@?([A-Za-z_][\w-]*)[^:\n]*:(?!=)", re.M)
 NOT_RECIPES = {"alias", "export", "set", "import", "mod"}
 JUSTFILE_HEADER = """\
-# 项目命令契约：check-toolchain、install、fmt、lint、typecheck、test、test-full、docs-check、gate-core、gate-full 是必需入口，名称与职责保持稳定。
+# 项目命令契约：check-toolchain、install、fmt、lint、typecheck、test、test-full、docs-check、docs-affected、gate-core、gate-full 是必需入口，名称与职责保持稳定。
 # 验证不修改源码；fmt 是修改文件的入口。缺失能力须非零退出，不能用空命令冒充通过。
 # 公开 recipe 聚合各 stack 的私有 recipe（<stack>-*）；full 测试经 scripts/with_lock.py 的主机锁串行。
 # 门禁定义见 docs/development/workflow.md，测试分层见 docs/development/test-layers.md。
@@ -297,7 +298,13 @@ def render_justfile(stacks: list[Stack], placeholders: dict[str, str]) -> str:
             )
         elif recipe == "docs-check":
             parts.append(
-                "# 检查文档链接、锚点、可达性、索引登记、体量预算与标题骨架，不联网。\ndocs-check:\n    python3 scripts/check_docs.py\n"
+                "# 检查文档链接、锚点、可达性、索引登记、体量预算、标题骨架与 covers，不联网。\ndocs-check:\n    python3 scripts/check_docs.py\n"
+            )
+        elif recipe == "docs-affected":
+            parts.append(
+                "# 改动提示：列出相对基准（默认 HEAD）的改动命中 covers 的文档页，标出本次未修改的页；"
+                "只提示，总是成功，不属于门禁。\n"
+                'docs-affected base="HEAD":\n    python3 scripts/check_docs.py --affected "$1"\n'
             )
         elif recipe == "gate-core":
             parts.append(

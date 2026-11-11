@@ -6,13 +6,17 @@
 - 每篇文档都能从 AGENTS.md 沿文档间链接到达；
 - docs/adr、docs/research 下的文档（含子目录）由所在目录的 INDEX.md 直接链接；
 - 除 docs/research、docs/adr 外，单页不超过 16 KiB，围栏代码外每段与每个表格单元格不超过 400 字符；
-- 模块页与行为规格页的二级标题依次符合固定骨架。
+- 模块页与行为规格页的二级标题依次符合固定骨架；
+- 页首 frontmatter 的 covers 每条至少匹配一个现存文件。
+--affected [BASE] 改为只提示：列出相对 BASE（默认 HEAD）的改动与未跟踪文件命中 covers 的页面，
+并标出本次没有修改的页面；退出码恒为 0，不属于门禁。
 """
 
 import argparse
 import re
+import subprocess
 import unicodedata
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from urllib.parse import unquote, urlsplit
 
 ROOT_DOCUMENTS = ("README.md", "AGENTS.md", "GLOSSARY.md", "CODING_STANDARDS.md")
@@ -42,6 +46,7 @@ REFERENCE = re.compile(
 INLINE_CODE = re.compile(r"`[^`\n]*`")
 FENCE = re.compile(r"^\s*(`{3,}|~{3,})(.*)$")
 H2 = re.compile(r"^\s{0,3}##\s+(.+?)(?:\s+#+)?\s*$")
+LIST_ITEM = re.compile(r"^\s*-\s+(.+?)\s*$")
 
 
 def body_lines(text: str) -> list[tuple[int, str]]:
@@ -146,9 +151,46 @@ def budget_errors(relative: Path, text: str, lines: list[tuple[int, str]]) -> li
     return errors
 
 
+def document_paths(root: Path) -> set[Path]:
+    return {root / name for name in ROOT_DOCUMENTS} | set((root / "docs").rglob("*.md"))
+
+
+def covers(text: str) -> list[tuple[int, str]]:
+    """页首 `---` 之间 `covers:` 下的 `- glob` 列表，带行号；没有 frontmatter 或未声明时为空。"""
+    lines = text.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return []
+    result = []
+    inside = False
+    for number, line in enumerate(lines[1:], 2):
+        if line.strip() == "---":
+            return result
+        item = LIST_ITEM.match(line)
+        if item and inside:
+            result.append((number, item.group(1)))
+        elif not item:
+            inside = line.strip() == "covers:"
+    return []
+
+
+def covers_errors(root: Path, relative: Path, text: str) -> list[str]:
+    """每条 covers 是仓库根相对的 glob，且至少匹配一个现存文件；匹配到目录时算其下全部文件。"""
+    errors = []
+    for number, pattern in covers(text):
+        location = f"{relative}:{number}"
+        if pattern.startswith("/") or ".." in PurePosixPath(pattern).parts:
+            errors.append(f"{location} covers 须为仓库根相对路径：{pattern}")
+        elif not any(
+            path.is_file() or any(file.is_file() for file in path.rglob("*"))
+            for path in root.glob(pattern)
+        ):
+            errors.append(f"{location} covers 没有匹配的文件：{pattern}")
+    return errors
+
+
 def check_documents(root: Path) -> tuple[list[str], int, int]:
     root = root.resolve()
-    files = {root / name for name in ROOT_DOCUMENTS} | set((root / "docs").rglob("*.md"))
+    files = document_paths(root)
     errors = []
     texts = {}
     for path in sorted(files):
@@ -209,6 +251,7 @@ def check_documents(root: Path) -> tuple[list[str], int, int]:
         relative = path.relative_to(root)
         if not any(relative.is_relative_to(exempt) for exempt in BUDGET_EXEMPT):
             errors.extend(budget_errors(relative, texts[path], documents[path]))
+        errors.extend(covers_errors(root, relative, texts[path]))
     skeletons: list[tuple[Path, tuple[str, ...]]] = [
         (path, MODULE_HEADINGS) for path in (root / MODULES).glob("*.md")
     ]
@@ -231,24 +274,70 @@ def check_documents(root: Path) -> tuple[list[str], int, int]:
     return errors, len(documents), links
 
 
+def git_lines(root: Path, *args: str) -> list[str]:
+    result = subprocess.run(
+        ["git", "-C", str(root), *args], capture_output=True, text=True, check=True
+    )
+    return [line for line in result.stdout.splitlines() if line]
+
+
+def claims(path: str, pattern: str) -> bool:
+    """改动路径是否落在一条 covers 内；与 covers_errors 一致，glob 指向目录时算其下全部文件。"""
+    candidate = PurePosixPath(path)
+    return candidate.full_match(pattern) or candidate.full_match(pattern.rstrip("/") + "/**")
+
+
+def report_affected(root: Path, base: str) -> int:
+    """改动包括相对 base 的已提交、已暂存与未暂存差异和未跟踪文件；删除的文件按原路径匹配。"""
+    try:
+        changed = set(
+            git_lines(root, "diff", "--name-only", "--no-renames", "--relative", base)
+        ) | set(git_lines(root, "ls-files", "--others", "--exclude-standard"))
+    except (OSError, subprocess.CalledProcessError) as error:
+        detail = getattr(error, "stderr", "") or error
+        print(f"无法读取相对 {base} 的改动：{str(detail).strip()}")
+        return 0
+    pages = []
+    for path in sorted(file for file in document_paths(root) if file.is_file()):
+        patterns = [pattern for _, pattern in covers(path.read_text(encoding="utf-8"))]
+        if any(claims(change, pattern) for change in changed for pattern in patterns):
+            pages.append(path.relative_to(root).as_posix())
+    if not pages:
+        print(f"相对 {base} 的改动没有命中任何页面的 covers。")
+        return 0
+    print(f"相对 {base} 的改动命中以下页面的 covers：")
+    for page in pages:
+        print(f"- {page}" + ("" if page in changed else "（本次未修改）"))
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="检查文档的本地链接、锚点、可达性、目录索引、体量与标题骨架。"
+        description="检查文档的本地链接、锚点、可达性、目录索引、体量、标题骨架与 covers。"
     )
     parser.add_argument(
         "root",
         nargs="?",
         help="项目根目录；默认是本脚本所在 scripts/ 的上级，从别处调用时传目标项目根",
     )
+    parser.add_argument(
+        "--affected",
+        nargs="?",
+        const="HEAD",
+        metavar="BASE",
+        help="只提示：列出相对 BASE（默认 HEAD）的改动命中 covers 的页面，退出码恒为 0",
+    )
     args = parser.parse_args()
     root = Path(args.root).resolve() if args.root else Path(__file__).resolve().parents[1]
+    if args.affected:
+        return report_affected(root, args.affected)
     errors, documents, links = check_documents(root)
     if errors:
         print("\n".join(errors))
         return 1
     print(
         f"文档检查通过：{documents} 篇，{links} 个本地链接；"
-        "全部可从 AGENTS.md 到达，索引、体量与标题骨架符合规则。"
+        "全部可从 AGENTS.md 到达，索引、体量、标题骨架与 covers 符合规则。"
     )
     return 0
 

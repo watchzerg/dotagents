@@ -56,6 +56,7 @@ uv+node 选"后端根目录、前端子目录"：后端是仓库主体，`uv run
 | `check-toolchain`、`install`、`lint`、`typecheck` | 依赖列表：`lint: uv-lint node-lint` |
 | `fmt *args`、`test *args` | 单 stack 直接转发 `just uv-fmt "$@"`；多 stack 无参数时执行私有聚合 recipe `fmt-all: uv-fmt node-fmt`，有参数时第一个参数是 scope（stack 名），其余转发。不能写 `just uv-fmt node-fmt`：可变参数 recipe 会把后一个名字当参数吞掉 |
 | `docs-check` | `python3 scripts/check_docs.py` |
+| `docs-affected base="HEAD"` | `python3 scripts/check_docs.py --affected "$1"` |
 | `gate-core` | `check-toolchain docs-check lint typecheck` + 各 `<stack>-test-core` |
 | `test-full *args` | 同 `fmt`/`test` 的转发，但整条命令包在 `python3 scripts/with_lock.py` 里 |
 | `gate-full` | 依赖 `gate-core`，正文 `with_lock.py just test-full-all`（单 stack 直接是 `<stack>-test-full`） |
@@ -78,7 +79,8 @@ uv+node 选"后端根目录、前端子目录"：后端是仓库主体，`uv run
 | `test-full [scope] [参数]` | full 测试，经主机锁串行；默认全部，传参定向 |
 
 定向参数的语义：名称类筛选（pytest `-k`、`vitest run -t`、`swift test --filter`）在默认范围内筛选；路径（相对 stack 目录）替换默认目录，只运行给出的路径。pytest 的 full 默认范围经 `-o testpaths=tests/full` 指定；`vitest run` 的位置参数是并集筛选，recipe 在参数中有已存在的路径时不再附加默认目录；swift 未给 `--filter` 时 `test` 补 `CoreTests`、`test-full` 补 `FullTests`，并始终用 `--skip` 排除对方 target，避免 full 测试绕过主机锁。
-| `docs-check` | 文档链接与锚点、全量可达、索引登记、体量预算、标题骨架 |
+| `docs-check` | 文档链接与锚点、全量可达、索引登记、体量预算、标题骨架、covers 有匹配 |
+| `docs-affected [基准]` | 改动提示：列出改动命中 `covers` 的文档页并标出未修改的；总是成功，不属于门禁 |
 | `gate-core` | check-toolchain → docs-check → lint → typecheck → 全部 core 测试，首错停止 |
 | `gate-full` | gate-core 后串行运行全部 full 测试 |
 
@@ -97,7 +99,7 @@ uv+node 选"后端根目录、前端子目录"：后端是仓库主体，`uv run
 
 每个 stack 各带一个真实的工具链测试（Python 版本符合 `.python-version`、Node 版本符合 `mise.toml`、Xcode 版本符合 `.xcode-version`），避免空测试集让 `gate-core` 以零收集失败。`init_toolchain.py` 只落地与安装，不运行门禁：agent 之后还会收敛旧文档、补写模块页，门禁放在这些改动之后才能覆盖它们。新项目在流程末尾运行 `just docs-check` 与 `just gate-core`，结果进报告。
 
-已有工具链的项目同样得到 `scripts/check_docs.py` 与 `scripts/with_lock.py`（缺失才复制），流程末尾在项目根目录运行 `python3 scripts/check_docs.py`；补齐 `docs-check` recipe 时就用这条命令实现，不再写成"尚未接入"。已有的 `gate-core` 追加 `check-toolchain docs-check` 依赖，`test-full` 与 `gate-full` 的 full 测试命令包进 `with_lock.py`，已有 recipe 的正文不改。这类项目本次没有改代码，不运行其 lint、构建与测试；补过 recipe 时运行 `just --list` 确认可解析，并单独运行新增的 `check-toolchain` 与 `docs-check`。
+已有工具链的项目同样得到 `scripts/check_docs.py` 与 `scripts/with_lock.py`（缺失才复制），流程末尾在项目根目录运行 `python3 scripts/check_docs.py`；补齐 `docs-check` recipe 时就用这条命令实现，不再写成"尚未接入"；`docs-affected` 用同一脚本的 `--affected` 实现。已有的 `gate-core` 追加 `check-toolchain docs-check` 依赖，`test-full` 与 `gate-full` 的 full 测试命令包进 `with_lock.py`，已有 recipe 的正文不改。这类项目本次没有改代码，不运行其 lint、构建与测试；补过 recipe 时运行 `just --list` 确认可解析，并单独运行新增的 `check-toolchain` 与 `docs-check`。
 
 ## 不在范围内
 

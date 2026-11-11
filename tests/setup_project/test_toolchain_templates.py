@@ -127,6 +127,45 @@ def test_rendered_docs_pass_docs_check(tmp_path: Path, stacks: tuple[str, ...]) 
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+@pytest.mark.parametrize("stacks", [("none",), ("uv",)])
+def test_docs_affected_recipe_reports_changed_pages(
+    tmp_path: Path, stub_path: str, stacks: tuple[str, ...]
+) -> None:
+    """none 的静态 justfile 与拼合出的 justfile 都把基准参数传给 check_docs.py --affected。"""
+    project = render(tmp_path, *stacks)
+    page = project / "docs/architecture/modules/core.md"
+    page.parent.mkdir(parents=True, exist_ok=True)
+    page.write_text("---\ncovers:\n  - src/core.py\n---\n# core\n")
+    (project / "src").mkdir(exist_ok=True)
+    (project / "src/core.py").write_text("")
+
+    def commit(message: str) -> None:
+        subprocess.run(["git", "add", "-A"], cwd=project, check=True)
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.name=t",
+                "-c",
+                "user.email=t@example.com",
+                "commit",
+                "-qm",
+                message,
+            ],
+            cwd=project,
+            check=True,
+        )
+
+    commit("init")
+    (project / "src/core.py").write_text("x = 1\n")
+    result = just(project, stub_path, "docs-affected")
+    assert result.returncode == 0, result.stderr
+    assert "- docs/architecture/modules/core.md（本次未修改）" in result.stdout
+    commit("change")
+    assert "没有命中" in just(project, stub_path, "docs-affected").stdout
+    assert "core.md（本次未修改）" in just(project, stub_path, "docs-affected", "HEAD~1").stdout
+
+
 def test_common_scripts_pass_uv_template_lint() -> None:
     """公共脚本原样复制进 uv 项目并受其 Ruff 配置检查；本仓库忽略 E501，模板不忽略。"""
     for command in (["check"], ["format", "--check"]):

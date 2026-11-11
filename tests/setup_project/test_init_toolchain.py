@@ -394,7 +394,7 @@ def test_existing_project_gets_dependency_preferences_and_common_scripts(
     stack = (project / "docs/development/technology-stack.md").read_text()
     assert "typer" in stack and "<待填 阶段3：语言版本" in stack
     assert (
-        "缺少契约 recipe：check-toolchain、install、fmt、lint、typecheck、test-full、docs-check、gate-core、gate-full"
+        "缺少契约 recipe：check-toolchain、install、fmt、lint、typecheck、test-full、docs-check、docs-affected、gate-core、gate-full"
         in result.stdout
     )
     assert invocations(project) == []

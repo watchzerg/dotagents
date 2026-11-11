@@ -1,4 +1,4 @@
-# 项目命令契约：check-toolchain、install、fmt、lint、typecheck、test、test-full、docs-check、gate-core、gate-full 是必需入口，名称与职责保持稳定。
+# 项目命令契约：check-toolchain、install、fmt、lint、typecheck、test、test-full、docs-check、docs-affected、gate-core、gate-full 是必需入口，名称与职责保持稳定。
 # 本项目没有预置 stack：下列 recipe 保持非零退出并说明原因，不能用空命令冒充通过。
 # 接入 full 测试时让 test-full 与 gate-full 经 scripts/with_lock.py 的主机锁串行。
 # 接入时保留 recipe 名与职责，把实现封装在 recipe 或其调用脚本内；定义见 docs/development/workflow.md。
@@ -34,9 +34,13 @@ test *args:
 test-full *args:
     @echo '错误：test-full 尚未接入本项目测试 runner；见 docs/development/workflow.md。' >&2; exit 1
 
-# 检查文档链接、锚点、可达性、索引登记、体量预算与标题骨架，不联网。
+# 检查文档链接、锚点、可达性、索引登记、体量预算、标题骨架与 covers，不联网。
 docs-check:
     python3 scripts/check_docs.py
+
+# 改动提示：列出相对基准（默认 HEAD）的改动命中 covers 的文档页，标出本次未修改的页；只提示，总是成功，不属于门禁。
+docs-affected base="HEAD":
+    python3 scripts/check_docs.py --affected "$1"
 
 # 可跨 worktree 并行：工具链、文档、静态检查与全部 core 测试。
 gate-core: check-toolchain docs-check lint typecheck test
