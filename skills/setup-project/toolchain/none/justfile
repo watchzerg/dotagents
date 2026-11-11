@@ -40,7 +40,7 @@ docs-check:
 
 # 改动提示：列出相对基准（默认 HEAD）的改动命中 covers 的文档页，标出本次未修改的页；只提示，总是成功，不属于门禁。
 docs-affected base="HEAD":
-    python3 scripts/check_docs.py --affected "$1"
+    python3 scripts/check_docs.py --affected "{{base}}"
 
 # 可跨 worktree 并行：工具链、文档、静态检查与全部 core 测试。
 gate-core: check-toolchain docs-check lint typecheck test

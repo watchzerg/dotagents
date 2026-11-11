@@ -98,6 +98,22 @@
   - 不进门禁，退出码恒为 0：命中不等于必须改，强制会逼出“碰一下页面”的无效改动。主要成本是被标出却没读过的页要读一遍，这正是它要拦下的漏读；宽泛的 glob 会让提示变成噪声，所以正文写明只认领本页真正描述的范围。
   - 这部分改变了 2026-10-16“不加机械检查”的结论：那次拒绝的是进门禁、会误报的检查与只对 Claude Code 生效的 hook，`docs-affected` 两者都不是。
   - 验证范围：pytest 覆盖 covers 校验、`--affected` 在临时 git 仓库上的命中与标记、none 与 uv 两种 justfile 的 recipe 传参；未跑 e2e，真实 agent 是否按随交付同步运行它、模块页是否写出合适的 `covers` 待验收。
+- **2026-11-11 `uv-existing` e2e reviewer 指出的五处修正**（为验 `covers` 跑的那一轮，硬检查全过，问题都是 SKILL 原有的）：
+  - existing 模式已有 `test` recipe 不带路径会收集到 full 测试目录时，按“已有 recipe 正文不动”仍不改，但报告写明 `gate-core` 会不经主机锁跑 full 测试并列为票据候选；不改正文是因为收窄收集范围可能改变项目原有测试集。
+  - 展开描述时不把用户答案与代码事实拼成代码没有的能力：该轮 README 写出“可命令行录入”，再把这个自造的差异交用户裁决。
+  - 旧文档“冲突”限定为两者不能同时成立：手动 `uv build` 与 CI 构建可以并存，却被列为裁决项，与“有推荐就直接执行”相反。
+  - 迁入 tracker 的票据正文照录原句加来源，不扩写，优先级用默认值：该轮把“导出 CSV”扩写成一句需求并自定 P3、P4。
+  - 模板 `docs/INDEX.md` 的“按需创建的目录”清单改写为创建规则，不再是会随建目录过时的状态清单；原先建了 `operations/` 后该句就错了，与其让收敛步骤记得改它，不如让句子本身不过时。
+  - 未改 e2e harness：reviewer 还提到预置答案与 `AGENTS.md` 已有描述并存时以谁为准，这只在 harness 的非交互提示里出现，真实运行中 `AGENTS.md` 有描述时不会提问。改动后重跑 `uv-existing` 加 reviewer，硬检查全过，五处都按新规则执行（报告列出 full 收集风险、模块页写明“不能由用户记录条目”、两种构建方式并列判为已决、票据照录原句加来源、INDEX 句子不再列为过时）。该轮 reviewer 的新问题见下条。
+- **2026-11-11 第二轮 `uv-existing` reviewer 指出的七处修正**：
+  - existing 模式补 `test-full` 时，项目还没有 full 测试就照各 stack `recipes.just` 的做法（目录不存在提示并以 0 退出，存在而无测试失败），与“full 目录出现即收录”一致；“非零退出”只留给项目缺少对应工具的 recipe。“参考 `recipes.just`”从只管 `check-toolchain` 扩大到全部补写的 recipe。
+  - `docs-affected` 的基准参数改用 `{{base}}` 插值而不是 `"$1"`：后者依赖文件级 `set positional-arguments`，existing 项目的 justfile 不一定有，加上又会改变已有 recipe 的行为。补 recipe 时明确不加文件级设置。
+  - existing 模式不运行项目门禁，报告直接写“未运行”，不预测失败点：该轮报告推测“必然在 typecheck 失败”，而 lint 排在前面。
+  - 分类子 agent 的简报只给候选与规则，不附主 agent 的预判：该轮 prompt 里已写好“这些是约束类”“能并存”，分类失去独立性。
+  - 从代码补写时，推得出但没有测试覆盖的行为标“未验证”，类型标注不写成“必须”；模块边界只写观察到的依赖现状，不新增“不得……”规范。
+  - `CLAUDE.md` 的非 Agent-skills 节直接作为收敛候选，不先并入 `AGENTS.md` 再搬第二次。
+  - 源文档标了暂缓的待办，建票时用 tracker 的延后状态体现。
+  - 改动后第三轮 `uv-existing` 加 reviewer：硬检查全过，七处都按新规则执行（无 full 测试时提示并通过、`{{base}}` 且无文件级 `set`、报告写“未运行”、票据用延后状态、`CLAUDE.md` 一步分流）。该轮新提出的问题里只修了一条：第 4 步子 agent 在第 5 步补 recipe 前就填 `workflow.md` 命令表，按契约写出了已有 `test` 并不支持的参数。改为该节由主 agent 在第 5 步之后按 `just --summary` 与实际签名填写，签名与契约不一致时写实际用法、差异列为票据候选；未重跑 e2e。仍未处理：描述与代码的差距该不该记为模块页的已知差异，第 2 步与 document-code.md 说法不一；阶段 3 多跑了 `test-full`、`docs-affected`。
 - **功能地图是行为规格之上的索引层，不取代它**（2026-11-11）：起因是觉得 behavior 粒度太细，考虑改用社区的 feature-map。调研结论是两者分属两层：feature-map 类做法（`FEATURE-MAP.yaml`、`CODEMAP.md`）回答"有什么功能、落在哪"，没有统一标准；spec-driven 工具（OpenSpec 的 Requirement 加 Scenario、Kiro 的 EARS）的活规格粒度与行为规格相当或更细。只留地图时 agent 找得到位置却无法判断行为对错，`/acceptance` 也失去预期来源，所以行为规格不动。缺口是模块地图只有工程视角，"有哪些功能、行为写在哪"没有单一入口，因此在架构总览加一张功能地图表，每个功能一行并链接到行为规格。不建独立文件：只做索引的表放进已有总览不增加入口；登记时机沿用"首次被测试覆盖"，与模块页建页条件一致。`/acceptance` 仍直接扫描行为文档，不依赖这张表。
 - **skill 读写的项目合同独占一页**（2026-11-11）：`/prune-tests` 的测试分层合同与保留范围、`/acceptance` 的环境契约原先是 `workflow.md` 里的三节，skill 按节名读写。media-glance 实测改代码路径的共有必读量 16702 字符，其中这三节占 5632，而一般改代码任务用不上它们；存量项目还各自把某节移到了别处，skill 按节名找不到就在 `workflow.md` 重建，内容分叉。模板改为两张独占页 `docs/development/test-layers.md` 与 `local-acceptance.md`，skill 只认路径；`workflow.md` 只留命令与门禁。分层合同与保留范围合成一页而不是各占一页，因为它们是 `/prune-tests` 同一次运行的读和写。新页必须进文档图谱，不能只被 skill 读到：`test-layers.md` 由 `agents/testing.md` 入链，`local-acceptance.md` 由 `workflow.md` 开头的指路句入链，两页都登记在 `docs/INDEX.md` 入口分工表（模板没有 development 目录索引）与权威归属表。overlay 按节名替换的机制不变，分层正文从 `workflow.md` 的 overlay 移到同目录的 `test-layers.md` overlay；节名只是模板与 overlay 之间的内部约定，skill 不依赖它。
 - **真实 agent 验收用 headless harness，而不是再写一个测试 skill**：`tests/setup_project/e2e/` 在临时 Git 项目上造 fixture、起 `claude -p "/setup-project"`、做确定性检查并派 reviewer 会话，入口 `just e2e-setup-project`，做法见 [e2e.md](e2e.md)。`setup-matt-pocock-skills` 标了 `disable-model-invocation`，agent 无法调用，所以其产物用 fixture 模拟；阶段 1 第 4 步的提问在非交互下由预置答案代替，agent 在报告里列出"本应提问"供 reviewer 核对。它属于仓库维护层，不进门禁、不被 pytest 收集，因为需要模型额度且结果有判断成分。
@@ -105,7 +121,7 @@
 ## 明确不做
 
 - 不生成模块页、ADR、调研文件的实例；这些由 Matt 的 skills 或日常迭代惰性创建。
-- 不为项目创建 `CLAUDE.md`：Claude Code 直接读取 `AGENTS.md`。`CLAUDE.md` 已存在时 SKILL.md 要求 agent 把其中内容按节并入 `AGENTS.md`，只留一行 `@AGENTS.md`，不丢弃用户内容。
+- 不为项目创建 `CLAUDE.md`：Claude Code 直接读取 `AGENTS.md`。`CLAUDE.md` 已存在时其中 `## Agent skills` 之外的各节直接作为收敛候选分流（2026-11-11 前是先并入 `AGENTS.md` 再分流），最后只留一行 `@AGENTS.md`，不丢弃用户内容。
 
 ## 待验收
 

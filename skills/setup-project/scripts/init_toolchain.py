@@ -304,7 +304,7 @@ def render_justfile(stacks: list[Stack], placeholders: dict[str, str]) -> str:
             parts.append(
                 "# 改动提示：列出相对基准（默认 HEAD）的改动命中 covers 的文档页，标出本次未修改的页；"
                 "只提示，总是成功，不属于门禁。\n"
-                'docs-affected base="HEAD":\n    python3 scripts/check_docs.py --affected "$1"\n'
+                'docs-affected base="HEAD":\n    python3 scripts/check_docs.py --affected "{{base}}"\n'
             )
         elif recipe == "gate-core":
             parts.append(

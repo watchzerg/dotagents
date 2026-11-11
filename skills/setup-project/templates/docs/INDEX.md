@@ -29,4 +29,4 @@
 | [文档维护规则](agents/documentation.md) | 文档放哪、写什么、多大、怎么同步 |
 | `agents/` 其余文件 | 工程 skills 的 tracker 与领域文档约定（装了 triage 时还有标签映射） |
 
-按需创建的目录：`behaviors/`、`operations/`、`changes/`、`architecture/modules/`。创建条件见[文档维护规则](agents/documentation.md#权威归属与创建时机)。
+`behaviors/`、`operations/`、`changes/`、`architecture/modules/` 不随初始化创建，满足[文档维护规则](agents/documentation.md#权威归属与创建时机)的创建条件时才建；建好后上表没有对应行的补一行。

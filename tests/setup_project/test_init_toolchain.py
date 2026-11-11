@@ -150,7 +150,7 @@ def test_new_uv_project(project: Path, bin_dir: Path) -> None:
     assert 'test *args:\n    just uv-test "$@"' in text
     assert 'test-full *args:\n    python3 scripts/with_lock.py just uv-test-full "$@"' in text
     assert (project / "scripts/with_lock.py").is_file()
-    assert "{{" not in text
+    assert not re.search(r"\{\{[A-Z_]+\}\}", text)
     assert stage3_markers(project) == {}
     workflow = (project / "docs/development/workflow.md").read_text()
     assert "## 命令与门禁" in workflow and "`just gate-core`" in workflow
@@ -239,7 +239,7 @@ def test_new_uv_node_project_layout_commands_and_scopes(project: Path, bin_dir: 
     assert 'uv|node) scope="$1"; shift; exec just "${scope}-test" "$@" ;;' in text
     assert 'exec python3 scripts/with_lock.py just "${scope}-test-full" "$@" ;;' in text
     assert "cd frontend && mise exec -- pnpm install --frozen-lockfile" in text
-    assert "{{" not in text
+    assert not re.search(r"\{\{[A-Z_]+\}\}", text)
     testing = (project / "docs/agents/testing.md").read_text()
     assert (
         "Node（pnpm）：`frontend/tests/core/`" in testing
@@ -293,7 +293,7 @@ def test_new_swift_project(project: Path, bin_dir: Path) -> None:
         "swift-run-tests" in text
         and "gate-core: check-toolchain docs-check lint typecheck swift-test-core" in text
     )
-    assert "{{" not in text
+    assert not re.search(r"\{\{[A-Z_]+\}\}", text)
     assert stage3_markers(project) == {}
     workflow = (project / "docs/development/workflow.md").read_text()
     assert "Xcode（App Store" in workflow

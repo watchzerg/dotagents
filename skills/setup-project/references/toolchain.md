@@ -56,7 +56,7 @@ uv+node 选"后端根目录、前端子目录"：后端是仓库主体，`uv run
 | `check-toolchain`、`install`、`lint`、`typecheck` | 依赖列表：`lint: uv-lint node-lint` |
 | `fmt *args`、`test *args` | 单 stack 直接转发 `just uv-fmt "$@"`；多 stack 无参数时执行私有聚合 recipe `fmt-all: uv-fmt node-fmt`，有参数时第一个参数是 scope（stack 名），其余转发。不能写 `just uv-fmt node-fmt`：可变参数 recipe 会把后一个名字当参数吞掉 |
 | `docs-check` | `python3 scripts/check_docs.py` |
-| `docs-affected base="HEAD"` | `python3 scripts/check_docs.py --affected "$1"` |
+| `docs-affected base="HEAD"` | `python3 scripts/check_docs.py --affected "{{base}}"` |
 | `gate-core` | `check-toolchain docs-check lint typecheck` + 各 `<stack>-test-core` |
 | `test-full *args` | 同 `fmt`/`test` 的转发，但整条命令包在 `python3 scripts/with_lock.py` 里 |
 | `gate-full` | 依赖 `gate-core`，正文 `with_lock.py just test-full-all`（单 stack 直接是 `<stack>-test-full`） |
