@@ -77,6 +77,7 @@
   - 顺手写明两处 agent 自行判断的做法：第 4 步在标记填完、模块页齐全且无缺 recipe 时跳过；full 入口包锁后用 `--collect-only` 之类确认测试集不变。
   - 用户事后删掉了迁入 `docs/research/acceptance/assets/` 的全部截图、日志与 jsonl（约 1.9MB），只留链接文字并注明删除日期。是否把"验收记录的二进制附件不迁入、删除并注明"写成通用规则，只有一个样本，留待下一个项目再定。
 - **文档同步只加提示词层面的三道规则，不加机械检查与 hook**（2026-10-16 评估后定）：整条"随交付同步"链路是软约束，`docs-check` 查不出正文过时；最可能的断点是空项目里建页条件"有了可描述的行为和测试"是判断题，agent 会一直推迟，其次是 code-review 的标准轴没有文档项、implement-spec 的子 agent 简报不传同步链接。据此把建页条件改为"行为首次被测试覆盖"（第五轮 e2e review 时搁置的"模块页门槛"由此定案）、`CODING_STANDARDS.md` 加漏改模块页的判断项、`testing.md` 的 implement-spec 规则传递同步链接并写明文档冲突由 merger 处理。暂缓两项：`check_docs.py` 核对反引号路径只抓改名且进门禁后误报会逼 agent 删反引号，等真实项目出现路径腐烂再做；Stop hook 比较 diff 是唯一硬约束候选，但只对 Claude Code 生效且多轮任务里每次停下都被挡，等三道规则在真实项目仍漏改时再考虑。
+- **功能地图是行为规格之上的索引层，不取代它**（2026-11-11）：起因是觉得 behavior 粒度太细，考虑改用社区的 feature-map。调研结论是两者分属两层：feature-map 类做法（`FEATURE-MAP.yaml`、`CODEMAP.md`）回答"有什么功能、落在哪"，没有统一标准；spec-driven 工具（OpenSpec 的 Requirement 加 Scenario、Kiro 的 EARS）的活规格粒度与行为规格相当或更细。只留地图时 agent 找得到位置却无法判断行为对错，`/acceptance` 也失去预期来源，所以行为规格不动。缺口是模块地图只有工程视角，"有哪些功能、行为写在哪"没有单一入口，因此在架构总览加一张功能地图表，每个功能一行并链接到行为规格。不建独立文件：只做索引的表放进已有总览不增加入口；登记时机沿用"首次被测试覆盖"，与模块页建页条件一致。`/acceptance` 仍直接扫描行为文档，不依赖这张表。
 - **真实 agent 验收用 headless harness，而不是再写一个测试 skill**：`tests/setup_project/e2e/` 在临时 Git 项目上造 fixture、起 `claude -p "/setup-project"`、做确定性检查并派 reviewer 会话，入口 `just e2e-setup-project`，做法见 [e2e.md](e2e.md)。`setup-matt-pocock-skills` 标了 `disable-model-invocation`，agent 无法调用，所以其产物用 fixture 模拟；阶段 1 第 4 步的提问在非交互下由预置答案代替，agent 在报告里列出"本应提问"供 reviewer 核对。它属于仓库维护层，不进门禁、不被 pytest 收集，因为需要模型额度且结果有判断成分。
 
 ## 明确不做
@@ -98,6 +99,7 @@
 - node stack（2026-11-11）：单 stack 与 uv+node 两种新项目已在临时项目手工跑通脚本落地、真实安装与 `gate-full`（Node 26.13.0、pnpm 12.18.0、Vitest 5.1.0），并验证了路径定向、full 文件判定、零匹配非零退出与版本 line 不符时失败。未验收：e2e 用例 `node-new-with-code`、`uv-node-new` 未重跑；固定选型（React、Vite、Tailwind CSS、shadcn/ui、React Testing Library）只写在文档里，没有在真实项目中按文档加入并跑通门禁，Biome 对 Tailwind 指令与 shadcn 生成代码的兼容性未知；`vitest run -t` 零匹配时退出 0（只影响定向运行，门禁不接受筛选参数）。
 - 重写后的 `with_lock.py` 与动态 exclude 的 `Package.swift` 未在真实 full 测试场景下验收。
 - 真实开发会话里的文档同步没有任何数据：e2e 只覆盖初始化。下一个用模板初始化的空项目跑过三到五个改代码的任务后，回看是否在行为首次被测试覆盖时建了模块页、模块页是否随后续改动更新、完成报告是否列出文档影响；漏改的位置决定是否启用暂缓的 `check_docs.py` 路径核对或 Stop hook。
+- 功能地图（2026-11-11）只改了模板与规则文本，未跑 e2e：existing 模式下补写文档的子 agent 与主 agent 是否按代码填出功能地图、真实开发会话里新增功能时是否登记，都没有数据；并入上一条的真实项目回看。
 
 ## 演进记录
 
@@ -128,3 +130,4 @@
 | 2026-10-17 | 为 prune-tests skill 补模板：`workflow.md` 新增 `## 回归覆盖与保留范围`（`按需` 标记，精简后记录各层保留范围与不再维护的类别）；`testing.md` 编写与变更加一条，精简测试按 `/prune-tests` 执行 | [prune-tests 设计说明](../prune-tests/design.md) |
 | 2026-11-11 | 前端 stack 由 Bun 换为 Node + pnpm：`toolchain/stacks/bun/` 改为 `node/`，mise 管理 Node 与 pnpm，Vitest 取代 `bun test`，判定证据改为 `pnpm-lock.yaml`；React、Vite、Tailwind CSS、shadcn/ui、React Testing Library 作为固定选型写入依赖政策，不落应用骨架 | 本文关键决策与待验收、toolchain.md |
 | 2026-11-11 | 测试分层用词统一：`testing.md` 标题改为“测试设计与门禁”并补层的划分标准与“验收”只指 `/acceptance`，`gate-full` 注释改为“完整门禁”，`本地运行与观测` 标记补验收专用数据；分层结构不变 | 本文关键决策、[acceptance 设计说明](../acceptance/design.md) |
+| 2026-11-11 | 架构总览模板新增功能地图表（功能、一句话说明、行为规格链接、涉及模块），`documentation.md` 权威归属表与随交付同步补登记规则，文档索引、docs-structure.md、document-code.md 同步；行为规格与 `behaviors/` 不变 | 本文关键决策与待验收、docs-structure.md 取舍表 |

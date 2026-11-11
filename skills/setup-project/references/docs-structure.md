@@ -19,7 +19,7 @@
     │   ├── testing.md
     │   └── documentation.md         # 三态规则、目录职责、权威归属、模块页模板
     ├── architecture/
-    │   ├── INDEX.md                 # 总览、模块地图、依赖、不变量
+    │   ├── INDEX.md                 # 总览、功能地图、模块地图、依赖、不变量
     │   ├── module-boundaries.md
     │   ├── collaborations.md        # 按需
     │   └── modules/<module>.md      # 按需，含"当前行为规格"章节
@@ -62,6 +62,7 @@
 | 架构正文位置 | 全部在 `docs/architecture/`，根目录不放 `ARCHITECTURE.md` | x-media-saver 分散在三处；根目录只留生态按名查找的文件 |
 | 产品规格与模块页 | 默认只有模块页，行为规格是其一章；`behaviors/` 按需 | 两棵"当前真相"树的交叉链接是单人项目的负担 |
 | 用户可见行为目录的命名 | `behaviors/`，不用 `specs/` | Matt 的 implement-spec 与 code-review 把 spec 当增量规格，`docs/specs/` 会被误读；behaviors 与模块页"当前行为规格"同词，表明它是该章的升格 |
+| 功能清单 | 架构总览里一张功能地图表，每个功能一行并链接到行为规格；不建独立的 feature-map 文件，也不用它取代行为规格 | 地图回答"有什么、在哪"，行为规格回答"做了之后应观察到什么"，后者是 `/acceptance` 的预期来源；表只做索引就不会成为第二棵"当前真相"树 |
 | 增量与归档 | tracker 为主，Markdown 兜底 `changes/`，吸收后删除；不设 `archive/`、`plans/` | git 保留历史；归档层及其 INDEX 是 Beads 之前遗留设计文档的产物 |
 | 研究与验收 | `research/` 常驻不归档，验收记录在 `research/acceptance/` | 证据自带时点，归档没有意义 |
 | 触发表 | 只在 `AGENTS.md` 一份 | 两个项目各有两到三张表，行会漂移 |

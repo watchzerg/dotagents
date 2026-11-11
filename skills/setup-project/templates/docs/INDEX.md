@@ -4,7 +4,7 @@
 
 ## 冷启动阅读路径
 
-1. [架构总览](architecture/INDEX.md)：系统由什么组成、模块地图、依赖与不变量。
+1. [架构总览](architecture/INDEX.md)：系统由什么组成、功能地图、模块地图、依赖与不变量。
 2. [模块边界](architecture/module-boundaries.md)：职责归属与依赖方向；对照 [GLOSSARY.md](../GLOSSARY.md) 理解术语。
 3. 按需打开 `architecture/modules/` 中的模块页，再沿链接进代码与测试。
 4. 涉及取舍时查 `adr/`；需要证据时查[调研索引](research/INDEX.md)。
@@ -17,7 +17,7 @@
 | [AGENTS.md](../AGENTS.md) | agent 的常驻约束和按任务读取入口 |
 | [GLOSSARY.md](../GLOSSARY.md) | 领域术语是什么意思 |
 | [CODING_STANDARDS.md](../CODING_STANDARDS.md) | diff 评审按什么判断 |
-| [架构总览](architecture/INDEX.md) | 系统现在怎样组成与运行 |
+| [架构总览](architecture/INDEX.md) | 系统现在怎样组成与运行；有哪些功能、各自的行为规格在哪 |
 | [模块边界](architecture/module-boundaries.md) | 规则归谁、依赖方向与状态所有权 |
 | `architecture/modules/` | 某个能力现在完整地怎样工作 |
 | `adr/` | 为什么做出重要决定 |
