@@ -80,21 +80,25 @@ def test_full_detection_ignores_other_stacks_files(tmp_path: Path, stub_path: st
     assert "未声明 FullTests" in result.stderr
 
 
-def test_bun_path_argument_replaces_default_directory(tmp_path: Path, stub_path: str) -> None:
-    project = render(tmp_path, "bun")
+def test_node_path_argument_replaces_default_directory(tmp_path: Path, stub_path: str) -> None:
+    project = render(tmp_path, "node")
     assert (
-        "STUB mise exec -- bun test tests/core -t name"
+        "STUB mise exec -- pnpm exec vitest run tests/core -t name"
         in just(project, stub_path, "test", "-t", "name").stdout
     )
     target = "tests/core/toolchain.test.ts"
     assert (
-        f"STUB mise exec -- bun test {target}\n" in just(project, stub_path, "test", target).stdout
+        f"STUB mise exec -- pnpm exec vitest run {target}\n"
+        in just(project, stub_path, "test", target).stdout
     )
 
     (project / "tests/full").mkdir()
     assert "尚无 full 测试" in just(project, stub_path, "test-full").stdout
     (project / "tests/full/slow.test.ts").write_text("")
-    assert "STUB mise exec -- bun test tests/full\n" in just(project, stub_path, "test-full").stdout
+    assert (
+        "STUB mise exec -- pnpm exec vitest run tests/full\n"
+        in just(project, stub_path, "test-full").stdout
+    )
 
 
 def test_none_mode_leaves_no_stage3_markers(tmp_path: Path) -> None:

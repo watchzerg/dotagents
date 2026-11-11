@@ -3,15 +3,16 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "preinstall": "bun scripts/check-bun.ts",
-    "test": "bun test tests/core",
+    "preinstall": "node scripts/check-node.ts",
+    "test": "vitest run tests/core",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "fmt": "biome check --write ."
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.14",
-    "@types/bun": "^1.4.2",
-    "typescript": "^7.0.2"
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
   }
 }

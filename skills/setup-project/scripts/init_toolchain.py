@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """使用 Python 3.14+ 标准库初始化项目工具链、justfile 与开发文档。
 
-项目由零到多个 stack 组成（uv、bun、swift），每个 stack 是 `toolchain/stacks/<name>/` 下的自包含模块：
+项目由零到多个 stack 组成（uv、node、swift），每个 stack 是 `toolchain/stacks/<name>/` 下的自包含模块：
 `stack.json`（标签、布局、安装命令、文档表格单元）、`recipes.just`（私有 recipe）、`home/` 与 `root/`
 （要复制的文件）、`gitignore`、`overlay/`（镜像项目根的文档正文片段）。脚本按文件证据判定 stack 集合；已有工具链的
 项目不改动工具链与 justfile，只补缺 `scripts/check_docs.py`、`scripts/with_lock.py` 并把各 stack 的依赖偏好补进文档；新项目复制 stack 文件、拼出根
@@ -19,7 +19,7 @@ from pathlib import Path
 
 SKILL = Path(__file__).resolve().parent.parent
 TOOLCHAIN = SKILL / "toolchain"
-STACKS = ("uv", "bun", "swift")
+STACKS = ("uv", "node", "swift")
 NONE = "none"
 EXIT_UNDETERMINED = 3
 STAGE3_MARKER = "<待填 阶段3"
@@ -139,20 +139,22 @@ def detect(project: Path) -> tuple[list[str], list[str], bool]:
             evidence.append("pyproject.toml 含 [tool.uv]")
         elif "uv" not in found:
             evidence.append("pyproject.toml（无 uv.lock）")
-    bun_files = [
+    pnpm_locks = [
         path
-        for pattern in ("bun.lock", "*/bun.lock", "bunfig.toml", "*/bunfig.toml")
+        for pattern in ("pnpm-lock.yaml", "*/pnpm-lock.yaml")
         for path in project.glob(pattern)
         if "node_modules" not in path.parts
     ]
-    if bun_files:
-        found.add("bun")
-        evidence.extend(path.relative_to(project).as_posix() for path in bun_files)
+    if pnpm_locks:
+        found.add("node")
+        evidence.extend(path.relative_to(project).as_posix() for path in pnpm_locks)
     else:
         package_json = [p for p in project.glob("*/package.json") if "node_modules" not in p.parts]
         if (project / "package.json").is_file():
             package_json.append(project / "package.json")
-        evidence.extend(f"{p.relative_to(project).as_posix()}（无 bun.lock）" for p in package_json)
+        evidence.extend(
+            f"{p.relative_to(project).as_posix()}（无 pnpm-lock.yaml）" for p in package_json
+        )
     swift_files = [p.name for p in project.glob("*.xcodeproj")] + [
         p.name for p in project.glob("*.xcworkspace")
     ]

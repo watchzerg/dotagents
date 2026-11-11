@@ -1,6 +1,6 @@
 ---
 name: setup-project
-description: 按个人模板初始化新项目的 Beads、标准化文档结构与开发工具链（uv、Bun、Swift 的任意组合，或无预置 stack），建立 gate-core 与 gate-full 门禁。
+description: 按个人模板初始化新项目的 Beads、标准化文档结构与开发工具链（uv、Node、Swift 的任意组合，或无预置 stack），建立 gate-core 与 gate-full 门禁。
 ---
 
 # 项目初始化
@@ -42,7 +42,7 @@ description: 按个人模板初始化新项目的 Beads、标准化文档结构�
 
 4. **一次性提问**：用一次结构化提问同时收集下列答案，都不需要时不问：
    - `init_docs.py` 末尾列出的仍含 `<待填 初始化` 标记的文件不为空，且 `AGENTS.md` 一级标题后、第一个二级标题前没有项目描述时，问项目的一句话描述（自由文本）。`AGENTS.md` 已有描述时不问，阶段 2 直接用它展开其余文件的标记。
-   - 上一步退出码 3 时，让用户多选 stack：uv、bun、swift 可任意组合，没有预置 stack 选 none；题干附上脚本打印的证据。不替用户选。
+   - 上一步退出码 3 时，让用户多选 stack：uv、node、swift 可任意组合，没有预置 stack 选 none；题干附上脚本打印的证据。不替用户选。
 
    用户不给描述时保留 `初始化` 标记并在报告列出；用户不选 stack 时到此停止，报告已完成的步骤，不进入后续阶段。
 
@@ -52,7 +52,7 @@ description: 按个人模板初始化新项目的 Beads、标准化文档结构�
    python3 "<skill目录>/scripts/init_toolchain.py"
    ```
 
-   第 3 步退出码 3 时直接带 `--stacks <答案>` 运行，如 `--stacks uv bun`，不先空跑一次。`new` 模式复制工具链文件与工具链测试、拼出根 `justfile`、复制 `scripts/check_docs.py` 与 `scripts/with_lock.py`、追加 `.gitignore`、替换 `<待填 阶段3：…>` 标记并运行安装命令；`existing` 模式只补缺 `scripts/check_docs.py` 与 `scripts/with_lock.py`、把各 stack 的依赖偏好补进 `docs/development/technology-stack.md`，不碰任何工具链文件。脚本不运行门禁，门禁在阶段 3。
+   第 3 步退出码 3 时直接带 `--stacks <答案>` 运行，如 `--stacks uv node`，不先空跑一次。`new` 模式复制工具链文件与工具链测试、拼出根 `justfile`、复制 `scripts/check_docs.py` 与 `scripts/with_lock.py`、追加 `.gitignore`、替换 `<待填 阶段3：…>` 标记并运行安装命令；`existing` 模式只补缺 `scripts/check_docs.py` 与 `scripts/with_lock.py`、把各 stack 的依赖偏好补进 `docs/development/technology-stack.md`，不碰任何工具链文件。脚本不运行门禁，门禁在阶段 3。
 
    安装命令失败是唯一不中止流程的脚本失败：文件已落地，脚本返回 1 并打印恢复提示。告知用户安装缺少的宿主工具后在项目根目录运行 `just install`，不要重跑脚本（会判为 `existing` 而跳过安装）；继续阶段 2，阶段 3 把安装与 `gate-core` 记为未完成。
 

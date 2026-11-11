@@ -208,8 +208,8 @@ lint:
     run(["uv", "sync", "-q"], project)
 
 
-def build_bun_new_with_code(project: Path) -> None:
-    """有 TypeScript 源码但没有任何工具链文件：判定退出码 3，选 bun 后走 new 模式并补写模块页。"""
+def build_node_new_with_code(project: Path) -> None:
+    """有 TypeScript 源码但没有任何工具链文件：判定退出码 3，选 node 后走 new 模式并补写模块页。"""
     write(
         project / "src/counter.ts",
         """export class Counter {
@@ -242,8 +242,8 @@ def build_swift_existing(project: Path) -> None:
     run(["swift", "package", "init", "--type", "library", "--name", "DemoSwift"], project)
 
 
-def build_uv_bun_new(project: Path) -> None:
-    """空项目选 uv+bun 两个 stack。"""
+def build_uv_node_new(project: Path) -> None:
+    """空项目选 uv+node 两个 stack。"""
 
 
 def build_none_empty(project: Path) -> None:
@@ -318,25 +318,25 @@ CASES: dict[str, Case] = {
         description_targets=("GLOSSARY.md",),
         notes="existing 模式：同义节合并、CLAUDE.md 收口、旧文档收敛、从代码补写模块页、补齐 recipe。",
     ),
-    "bun-new-with-code": Case(
-        name="bun-new-with-code",
-        build=build_bun_new_with_code,
+    "node-new-with-code": Case(
+        name="node-new-with-code",
+        build=build_node_new_with_code,
         description="一个计数器示例库，给前端项目做演示",
-        stacks=("bun",),
+        stacks=("node",),
         expect_mode="new",
-        expect_stacks=("bun",),
+        expect_stacks=("node",),
         present=(
             ".beads",
             "justfile",
             "package.json",
             "biome.json",
             "tsconfig.json",
-            "bun.lock",
+            "pnpm-lock.yaml",
             "tests/core/toolchain.test.ts",
             "src/counter.ts",
         ),
         untouched=("src/counter.ts", "src/index.ts"),
-        notes="有代码但无工具链：退出码 3 后选 bun，new 模式同时补写模块页。",
+        notes="有代码但无工具链：退出码 3 后选 node，new 模式同时补写模块页。",
     ),
     "swift-existing": Case(
         name="swift-existing",
@@ -358,20 +358,20 @@ CASES: dict[str, Case] = {
         description_targets=("GLOSSARY.md",),
         notes="existing 模式且无 justfile：只补依赖偏好与两个公共脚本，报告写明没有 justfile。",
     ),
-    "uv-bun-new": Case(
-        name="uv-bun-new",
-        build=build_uv_bun_new,
+    "uv-node-new": Case(
+        name="uv-node-new",
+        build=build_uv_node_new,
         description="一个带 Python 后端和 TypeScript 前端的示例应用",
-        stacks=("uv", "bun"),
+        stacks=("uv", "node"),
         expect_mode="new",
-        expect_stacks=("uv", "bun"),
+        expect_stacks=("uv", "node"),
         present=(
             ".beads",
             "justfile",
             "pyproject.toml",
             "uv.lock",
             "frontend/package.json",
-            "frontend/bun.lock",
+            "frontend/pnpm-lock.yaml",
             "frontend/tests/core/toolchain.test.ts",
             "tests/core/test_toolchain.py",
         ),

@@ -34,7 +34,7 @@ setup 会自动定位当前 checkout，建立并核验软链接。已有正确�
 | [`/setup-dotagents`](.claude/skills/setup-dotagents/SKILL.md) | 将当前仓库的个人规则和 skills 应用到用户环境，检查并补齐加载入口。 | 仅本仓库 |
 | [`/commit`](skills/commit/SKILL.md) | 将当前仓库的现有变更提交为一个本地 commit；默认包含全部未忽略变更，不附署名行，不自动测试或 push。 | setup 后用户级可用 |
 | [`/prune-tests`](skills/prune-tests/SKILL.md) | 大幅精简测试：按项目的 core/full 分层，core 只留核心规则的代表性单元测试，full 只留 `docs/behaviors/` 主流程与必须真实接线的核心规则；删除边缘与重复用例、校正归属，跑无筛选门禁验证并把保留范围写回 workflow.md。 | setup 后用户级可用 |
-| [`/setup-project`](skills/setup-project/SKILL.md) | 检查 Matt skills 设置后，用 Python 脚本初始化 Beads、按模板建立标准化文档结构、按 stack 组合（uv、Bun、Swift）初始化工具链与 gate-core / gate-full 门禁；再由 agent 收敛已有文档、从代码补写模块页，最后统一运行文档检查与门禁。 | setup 后用户级可用 |
+| [`/setup-project`](skills/setup-project/SKILL.md) | 检查 Matt skills 设置后，用 Python 脚本初始化 Beads、按模板建立标准化文档结构、按 stack 组合（uv、Node、Swift）初始化工具链与 gate-core / gate-full 门禁；再由 agent 收敛已有文档、从代码补写模块页，最后统一运行文档检查与门禁。 | setup 后用户级可用 |
 | [`/acceptance`](skills/acceptance/SKILL.md) | 在本机真实环境按项目行为文档完整验收功能：按项目的环境契约启动服务，逐项操作并观察界面、日志、数据与文件，偏差就地修复并重跑，直到零修复全量通过后写验收记录。推荐配合 `/goal /acceptance 直到打印"验收完成"，最多 80 轮` 运行。 | setup 后用户级可用 |
 
 第三方 skills 由原安装工具管理，不纳入本仓库，也不由 setup 安装。

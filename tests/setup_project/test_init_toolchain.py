@@ -13,7 +13,7 @@ import pytest
 SKILL = Path(__file__).resolve().parents[2] / "skills/setup-project"
 INIT_DOCS = SKILL / "scripts/init_docs.py"
 SCRIPT = SKILL / "scripts/init_toolchain.py"
-TOOLS = ("uv", "mise", "bun", "just", "swift")
+TOOLS = ("uv", "mise", "pnpm", "just", "swift")
 
 
 @pytest.fixture
@@ -91,9 +91,9 @@ def test_detect_only_writes_nothing_and_reports(project: Path, bin_dir: Path) ->
     before = {p.relative_to(project).as_posix() for p in project.rglob("*") if p.is_file()}
     undetermined = run_script(project, bin_dir, "--detect-only")
     assert undetermined.returncode == 3
-    chosen = run_script(project, bin_dir, "--detect-only", "--stacks", "uv", "bun")
+    chosen = run_script(project, bin_dir, "--detect-only", "--stacks", "uv", "node")
     assert chosen.returncode == 0, chosen.stderr
-    assert "stacks：uv、bun；模式：new" in chosen.stdout
+    assert "stacks：uv、node；模式：new" in chosen.stdout
     assert "已创建" not in chosen.stdout
     (project / "uv.lock").write_text("")
     (project / "justfile").write_text(
@@ -213,31 +213,34 @@ def test_new_uv_project_rerun_is_noop(project: Path, bin_dir: Path) -> None:
     assert invocations(project) == []
 
 
-def test_new_uv_bun_project_layout_commands_and_scopes(project: Path, bin_dir: Path) -> None:
-    result = run_script(project, bin_dir, "--stacks", "bun", "uv")
+def test_new_uv_node_project_layout_commands_and_scopes(project: Path, bin_dir: Path) -> None:
+    result = run_script(project, bin_dir, "--stacks", "node", "uv")
     assert result.returncode == 0, result.stderr
-    assert "stacks：uv、bun；模式：new" in result.stdout
+    assert "stacks：uv、node；模式：new" in result.stdout
     assert (project / "mise.toml").is_file()
     assert (project / "frontend/package.json").is_file()
-    assert "../mise.toml" in (project / "frontend/scripts/check-bun.ts").read_text()
+    assert "../mise.toml" in (project / "frontend/scripts/check-node.ts").read_text()
     assert "../mise.toml" in (project / "frontend/tests/core/toolchain.test.ts").read_text()
     assert "node_modules/" in (project / ".gitignore").read_text()
     text = (project / "justfile").read_text()
-    assert "check-toolchain: uv-check-toolchain bun-check-toolchain" in text
+    assert "check-toolchain: uv-check-toolchain node-check-toolchain" in text
     assert "gate-full: gate-core\n    python3 scripts/with_lock.py just test-full-all\n" in text
-    assert "test-full-all: uv-test-full bun-test-full" in text
-    assert "fmt-all: uv-fmt bun-fmt" in text and "exec just test-all" in text
-    assert 'uv|bun) scope="$1"; shift; exec just "${scope}-test" "$@" ;;' in text
+    assert "test-full-all: uv-test-full node-test-full" in text
+    assert "fmt-all: uv-fmt node-fmt" in text and "exec just test-all" in text
+    assert 'uv|node) scope="$1"; shift; exec just "${scope}-test" "$@" ;;' in text
     assert 'exec python3 scripts/with_lock.py just "${scope}-test-full" "$@" ;;' in text
-    assert "cd frontend && mise exec -- bun install --frozen-lockfile" in text
+    assert "cd frontend && mise exec -- pnpm install --frozen-lockfile" in text
     assert "{{" not in text
     testing = (project / "docs/agents/testing.md").read_text()
-    assert "Bun：`frontend/tests/core/`" in testing and "Python（uv）：`tests/core/`" in testing
+    assert (
+        "Node（pnpm）：`frontend/tests/core/`" in testing
+        and "Python（uv）：`tests/core/`" in testing
+    )
     workflow = (project / "docs/development/workflow.md").read_text()
-    assert "布局：Python（uv） 在仓库根目录、Bun 在 `frontend/`。" in workflow
-    assert "scope（`uv`、`bun`）" in workflow and "### Bun" in workflow
+    assert "布局：Python（uv） 在仓库根目录、Node（pnpm） 在 `frontend/`。" in workflow
+    assert "scope（`uv`、`node`）" in workflow and "### Node（pnpm）" in workflow
     stack = (project / "docs/development/technology-stack.md").read_text()
-    assert stack.index("### Python（uv）") < stack.index("### Bun")
+    assert stack.index("### Python（uv）") < stack.index("### Node（pnpm）")
     assert "typer" in stack and "zod" in stack
     calls = invocations(project)
     commands = [call.split(" | ")[0] for call in calls]
@@ -246,18 +249,18 @@ def test_new_uv_bun_project_layout_commands_and_scopes(project: Path, bin_dir: P
         "mise trust",
         "mise install",
         "mise lock",
-        "mise exec -- bun install",
+        "mise exec -- pnpm install",
     ]
     assert calls[4].endswith("/frontend")
 
 
-def test_new_bun_project_places_bun_at_root(project: Path, bin_dir: Path) -> None:
-    result = run_script(project, bin_dir, "--stacks", "bun", "--skip-install")
+def test_new_node_project_places_node_at_root(project: Path, bin_dir: Path) -> None:
+    result = run_script(project, bin_dir, "--stacks", "node", "--skip-install")
     assert result.returncode == 0, result.stderr
     assert (project / "package.json").is_file()
     assert (project / "mise.toml").is_file()
-    assert 'readFileSync("./mise.toml"' in (project / "scripts/check-bun.ts").read_text()
-    assert "cd . && mise exec -- bun run lint" in (project / "justfile").read_text()
+    assert 'readFileSync("./mise.toml"' in (project / "scripts/check-node.ts").read_text()
+    assert "cd . && mise exec -- pnpm run lint" in (project / "justfile").read_text()
     assert not (project / "pyproject.toml").exists()
 
 
@@ -356,10 +359,10 @@ def test_project_name_comes_from_agents_heading(project: Path, bin_dir: Path) ->
 def test_detects_stacks_from_lockfiles(project: Path, bin_dir: Path) -> None:
     (project / "uv.lock").write_text("")
     (project / "frontend").mkdir()
-    (project / "frontend/bun.lock").write_text("")
+    (project / "frontend/pnpm-lock.yaml").write_text("")
     result = run_script(project, bin_dir, "--skip-install")
     assert result.returncode == 0, result.stderr
-    assert "stacks：uv、bun；模式：existing" in result.stdout
+    assert "stacks：uv、node；模式：existing" in result.stdout
 
 
 def test_existing_project_gets_dependency_preferences_and_common_scripts(

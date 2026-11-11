@@ -1,0 +1,20 @@
+{
+  "label": "Node（pnpm）",
+  "home_when_shared": "frontend",
+  "host_tools": "`mise`（Homebrew）",
+  "install": [
+    {"args": ["mise", "trust"], "cwd": "root"},
+    {"args": ["mise", "install"], "cwd": "root"},
+    {"args": ["mise", "lock"], "cwd": "root"},
+    {"args": ["mise", "exec", "--", "pnpm", "install"], "cwd": "home"}
+  ],
+  "cells": {
+    "install": "`mise install` 按 `mise.lock` 安装 Node 与 pnpm，`pnpm install --frozen-lockfile` 按 `{{HOME}}pnpm-lock.yaml` 安装依赖",
+    "fmt": "Biome 格式化并修复可自动修复的 lint",
+    "lint": "Biome 检查",
+    "typecheck": "`tsc --noEmit`",
+    "test": "传 `vitest run` 参数定向：`-t 名称` 在默认目录内筛选；给出已存在的路径（相对 Node 目录）时只运行该路径，不再附加默认目录",
+    "core": "`{{HOME}}tests/core/`（`vitest run tests/core`）",
+    "full": "`{{HOME}}tests/full/` 下的 `*.test.ts` 等 Vitest 测试文件"
+  }
+}
