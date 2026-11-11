@@ -64,7 +64,7 @@ description: 按个人模板初始化新项目的 Beads、标准化文档结构�
 
 2. **填写 `初始化` 标记**：用阶段 1 收集的一句话描述，或 `AGENTS.md` 已有的描述，填写仍带 `初始化` 标记的位置，AGENTS.md、README、GLOSSARY 从同一答案展开；展开只能用用户的答案与代码事实，不描述 setup-project 自己的执行步骤或产物（用户答案里提到的内容照用）。没有标记的位置不动：`AGENTS.md` 已有描述时保留原文，不用答案覆盖。其余 `<待填 时机：说明>` 标记保留，由项目迭代按 `AGENTS.md` 常驻约束逐步填写，不询问用户，不编造。
 
-3. **收敛已有文档**：按 [references/converge-docs.md](references/converge-docs.md#候选范围) 列出四类候选：标准结构之外的文档，`AGENTS.md` 里模板节之外的全部二级节（含第 1 步从 `CLAUDE.md` 并入的），`docs/research/` 直接子级的验收与交付记录，以及章节与模板不一致的已有模块页；没有候选则跳过。有候选时先派只读子 agent 分类，再派可写子 agent 按分类表执行合并与迁移，主 agent 修正链接、登记索引、建票据、填可填标记。不 commit，用户提交前自行审阅工作区。
+3. **收敛已有文档**：按 [references/converge-docs.md](references/converge-docs.md#候选范围) 列出候选：标准结构之外的文档，`AGENTS.md` 里模板节之外的全部二级节（含第 1 步从 `CLAUDE.md` 并入的），`docs/research/` 直接子级的验收与交付记录，以及文档检查报出的已有页面（标题骨架不符、超出体量预算、未登记索引、从 `AGENTS.md` 到不了）；没有候选则跳过。有候选时先派只读子 agent 分类，再派可写子 agent 按分类表执行合并与迁移，主 agent 修正链接、登记索引、建票据、填可填标记。不 commit，用户提交前自行审阅工作区。
 
 4. **从代码补写文档**：已有代码指阶段 1 之前就存在的源码，即 `existing` 模式，或 `new` 模式下脚手架之外的源码；只有阶段 1 生成的脚手架（示例模块、工具链测试、`scripts/` 下的检查与锁脚本、各 stack 的配置与锁文件）时视为空项目，跳过。有代码时按 [references/document-code.md](references/document-code.md) 派可写子 agent 读取代码与配置，填写架构总览与模块边界的 `首个模块` 类标记、按模板建模块页；`existing` 模式下同时填写剩余的 `阶段3` 类标记，并为阶段 1 列出的缺少 recipe 返回实现建议；主 agent 随后把脚本写入的"依赖政策"与 `AGENTS.md` 常驻约束对照，与约束冲突的偏好条目（如项目禁止 ORM 而清单推荐 `sqlalchemy`）删去并在报告说明。空项目跳过；第 3 步已把 `首个模块` 与 `阶段3` 标记全部填完、模块页齐全且没有缺少的 recipe 时也跳过，报告写明依据。
 
@@ -74,7 +74,7 @@ description: 按个人模板初始化新项目的 Beads、标准化文档结构�
 
 1. **文档检查**：`new` 模式运行 `just docs-check`；`existing` 模式在项目根目录运行 `python3 scripts/check_docs.py`。
 
-   本次 agent 改动造成的错误修复后重跑；其余错误原样报告。
+   检查范围是链接与锚点、全量可达、ADR 与调研的索引登记、体量预算、模块页与行为规格页的标题骨架。本次 agent 改动造成的错误修复后重跑；其余错误原样报告。
 
 2. **门禁**：`new` 模式运行 `just gate-core`，失败原样报告，不标记为通过；stack 为 none 时它会在 `check-toolchain` 处按设计失败，报告为"工具链未接入"，以 `docs-check` 的结果为准。`existing` 模式若本次补了 recipe，运行 `just --list` 确认 justfile 可解析，再单独运行新增的 `just check-toolchain` 与 `just docs-check`；不运行项目自己的 lint、构建与测试。
 

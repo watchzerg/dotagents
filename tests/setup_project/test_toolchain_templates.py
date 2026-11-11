@@ -1,4 +1,4 @@
-"""渲染临时项目后用真实 just 运行生成的 recipe，验证模板行为：full 测试按 stack 文件判定、定向参数转发、none 模式不留阶段3 标记。
+"""渲染临时项目后用真实 just 运行生成的 recipe，验证模板行为：full 测试按 stack 文件判定、定向参数转发、none 模式不留阶段3 标记、各 stack 组合渲染出的文档通过文档检查。
 
 uv、mise 用替身记录参数，不安装依赖；swift 只走不调用编译器的分支。
 """
@@ -109,3 +109,39 @@ def test_none_mode_leaves_no_stage3_markers(tmp_path: Path) -> None:
         if ".git" not in path.parts and "<待填 阶段3" in path.read_text()
     ]
     assert leftovers == []
+
+
+@pytest.mark.parametrize(
+    "stacks", [("none",), ("uv",), ("node",), ("swift",), ("uv", "node", "swift")]
+)
+def test_rendered_docs_pass_docs_check(tmp_path: Path, stacks: tuple[str, ...]) -> None:
+    """模板与拼合后的正文自己要守住可达性、索引登记、体量预算与标题骨架。"""
+    project = render(tmp_path, *stacks)
+    result = subprocess.run(
+        [sys.executable, "-I", "scripts/check_docs.py"],
+        cwd=project,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_common_scripts_pass_uv_template_lint() -> None:
+    """公共脚本原样复制进 uv 项目并受其 Ruff 配置检查；本仓库忽略 E501，模板不忽略。"""
+    for command in (["check"], ["format", "--check"]):
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "ruff",
+                *command,
+                "--config",
+                str(SKILL / "toolchain/stacks/uv/home/pyproject.toml"),
+                str(SKILL / "toolchain/common/scripts"),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr

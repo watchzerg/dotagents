@@ -15,7 +15,7 @@
 
 1. 新增或移动测试前确定 core 或 full 归属，在测试计划中注明验证行为、标准入口和资源需求。
 2. 核心业务规则优先通过公开接口的单元测试验证；集成与端到端覆盖关键边界和代表性主流程。需要真实接线证明的行为放 full，不为进入 core 而 mock 掉待验证边界。
-3. 测试接入对应目录和 runner，确保标准入口自动发现，并纳入无筛选的完整门禁。
+3. 测试接入对应目录和 runner，确保标准入口自动发现，并纳入无筛选的完整门禁。以实际收集结果证明已接入：标准入口的收集清单或运行输出里出现该测试；只新增了测试文件、零匹配或沿用旧结果都不算。
 4. review 核对分类、收录、资源清理及证据范围。失败和零匹配不能作为通过；不得通过 skip、遗漏收录或弱化断言维持门禁通过。
 5. 精简或大幅删减测试按 `/prune-tests` 执行：core 只留核心规则的代表性单元测试，full 只留行为文档主流程与必须真实接线的核心规则；保留范围写入[测试分层合同](../development/test-layers.md#保留范围)。
 
@@ -23,5 +23,5 @@
 
 1. 主 agent 派发前读取本节，将本节、分层合同与[随交付同步](documentation.md#随交付同步)的链接传给 implementer、merger 和后续修复 agent。implementer 在自己的 worktree 内同步本 ticket 影响的模块页；多个 ticket 改同一页时，merger 按代码冲突同样处理文档冲突。
 2. implementer 在自己的 worktree 内运行 core 范围的定向 red → green 验证；报告完成前在包含最新 integration branch 的代码上通过完整 core 门禁。本 ticket 的 full 测试可用 `just test-full` 定向运行观察 red → green（入口带主机锁时自动排队，等待不是失败）；不直接调用底层 runner 运行 full 测试。
-3. 无筛选的完整 full 验证留到最终集成；报告列出已运行的命令和结果，以及尚未运行的 full 测试与入口，不把定向通过记作完整门禁通过。
-4. 所有 ticket 合并、code-review 修复完成后，主 agent 在最终 integration branch 运行无筛选的完整门禁。通过前不关闭 spec、不将 PR 标记为 ready。
+3. 无筛选的完整 full 验证留到最终集成；报告列出已运行的命令和结果，以及尚未运行的 full 测试与入口。“已集成、core 通过”与“完整门禁通过”分开记录，不把定向通过记作完整门禁通过。
+4. 所有 ticket 合并、code-review 修复完成后，主 agent 在最终 integration branch 运行无筛选的完整门禁，运行期间工作树保持不变；之后的任何改动都使该结果失效，须重跑。通过前不关闭 spec、不将 PR 标记为 ready。

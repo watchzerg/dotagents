@@ -5,9 +5,9 @@
 ## 冷启动阅读路径
 
 1. [架构总览](architecture/INDEX.md)：系统由什么组成、功能地图、模块地图、依赖与不变量。
-2. [模块边界](architecture/module-boundaries.md)：职责归属与依赖方向；对照 [GLOSSARY.md](../GLOSSARY.md) 理解术语。
-3. 按需打开 `architecture/modules/` 中的模块页，再沿链接进代码与测试。
-4. 涉及取舍时查 `adr/`；需要证据时查[调研索引](research/INDEX.md)。
+2. 按需打开 `architecture/modules/` 中的模块页，再沿链接进代码与测试；对照 [GLOSSARY.md](../GLOSSARY.md) 理解术语。
+3. 修改职责、共享接口或状态所有权时读[模块边界](architecture/module-boundaries.md)。
+4. 追溯取舍时查 [ADR 索引](adr/INDEX.md)；需要证据时查[调研索引](research/INDEX.md)。两者是历史证据，不覆盖当前正文。
 
 ## 入口分工
 
@@ -20,13 +20,13 @@
 | [架构总览](architecture/INDEX.md) | 系统现在怎样组成与运行；有哪些功能、各自的行为规格在哪 |
 | [模块边界](architecture/module-boundaries.md) | 规则归谁、依赖方向与状态所有权 |
 | `architecture/modules/` | 某个能力现在完整地怎样工作 |
-| `adr/` | 为什么做出重要决定 |
-| [调研索引](research/INDEX.md) | 比较与验证的证据和适用条件 |
+| [ADR 索引](adr/INDEX.md) | 为什么做出重要决定，哪些已被取代 |
+| [调研索引](research/INDEX.md) | 比较与验证的证据和适用条件，哪些已被吸收或取代 |
 | [开发工作流](development/workflow.md)、[技术选型](development/technology-stack.md) | 怎么开发、构建和验证 |
 | [测试分层合同](development/test-layers.md) | 各层测试放哪、由哪个入口收录、占用哪些资源；精简测试后保留了什么 |
 | [本地验收环境](development/local-acceptance.md) | 真实环境验收时怎么启动、停止、观测，哪些不能碰 |
 | [测试设计与门禁](agents/testing.md) | 测试怎么写、归哪类、过哪道门禁 |
-| [文档维护规则](agents/documentation.md) | 文档放哪、怎么同步 |
+| [文档维护规则](agents/documentation.md) | 文档放哪、写什么、多大、怎么同步 |
 | `agents/` 其余文件 | 工程 skills 的 tracker 与领域文档约定（装了 triage 时还有标签映射） |
 
-按需创建的目录：`behaviors/`、`operations/`、`changes/`、`adr/`、`architecture/modules/`。创建条件见[文档维护规则](agents/documentation.md#权威归属与创建时机)。
+按需创建的目录：`behaviors/`、`operations/`、`changes/`、`architecture/modules/`。创建条件见[文档维护规则](agents/documentation.md#权威归属与创建时机)。

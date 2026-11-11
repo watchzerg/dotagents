@@ -297,7 +297,7 @@ def render_justfile(stacks: list[Stack], placeholders: dict[str, str]) -> str:
             )
         elif recipe == "docs-check":
             parts.append(
-                "# 检查本地文档链接、锚点与模块可达性，不联网。\ndocs-check:\n    python3 scripts/check_docs.py\n"
+                "# 检查文档链接、锚点、可达性、索引登记、体量预算与标题骨架，不联网。\ndocs-check:\n    python3 scripts/check_docs.py\n"
             )
         elif recipe == "gate-core":
             parts.append(

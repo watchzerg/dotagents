@@ -78,7 +78,7 @@ uv+node 选"后端根目录、前端子目录"：后端是仓库主体，`uv run
 | `test-full [scope] [参数]` | full 测试，经主机锁串行；默认全部，传参定向 |
 
 定向参数的语义：名称类筛选（pytest `-k`、`vitest run -t`、`swift test --filter`）在默认范围内筛选；路径（相对 stack 目录）替换默认目录，只运行给出的路径。pytest 的 full 默认范围经 `-o testpaths=tests/full` 指定；`vitest run` 的位置参数是并集筛选，recipe 在参数中有已存在的路径时不再附加默认目录；swift 未给 `--filter` 时 `test` 补 `CoreTests`、`test-full` 补 `FullTests`，并始终用 `--skip` 排除对方 target，避免 full 测试绕过主机锁。
-| `docs-check` | 文档链接、锚点、模块页可达性 |
+| `docs-check` | 文档链接与锚点、全量可达、索引登记、体量预算、标题骨架 |
 | `gate-core` | check-toolchain → docs-check → lint → typecheck → 全部 core 测试，首错停止 |
 | `gate-full` | gate-core 后串行运行全部 full 测试 |
 

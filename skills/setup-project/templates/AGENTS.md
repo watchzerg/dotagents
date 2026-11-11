@@ -12,16 +12,18 @@
 
 ## 按任务读取
 
-开始动作前读取命中行的正文，只展开受影响的章节；未命中时查[文档索引](docs/INDEX.md)，不预读整套文档。
+开始动作前读取命中行的正文，只展开受影响的章节；同一任务可命中多行。本表是唯一的按任务路由，未命中时查[文档索引](docs/INDEX.md)，不预读整套文档；`docs/adr/` 与 `docs/research/` 是历史证据，只在追溯取舍或需要证据时读。
 
 | 触发条件 | 必读入口 |
 | --- | --- |
 | 设计、修改或 review 代码 | [架构总览](docs/architecture/INDEX.md)，再进受影响的模块页；模块页尚不存在时按[文档维护规则](docs/agents/documentation.md#随交付同步)建页 |
 | 编写、修改、移动或 review 测试，制定测试计划，执行 `implement-spec` | [测试设计与门禁](docs/agents/testing.md)；新增测试覆盖的行为还没有模块页时，先按[随交付同步](docs/agents/documentation.md#随交付同步)建页 |
-| 运行命令、选择门禁、调整依赖或工具链 | [开发工作流](docs/development/workflow.md)、[技术选型](docs/development/technology-stack.md) |
+| 运行命令、选择门禁 | [开发工作流](docs/development/workflow.md) |
+| 调整依赖或工具链 | [技术选型](docs/development/technology-stack.md) |
 | 新增、移动、删除文档，或讨论形成明确结论 | [文档维护规则](docs/agents/documentation.md) |
-| 涉及领域术语、数据模型或与 ADR 冲突 | [GLOSSARY.md](GLOSSARY.md)、[领域文档规则](docs/agents/domain.md) |
+| 涉及领域术语或数据模型 | [GLOSSARY.md](GLOSSARY.md)，写法见[领域文档规则](docs/agents/domain.md) |
+| 改变已有取舍、与 ADR 冲突或新增 ADR | [ADR 索引](docs/adr/INDEX.md)，写法见[领域文档规则](docs/agents/domain.md) |
 | 读取、创建或更新票据 | [tracker 约定](docs/agents/issue-tracker.md) |
 | 分类票据或调整分诊标签 | [标签映射](docs/agents/triage-labels.md) |
-| 调研、实验或复用已有结论 | [调研索引](docs/research/INDEX.md)；新产出放 `docs/research/` 并在索引登记 |
+| 调研、实验或复用已有结论 | [调研索引](docs/research/INDEX.md)，按状态与“何时读”挑选；新产出放 `docs/research/` 并在索引登记 |
 | review diff 的代码质量 | [CODING_STANDARDS.md](CODING_STANDARDS.md) |

@@ -34,7 +34,7 @@ test *args:
 test-full *args:
     @echo '错误：test-full 尚未接入本项目测试 runner；见 docs/development/workflow.md。' >&2; exit 1
 
-# 检查本地文档链接、锚点与模块可达性，不联网。
+# 检查文档链接、锚点、可达性、索引登记、体量预算与标题骨架，不联网。
 docs-check:
     python3 scripts/check_docs.py
 

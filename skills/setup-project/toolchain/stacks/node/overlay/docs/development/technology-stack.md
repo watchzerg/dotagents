@@ -1,6 +1,10 @@
 ## 运行时与工具链
 
-Homebrew → mise → Node 与 pnpm。`mise.toml` 声明 Node 与 pnpm 的兼容版本 line，`mise.lock` 锁定经验证的精确构建；升级时更新 line 并运行 `mise lock` 刷新。pnpm 是包管理器，`pnpm install --frozen-lockfile` 是标准安装步骤。TypeScript 为唯一源码语言；Vitest 是测试 runner；Biome 负责格式化、lint（recommended 规则起步）与 import 排序，`tsc --noEmit` 是权威类型检查。`package.json` 的 `preinstall` 校验 Node 版本 line，跨 line 运行必须失败。应用层选型固定为 React + Vite + Tailwind CSS + shadcn/ui，组件测试用 React Testing Library；初始化只落工具链，这些依赖在写第一个页面时按依赖政策加入。
+Homebrew → mise → Node 与 pnpm。`mise.toml` 声明 Node 与 pnpm 的兼容版本 line，`mise.lock` 锁定经验证的精确构建；升级时更新 line 并运行 `mise lock` 刷新。pnpm 是包管理器，`pnpm install --frozen-lockfile` 是标准安装步骤。
+
+TypeScript 为唯一源码语言；Vitest 是测试 runner；Biome 负责格式化、lint（recommended 规则起步）与 import 排序，`tsc --noEmit` 是权威类型检查。`package.json` 的 `preinstall` 校验 Node 版本 line，跨 line 运行必须失败。
+
+应用层选型固定为 React + Vite + Tailwind CSS + shadcn/ui，组件测试用 React Testing Library；初始化只落工具链，这些依赖在写第一个页面时按依赖政策加入。
 
 ## 依赖政策
 

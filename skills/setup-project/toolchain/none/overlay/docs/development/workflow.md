@@ -16,10 +16,12 @@
 | `just lint` / `just typecheck` | 静态检查，不修改源码 |
 | `just test [参数]` | 默认运行全部 core 测试；传参可定向 |
 | `just test-full [参数]` | 运行 full 测试，经 `scripts/with_lock.py` 主机锁串行；传参可定向 |
-| `just docs-check` | 文档链接、章节锚点与模块页可达性（已可用） |
+| `just docs-check` | 文档链接与锚点、全量可达、索引登记、体量预算与标题骨架，规则见[文档维护规则](../agents/documentation.md#自动检查)（已可用） |
 | `just gate-core` | 工具链检查 → docs-check → lint → typecheck → 全部 core 测试，首错停止 |
 | `just gate-full` | gate-core 后在主机锁内串行运行全部 full 测试 |
 
 `gate-core` 可在多个 worktree 同时运行；full 测试只经 `test-full` 或 `gate-full` 运行，两者都用 `scripts/with_lock.py` 持有主机级锁自动排队。两个门禁都不接受筛选参数。
+
+门禁通过只证明它收录的范围：`gate-core` 证明静态检查、文档检查与 core 测试通过，不证明真实服务、独占资源与部署形态下的行为；`gate-full` 再加上 full 测试收录的范围，不证明真实环境验收（`/acceptance`）。本项目没有 CI，门禁只在本机运行，结果由运行者在交付说明里如实报告；接入 CI 后在此写明哪道门禁在哪里跑。新增、改名或删除 recipe 时同步上表与调用它的脚本、文档。
 
 <待填 按需：接入工具链后记录实际命令、运行时与版本声明来源>

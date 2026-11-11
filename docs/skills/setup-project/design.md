@@ -24,7 +24,7 @@
 - **根目录四个硬约束路径**：`GLOSSARY.md`、`docs/adr/`、`docs/agents/` 是 Matt skills 直接按路径读写的位置，`CODING_STANDARDS.md` 是 code-review 按名查找的；其余目录可按项目调整。
 - **`## Agent skills` 块压缩进触发表**：Matt 的 setup 是本 skill 的前置，之后不再重跑，其三个指针并入触发表后该块被脚本移除。若有人重跑 Matt setup 追加了新块，再跑本 skill 会再次移除。
 - **AGENTS.md 按节合并而非整文件跳过**：它与 Matt setup、用户共用，所以以二级标题为单位，缺的节追加、已有的节不动、标题外内容保留，重复运行无变更。其他模板文件只属于本 skill，整文件缺失才创建即可。
-- **不设 `archive/`、`plans/`、ADR 索引**：参考项目里的归档层来自 Beads 之前的遗留文档；新项目用 tracker 承载增量，git 承载历史。
+- **不设 `archive/`、`plans/`**：参考项目里的归档层来自 Beads 之前的遗留文档；新项目用 tracker 承载增量，git 承载历史。ADR 索引原先也不设，2026-11-11 改为初始化即建，见下文“三个项目重构后的回收”。
 - **`<待填 时机：说明>` 协议**：初始化不编造项目内容，留显式标记并注明可填时机（初始化、阶段3、首个模块、按需；`阶段3` 沿用为"工具链落地后"的标记名，不随 SKILL.md 的阶段编号变动）；AGENTS.md 常驻约束要求每次交付前搜索并按时机填写，全部消失后该条自删。不另建待填清单文件：grep 即清单，独立文件会漂移。这是空项目里让文档"逐步长出来"的机制，也是因为用户在初始化时同样答不出架构类问题，所以不向用户询问。
 - **AGENTS.md 只放指针**：触发表唯一，细则进正文；retro 产出的规则落 `CODING_STANDARDS.md`。已有项目的 `AGENTS.md` 里用户自写的细则节（如发布流程）也按此原则在收敛步迁入正文（2026-10-12 e2e 后定）：否则模板的防膨胀约束第一天就破例，且正文里"有发布流程时填"这类按需标记会因内容在别处而永远填不上。约束类节留下并入常驻约束；迁移整段原文不改写，触发表加行，报告逐条列出。放弃"原样保留不迁移"，因为搬运机制与收敛旧文档完全相同，不增加流程。
 
@@ -77,6 +77,19 @@
   - 顺手写明两处 agent 自行判断的做法：第 4 步在标记填完、模块页齐全且无缺 recipe 时跳过；full 入口包锁后用 `--collect-only` 之类确认测试集不变。
   - 用户事后删掉了迁入 `docs/research/acceptance/assets/` 的全部截图、日志与 jsonl（约 1.9MB），只留链接文字并注明删除日期。是否把"验收记录的二进制附件不迁入、删除并注明"写成通用规则，只有一个样本，留待下一个项目再定。
 - **文档同步只加提示词层面的三道规则，不加机械检查与 hook**（2026-10-16 评估后定）：整条"随交付同步"链路是软约束，`docs-check` 查不出正文过时；最可能的断点是空项目里建页条件"有了可描述的行为和测试"是判断题，agent 会一直推迟，其次是 code-review 的标准轴没有文档项、implement-spec 的子 agent 简报不传同步链接。据此把建页条件改为"行为首次被测试覆盖"（第五轮 e2e review 时搁置的"模块页门槛"由此定案）、`CODING_STANDARDS.md` 加漏改模块页的判断项、`testing.md` 的 implement-spec 规则传递同步链接并写明文档冲突由 merger 处理。暂缓两项：`check_docs.py` 核对反引号路径只抓改名且进门禁后误报会逼 agent 删反引号，等真实项目出现路径腐烂再做；Stop hook 比较 diff 是唯一硬约束候选，但只对 Claude Code 生效且多轮任务里每次停下都被挡，等三道规则在真实项目仍漏改时再考虑。
+- **三个项目重构后的回收（2026-11-11）**。x-media-saver、media-glance、bangou 由本模板初始化后，同一天各自重构了文档架构，诊断一致：问题在粒度与路由，不在规则本身；重构后文档总量都没减少，降的是每个任务必须读入的量。派 15 个子 agent 按“规则层、架构与行为文档、文档工具、开发测试调研文档、重构历史”五个切面提炼，只回收至少两个项目独立做出、且对单项目新仓库成立的部分：
+  - `check_docs.py` 从查链接升级为查结构：全部文档须从 `AGENTS.md` 可达（取代只查模块页）、`docs/adr/` 与 `docs/research/` 逐文件登记索引、体量预算（单页 16 KB，单行或表格单元格 400 字符，research 与 adr 豁免）、模块页六节与行为规格四节的二级标题骨架。预算数值取 bangou 的；不设单节预算，因为模板自己的权威归属表就接近 x-media-saver 的 4 KB 单节上限。
+  - 不设逐页豁免名单：x-media-saver 建了又删，bangou 一开始就拒绝，media-glance 的“只许减小”名单在并行分支上会产生合并冲突。也不设只报告不失败的模式开关，bangou 迁移完就删了它，新项目没有迁移期。
+  - 标题骨架由“章节可按内容合并”改为全部必备且按序、无内容写一句白话（用户裁决）：x-media-saver 先上检查器后发现两条措辞与它矛盾，由用户裁决改掉；不强制就无法校验。行为规格取 x-media-saver 的严格四节，不取 media-glance 的“首尾固定、中间每项能力一个二级标题”，后者让检查器只能查首尾。
+  - ADR 索引初始化即建（用户裁决）：三个项目都自己建了，因为取代关系从文件名看不出。骨架随模板落地，检查器对 `adr/` 与 `research/` 用同一条“逐文件登记”规则，不必区分索引是否存在。frontmatter 取代关系的双向一致检查不做：ADR 格式由 Matt 的 domain-modeling 决定，本模板不解析它。
+  - 路由只留 `AGENTS.md` 触发表：删掉架构总览的“按任务阅读”，它与 docs-structure.md 的取舍自相矛盾，三个项目也都删了；触发表每行只指一个入口页，ADR 与调研声明为仅追溯时读，冷启动路径不再必经模块边界。
+  - 正文取舍原则与模块页瘦身：只写读代码得不到的内容，“代码与验证入口”不列源文件清单与测试用例名，“定位与阅读”开头固定负责、不负责、何时读三项；配预算的拆页规则（枢纽页加同名子目录子页，不留重定向页）。
+  - 历史证据：调研索引每条带状态、结论与去向、何时读；“永不改写”加唯一例外，被链接页面移动或拆分时只改链接目标，否则第一次拆页就与链接检查冲突。
+  - 测试与工作流补丁：以实际收集结果证明测试已接入；“已集成、core 通过”与“完整门禁通过”分开记录，最终门禁期间工作树不变；workflow 写明每道门禁证明与不证明什么、有无 CI。
+  - 模板自清理：待填标记清空后连同 `documentation.md` 的该节一起删；写进目标项目的“阶段 3 填入”“Matt setup”改为白话。`阶段3` 作为标记名不动。
+  - 未回收：bangou 的按子系统分区（monorepo 特有，它删模块边界页是因为各子系统被迫互读对方内容）、media-glance 的页头元数据加生成索引与整文件源码认领（依赖 893 行 Swift 专用脚本且无测试）、x-media-saver 的命令表与 justfile 双向核对和环境变量核对。功能地图保留：三个项目没有它只是因为分叉早于模板加它。
+  - 未做，留给后续：源码到文档的映射（三个项目各做了一套，最轻的是 bangou 的 `covers` frontmatter 加只提示不进门禁的 `docs-affected`，需要各 stack 提供源码根目录）；文档漂移审计 skill（x-media-saver 的 `doc-audit` 与 media-glance 的 `docs-drift-audit` 是同一件事，适合做成用户级 skill）。workflow 命令表改为“只写注释看不出的约定”也未做：该表由各 stack 的 `stack.json` 单元拼出并有测试覆盖，初始化时与 justfile 一致，本次只补了“改 recipe 时同步上表”一句。
+  - 代价：模板的 `documentation.md` 增到约 13.8 KB，离自己的 16 KB 预算不远；项目往里加规则时需要拆页（media-glance 把随交付同步拆成了 `doc-sync.md`），本次不预先拆。
 - **功能地图是行为规格之上的索引层，不取代它**（2026-11-11）：起因是觉得 behavior 粒度太细，考虑改用社区的 feature-map。调研结论是两者分属两层：feature-map 类做法（`FEATURE-MAP.yaml`、`CODEMAP.md`）回答"有什么功能、落在哪"，没有统一标准；spec-driven 工具（OpenSpec 的 Requirement 加 Scenario、Kiro 的 EARS）的活规格粒度与行为规格相当或更细。只留地图时 agent 找得到位置却无法判断行为对错，`/acceptance` 也失去预期来源，所以行为规格不动。缺口是模块地图只有工程视角，"有哪些功能、行为写在哪"没有单一入口，因此在架构总览加一张功能地图表，每个功能一行并链接到行为规格。不建独立文件：只做索引的表放进已有总览不增加入口；登记时机沿用"首次被测试覆盖"，与模块页建页条件一致。`/acceptance` 仍直接扫描行为文档，不依赖这张表。
 - **skill 读写的项目合同独占一页**（2026-11-11）：`/prune-tests` 的测试分层合同与保留范围、`/acceptance` 的环境契约原先是 `workflow.md` 里的三节，skill 按节名读写。media-glance 实测改代码路径的共有必读量 16702 字符，其中这三节占 5632，而一般改代码任务用不上它们；存量项目还各自把某节移到了别处，skill 按节名找不到就在 `workflow.md` 重建，内容分叉。模板改为两张独占页 `docs/development/test-layers.md` 与 `local-acceptance.md`，skill 只认路径；`workflow.md` 只留命令与门禁。分层合同与保留范围合成一页而不是各占一页，因为它们是 `/prune-tests` 同一次运行的读和写。新页必须进文档图谱，不能只被 skill 读到：`test-layers.md` 由 `agents/testing.md` 入链，`local-acceptance.md` 由 `workflow.md` 开头的指路句入链，两页都登记在 `docs/INDEX.md` 入口分工表（模板没有 development 目录索引）与权威归属表。overlay 按节名替换的机制不变，分层正文从 `workflow.md` 的 overlay 移到同目录的 `test-layers.md` overlay；节名只是模板与 overlay 之间的内部约定，skill 不依赖它。
 - **真实 agent 验收用 headless harness，而不是再写一个测试 skill**：`tests/setup_project/e2e/` 在临时 Git 项目上造 fixture、起 `claude -p "/setup-project"`、做确定性检查并派 reviewer 会话，入口 `just e2e-setup-project`，做法见 [e2e.md](e2e.md)。`setup-matt-pocock-skills` 标了 `disable-model-invocation`，agent 无法调用，所以其产物用 fixture 模拟；阶段 1 第 4 步的提问在非交互下由预置答案代替，agent 在报告里列出"本应提问"供 reviewer 核对。它属于仓库维护层，不进门禁、不被 pytest 收集，因为需要模型额度且结果有判断成分。
@@ -102,6 +115,7 @@
 - 真实开发会话里的文档同步没有任何数据：e2e 只覆盖初始化。下一个用模板初始化的空项目跑过三到五个改代码的任务后，回看是否在行为首次被测试覆盖时建了模块页、模块页是否随后续改动更新、完成报告是否列出文档影响；漏改的位置决定是否启用暂缓的 `check_docs.py` 路径核对或 Stop hook。
 - 功能地图（2026-11-11）只改了模板与规则文本，未跑 e2e：existing 模式下补写文档的子 agent 与主 agent 是否按代码填出功能地图、真实开发会话里新增功能时是否登记，都没有数据；并入上一条的真实项目回看。
 - 合同独占页（2026-11-11）：`just gate-full` 通过；e2e 跑了 `empty`、`none-empty`、`uv-existing` 三个用例（未加 `--review`、`--rerun`），硬检查全部通过，含两张新页的存在与入链。`uv-existing` 前两次只失败 `description:GLOSSARY.md`，原因在 harness：fixture 的 `AGENTS.md` 已有描述，流程不提问，GLOSSARY 由那句描述展开，而检查拿预置答案的四字片段去比，命中与否取决于措辞。`Case` 加 `existing_description`，这类用例改用 fixture 里的描述取片段，第三次运行通过。其余用例未跑；真实项目上的 `/acceptance` 与 `/prune-tests` 未在新路径下运行过。
+- 三个项目重构后的回收（2026-11-11）：`just gate-full` 通过，其中新增用例验证 none、uv、node、swift 与三 stack 组合渲染出的文档都通过新检查器。e2e 跑了 `empty`、`none-empty`（sonnet）与 `uv-existing`（opus），未加 `--review`、`--rerun`，硬检查全部通过：`uv-existing` 里迁出的 ADR 登记进了索引并填了状态与何时读，模块页六节齐全，新检查器对 21 篇文档通过。`empty` 首轮在 `gate-core` 的 lint 失败：`check_docs.py` 有一行超过 100 列，本仓库的 Ruff 忽略 E501 而 uv 模板不忽略；已拆行，并加测试用 uv 模板的 Ruff 配置检查 `toolchain/common/scripts/`。`uv-existing` 在该修复前运行，existing 模式不跑项目 lint，未重跑。未验收：fixture 太小，没有触发超预算拆页与骨架不符的旧页重排这两类新候选；400 字符的行预算在真实项目里是否过紧，真实开发会话里超预算时是否按规则拆页而不是删内容，都没有数据。已由旧模板初始化的项目不受影响，`check_docs.py` 缺失才复制。
 
 ## 演进记录
 
@@ -134,3 +148,4 @@
 | 2026-11-11 | 测试分层用词统一：`testing.md` 标题改为“测试设计与门禁”并补层的划分标准与“验收”只指 `/acceptance`，`gate-full` 注释改为“完整门禁”，环境契约标记补验收专用数据；分层结构不变 | 本文关键决策、[acceptance 设计说明](../acceptance/design.md) |
 | 2026-11-11 | 架构总览模板新增功能地图表（功能、一句话说明、行为规格链接、涉及模块），`documentation.md` 权威归属表与随交付同步补登记规则，文档索引、docs-structure.md、document-code.md 同步；行为规格与 `behaviors/` 不变 | 本文关键决策与待验收、docs-structure.md 取舍表 |
 | 2026-11-11 | 模板新增 `docs/development/test-layers.md`（分层合同与保留范围）与 `local-acceptance.md`（环境契约），`workflow.md` 删去对应三节只留指路句；overlay 的分层正文移到 `test-layers.md`；`CODING_STANDARDS.md`、`testing.md`、文档索引、权威归属表、docs-structure.md、toolchain.md 的入链与说明同步；e2e 确定性检查加两页存在与入链 | 本文关键决策、[acceptance 设计说明](../acceptance/design.md)、[prune-tests 设计说明](../prune-tests/design.md) |
+| 2026-11-11 | 回收 x-media-saver、media-glance、bangou 重构后的通用做法：`check_docs.py` 加全量可达、索引登记、体量预算、标题骨架；模板加取舍原则、拆页规则、自动检查节、ADR 索引骨架、调研索引状态列，删架构总览的按任务阅读；收敛与补写规范同步 | 本文关键决策与待验收、docs-structure.md |

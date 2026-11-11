@@ -1,7 +1,12 @@
-"""检查仓库文档的本地链接、章节锚点与模块可达性；只依赖标准库，不联网。
+"""检查仓库文档的链接、可达性、索引、体量与标题骨架；只依赖标准库，不联网。
 
+规则正文在 docs/agents/documentation.md，本脚本只负责实现。
 检查范围：根目录 README、AGENTS、GLOSSARY、CODING_STANDARDS 与 docs/ 下全部 Markdown。
-模块页（docs/architecture/modules/*.md）必须能从 docs/architecture/INDEX.md 沿链接到达。
+- 本地链接目标与章节锚点必须存在；
+- 每篇文档都能从 AGENTS.md 沿文档间链接到达；
+- docs/adr、docs/research 下的文档（含子目录）由所在目录的 INDEX.md 直接链接；
+- 除 docs/research、docs/adr 外，单页不超过 16 KiB，围栏代码外每段与每个表格单元格不超过 400 字符；
+- 模块页与行为规格页的二级标题依次符合固定骨架。
 """
 
 import argparse
@@ -11,8 +16,22 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 ROOT_DOCUMENTS = ("README.md", "AGENTS.md", "GLOSSARY.md", "CODING_STANDARDS.md")
-ARCHITECTURE_INDEX = Path("docs/architecture/INDEX.md")
+ENTRY = Path("AGENTS.md")
+INDEXED_DIRECTORIES = (Path("docs/adr"), Path("docs/research"))
+PAGE_BYTES = 16 * 1024
+LINE_CHARS = 400
+BUDGET_EXEMPT = (Path("docs/research"), Path("docs/adr"))
 MODULES = Path("docs/architecture/modules")
+BEHAVIORS = Path("docs/behaviors")
+MODULE_HEADINGS = (
+    "定位与阅读",
+    "当前行为规格",
+    "实现设计",
+    "接口与依赖",
+    "代码与验证入口",
+    "变更与决策来源",
+)
+BEHAVIOR_HEADINGS = ("场景与前提", "操作与可观察结果", "边界与错误情况", "相关模块")
 LINK_TITLE = r"""(?:\s+(?:"[^"\n]*"|'[^'\n]*'|\([^)\n]*\)))?"""
 LINK = re.compile(
     r"!?\[(?P<text>[^\]\n]*)\]\(\s*(?P<dest><[^>\n]+>|[^\s)]+)" + LINK_TITLE + r"\s*\)"
@@ -22,6 +41,7 @@ REFERENCE = re.compile(
 )
 INLINE_CODE = re.compile(r"`[^`\n]*`")
 FENCE = re.compile(r"^\s*(`{3,}|~{3,})(.*)$")
+H2 = re.compile(r"^\s{0,3}##\s+(.+?)(?:\s+#+)?\s*$")
 
 
 def body_lines(text: str) -> list[tuple[int, str]]:
@@ -89,16 +109,54 @@ def anchors(lines: list[tuple[int, str]]) -> set[str]:
     return result
 
 
+def table_cells(line: str) -> list[str]:
+    """按未转义且不在行内代码中的 | 切分表格行。"""
+    cells = []
+    cell = ""
+    code = False
+    for index, char in enumerate(line):
+        if char == "`":
+            code = not code
+        if char == "|" and not code and (index == 0 or line[index - 1] != "\\"):
+            cells.append(cell)
+            cell = ""
+        else:
+            cell += char
+    cells.append(cell)
+    return [cell.strip() for cell in cells]
+
+
+def budget_errors(relative: Path, text: str, lines: list[tuple[int, str]]) -> list[str]:
+    """单页字节数、段落字符数与表格单元格字符数；围栏代码不计。"""
+    errors = []
+    size = len(text.encode("utf-8"))
+    if size > PAGE_BYTES:
+        errors.append(f"{relative} 超出单页预算：{size} 字节 > {PAGE_BYTES}")
+    for number, line in lines:
+        if line.strip().startswith("|"):
+            for cell in table_cells(line.strip()):
+                if len(cell) > LINE_CHARS:
+                    errors.append(
+                        f"{relative}:{number} 表格单元格超出预算：{len(cell)} 字符 > {LINE_CHARS}"
+                    )
+        elif len(line.rstrip()) > LINE_CHARS:
+            errors.append(
+                f"{relative}:{number} 段落超出预算：{len(line.rstrip())} 字符 > {LINE_CHARS}"
+            )
+    return errors
+
+
 def check_documents(root: Path) -> tuple[list[str], int, int]:
     root = root.resolve()
     files = {root / name for name in ROOT_DOCUMENTS} | set((root / "docs").rglob("*.md"))
     errors = []
-    documents = {}
+    texts = {}
     for path in sorted(files):
         if not path.is_file():
             errors.append(f"缺少文档：{path.relative_to(root)}")
         else:
-            documents[path] = body_lines(path.read_text(encoding="utf-8"))
+            texts[path] = path.read_text(encoding="utf-8")
+    documents = {path: body_lines(text) for path, text in texts.items()}
     sections = {path: anchors(lines) for path, lines in documents.items()}
     graph: dict[Path, set[Path]] = {path: set() for path in documents}
     links = 0
@@ -125,19 +183,58 @@ def check_documents(root: Path) -> tuple[list[str], int, int]:
                 if unquote(url.fragment) not in sections[target]:
                     errors.append(f"{location} 章节不存在：{destination}")
     visited: set[Path] = set()
-    pending = [root / ARCHITECTURE_INDEX]
+    pending = [root / ENTRY]
     while pending:
         current = pending.pop()
         if current not in visited:
             visited.add(current)
             pending.extend(graph.get(current, set()) - visited)
-    for module in sorted(set((root / MODULES).rglob("*.md")) - visited):
-        errors.append(f"架构入口不可达：{module.relative_to(root)}")
+    for path in sorted(set(documents) - visited):
+        errors.append(f"入口不可达：{path.relative_to(root)}（从 AGENTS.md 沿链接到不了）")
+    for directory in INDEXED_DIRECTORIES:
+        index = root / directory / "INDEX.md"
+        entries = sorted(set((root / directory).rglob("*.md")) - {index})
+        if not entries:
+            continue
+        if index not in documents:
+            errors.append(f"缺少索引：{directory / 'INDEX.md'}")
+            continue
+        for entry in entries:
+            if entry not in graph[index]:
+                errors.append(
+                    f"索引未登记：{entry.relative_to(root)}"
+                    f"（应由 {directory / 'INDEX.md'} 直接链接）"
+                )
+    for path in sorted(documents):
+        relative = path.relative_to(root)
+        if not any(relative.is_relative_to(exempt) for exempt in BUDGET_EXEMPT):
+            errors.extend(budget_errors(relative, texts[path], documents[path]))
+    skeletons: list[tuple[Path, tuple[str, ...]]] = [
+        (path, MODULE_HEADINGS) for path in (root / MODULES).glob("*.md")
+    ]
+    skeletons += [
+        (path, BEHAVIOR_HEADINGS)
+        for path in (root / BEHAVIORS).glob("*.md")
+        if path.name != "INDEX.md"
+    ]
+    for path, expected in sorted(skeletons):
+        actual = tuple(
+            heading_title(match.group(1)).strip()
+            for _, line in documents[path]
+            if (match := H2.match(line))
+        )
+        if actual != expected:
+            errors.append(
+                f"{path.relative_to(root)} 二级标题应依次为：{'、'.join(expected)}；"
+                f"实际：{'、'.join(actual) or '无'}"
+            )
     return errors, len(documents), links
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="检查文档的本地链接、锚点与模块可达性。")
+    parser = argparse.ArgumentParser(
+        description="检查文档的本地链接、锚点、可达性、目录索引、体量与标题骨架。"
+    )
     parser.add_argument(
         "root",
         nargs="?",
@@ -149,7 +246,10 @@ def main() -> int:
     if errors:
         print("\n".join(errors))
         return 1
-    print(f"文档检查通过：{documents} 篇，{links} 个本地链接；模块页均可从架构入口到达。")
+    print(
+        f"文档检查通过：{documents} 篇，{links} 个本地链接；"
+        "全部可从 AGENTS.md 到达，索引、体量与标题骨架符合规则。"
+    )
     return 0
 
 

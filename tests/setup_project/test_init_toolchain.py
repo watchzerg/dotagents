@@ -416,14 +416,17 @@ def test_check_docs_passes_on_initialized_project_and_catches_broken_links(
     )
     assert bad.returncode == 1
     assert "链接目标不存在" in bad.stdout
-    assert "架构入口不可达" in bad.stdout
+    assert "入口不可达：docs/architecture/modules/orphan.md" in bad.stdout
     from_skill = subprocess.run(
         [sys.executable, "-I", str(SKILL / "toolchain/common/scripts/check_docs.py"), str(project)],
         cwd=project.parent,
         capture_output=True,
         text=True,
     )
-    assert from_skill.returncode == 1 and "架构入口不可达" in from_skill.stdout
+    assert (
+        from_skill.returncode == 1
+        and "入口不可达：docs/architecture/modules/orphan.md" in from_skill.stdout
+    )
 
 
 def test_with_lock_serializes_and_reports_holder(tmp_path: Path) -> None:
