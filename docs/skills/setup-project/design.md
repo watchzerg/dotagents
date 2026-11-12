@@ -174,3 +174,4 @@
 | 2026-11-11 | 模板新增 `docs/development/test-layers.md`（分层合同与保留范围）与 `local-acceptance.md`（环境契约），`workflow.md` 删去对应三节只留指路句；overlay 的分层正文移到 `test-layers.md`；`CODING_STANDARDS.md`、`testing.md`、文档索引、权威归属表、docs-structure.md、toolchain.md 的入链与说明同步；e2e 确定性检查加两页存在与入链 | 本文关键决策、[acceptance 设计说明](../acceptance/design.md)、[prune-tests 设计说明](../prune-tests/design.md) |
 | 2026-11-11 | 回收 x-media-saver、media-glance、bangou 重构后的通用做法：`check_docs.py` 加全量可达、索引登记、体量预算、标题骨架；模板加取舍原则、拆页规则、自动检查节、ADR 索引骨架、调研索引状态列，删架构总览的按任务阅读；收敛与补写规范同步 | 本文关键决策与待验收、docs-structure.md |
 | 2026-11-12 | 文档漂移审计做成用户级 `/docs-audit`，不进模板：`documentation.md` 自动检查节末句加一句指路，skill 读模板的 `covers`、`docs-affected`、随交付同步与拆页规则 | [docs-audit 设计说明](../docs-audit/design.md) |
+| 2026-11-12 | 模板 AGENTS.md 常驻约束与用户级规则对齐措辞：交付范围改为兼容与迁移先说明影响、获批准后纳入（原为仅在明确要求时纳入），补抽象等到第二个使用者；语言规则补代码注释等范围，保证读不到用户级规则的 agent 与协作者写出一致语言；随交付同步一行不变 | 无 |
