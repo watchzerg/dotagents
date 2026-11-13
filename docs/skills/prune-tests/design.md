@@ -21,11 +21,13 @@
 - **去留结论必须引用断言**：同一次运行里 Web/扩展层的分析子 agent 只看测试名就给出了方案，并自述未读正文；原规则“不能仅凭名称决定去留”是放在约定来源节末尾的禁令，没有落到执行步骤的完成标准里，委派时也没有传给子 agent。改为执行步骤中的正向标准：每条结论写明该测试断言的可观察结果及对应规则或主流程来源，委派分析时作为子 agent 交付标准，名称判断在产出中直接暴露为缺项。
 - **按内容定位编辑，门禁由发起者运行**：同一次运行里 integration 子 agent 用行号范围 `sed -i` 删断言被 auto 模式权限分类器拒绝，`just test-full` 也被拒；主 agent 与 core 子 agent 用 Edit 工具或匹配内容的脚本编辑则全部顺利。行号范围删除在多 agent 并发编辑时本就脆弱，所以 skill 要求按内容定位，门禁与 full 测试由发起 skill 的 agent 运行。
 - **只跑 `gate-full`**：模板与真实项目的 `gate-full` 都依赖 `gate-core`，原先基线和收尾都要求两者并跑，core 层每次重复一遍。改为只跑 `gate-full`，gate-core 耗时从输出或单独计时取。
+- **结束时留一张已关闭的票**（2026-11-13）：`/optimize` 的三个主题都经 spec 与票据留痕，精简测试原先只在报告和 `test-layers.md` 里留下结果，查不到哪天删了多少。执行步骤末尾加一步，按项目 tracker 建一张票并立即关闭，记录各层前后的文件数、用例数与保留范围。由某张票据发起时（如 `/optimize arch` 拆出的测试精简票）记入那张票，不另建；没有 tracker 约定的项目跳过并在报告注明，保持“不强依赖 setup-project”。
 
 ## 与 setup-project 的耦合
 
 - 读取：`docs/agents/testing.md` 分层节、`docs/development/test-layers.md`、`docs/behaviors/`、模块页“当前行为规格”与“代码与验证入口”、justfile 的 `test`/`test-full`/`gate-core`/`gate-full` 契约。
-- 写入：`docs/development/test-layers.md` 的保留范围部分，模块页“代码与验证入口”。
+- 读取（留痕时）：`docs/agents/issue-tracker.md`。
+- 写入：`docs/development/test-layers.md` 的保留范围部分，模块页“代码与验证入口”；tracker 中一张已关闭的留痕票。
 - 模板改动：`templates/docs/development/test-layers.md` 含分层合同与 `按需` 的保留范围节（2026-10-17 起在 `workflow.md`，2026-11-11 移到本页）；`templates/docs/agents/testing.md` 的“编写与变更”有一条，精简或大幅删减测试按 `/prune-tests` 执行并落到该页。
 
 ## 真实运行记录
@@ -35,6 +37,7 @@
 ## 待验收
 
 - 修订后的执行步骤（引用断言的去留结论、按内容定位编辑、只跑 `gate-full`）尚未在真实项目上重跑验证。
+- 留痕票这一步（2026-11-13 加）未经真实运行：建票后立即关闭在 Beads 上是否顺畅、由票据发起时是否正确改为记入原票，待下次运行确认。
 - 没有 behaviors/ 与 testing.md 的项目是否仍能顺畅走通用标准，需要一个非 setup-project 项目验证。
 - node 与 swift 的收集验证命令在 skill 里只给了示例，真实 stack 上以什么命令确认“仍被标准入口发现”待确认。
 
@@ -45,3 +48,4 @@
 | 2026-10-17 | 由项目无关的通用规则改为按 core/full 分层：约定来源读取顺序、core 可并发硬标准、full 的两类保留、归属校正、门禁收尾与空目录、工具链测试保护、文档同步落点、报告按层分列；description 改中文；setup-project 模板加保留范围按需节与 testing.md 一条 | 本文关键决策 |
 | 2026-10-17 | x-media-saver 首次真实运行后的 retro：约定来源节明示项目约定管结构、保留标准归 skill；执行步骤新增“逐个读正文、结论引用断言”并作为委派交付标准，替换原禁令句；编辑按内容定位，门禁由发起者运行；基线与收尾只跑 `gate-full`；文档同步节改为模块页“代码与验证入口”内的说明项、full 目录不再写死 `tests/full/`、覆盖要求类表述一并同步 | 真实运行记录 |
 | 2026-11-11 | 分层合同与保留范围由 `workflow.md` 的两节改为独占 `docs/development/test-layers.md`，只认该路径、不设回退，文件不存在时新建并接入索引；模板同步，四个存量项目随同迁移 | 本文关键决策 |
+| 2026-11-13 | 执行步骤末尾加留痕：建一张已关闭的票记录前后文件数、用例数与保留范围；由票据发起时记入原票，无 tracker 约定时跳过；完成报告加票据编号 | [optimize 设计说明](../optimize/design.md)的衔接约定 |
