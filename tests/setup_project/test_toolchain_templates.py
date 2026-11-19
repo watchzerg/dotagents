@@ -1,6 +1,6 @@
 """渲染临时项目后用真实 just 运行生成的 recipe，验证模板行为：full 测试按 stack 文件判定、定向参数转发、none 模式不留阶段3 标记、各 stack 组合渲染出的文档通过文档检查。
 
-uv、mise 用替身记录参数，不安装依赖；swift 只走不调用编译器的分支。
+uv、mise 用替身记录参数，不安装依赖；swift 只走不调用编译器的分支，渲染时用 xcodebuild 替身通过平台检查。
 """
 
 import os
@@ -35,6 +35,12 @@ def render(tmp_path: Path, *stacks: str) -> Path:
     (project / "docs/agents").mkdir(parents=True)
     (project / "docs/agents/issue-tracker.md").write_text("tracker\n")
     (project / "docs/agents/domain.md").write_text("domain\n")
+    # 新建 swift 项目要求 PATH 上有 xcodebuild；用替身让非 macOS 也能渲染。
+    stubs = tmp_path / "xcode-stub"
+    stubs.mkdir()
+    (stubs / "xcodebuild").write_text("#!/bin/sh\n")
+    (stubs / "xcodebuild").chmod(0o755)
+    env = {**os.environ, "PATH": f"{stubs}{os.pathsep}{os.environ['PATH']}"}
     for script, args in (
         (INIT_DOCS, []),
         (INIT_TOOLCHAIN, ["--stacks", *stacks, "--skip-install"]),
@@ -42,6 +48,7 @@ def render(tmp_path: Path, *stacks: str) -> Path:
         result = subprocess.run(
             [sys.executable, "-I", str(script), *args],
             cwd=project,
+            env=env,
             capture_output=True,
             text=True,
             check=False,

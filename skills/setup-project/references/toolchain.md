@@ -41,7 +41,7 @@
 | swift | 根目录 | `.xcode-version`（major line）、`.swift-format`、`Package.swift`（library target + `CoreTests` target 指向 `tests/core`，按实际文件排除测试目录中的非 Swift 文件）、`Sources/<Module>/<Module>.swift`、`tests/core/ToolchainTests.swift` | `swift package resolve` |
 | 无预置 | 不落工具链文件 | `toolchain/none/justfile`、`scripts/check_docs.py` 与 `scripts/with_lock.py` | 无 |
 
-工具链走 Homebrew → uv → Python、Homebrew → mise → Node 与 pnpm、Xcode 自带 Swift 工具链；Ruff/ty/pytest、Biome/`tsc --noEmit`/Vitest、swift-format/`swift build`/Swift Testing 是各自的检查器与 runner。`scripts/check_docs.py` 与 `scripts/with_lock.py` 对所有新项目复制，只依赖 Python 3.14+ 标准库，recipe 用 `python3` 调用。所有文件缺失才创建。
+工具链走宿主 uv → Python、宿主 mise → Node 与 pnpm、Xcode 自带 Swift 工具链；宿主 uv、mise、just 可来自 Homebrew、系统包管理器或官方安装器，模板不假设来源。swift stack 依赖 Xcode，仅支持 macOS：新项目选了 swift 而 PATH 上没有 `xcodebuild` 时，脚本不写文件并以退出码 1 结束；existing 模式不检查，因为不碰工具链文件。Ruff/ty/pytest、Biome/`tsc --noEmit`/Vitest、swift-format/`swift build`/Swift Testing 是各自的检查器与 runner。`scripts/check_docs.py` 与 `scripts/with_lock.py` 对所有新项目复制，只依赖 Python 3.14+ 标准库，recipe 用 `python3` 调用。所有文件缺失才创建。
 
 node stack 只落工具链，不落应用骨架：React、Vite、Tailwind CSS、shadcn/ui 与 React Testing Library 是固定选型，写在该 stack 的文档片段里，由项目在写第一个页面时加入。
 

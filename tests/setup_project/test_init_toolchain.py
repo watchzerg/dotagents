@@ -13,7 +13,7 @@ import pytest
 SKILL = Path(__file__).resolve().parents[2] / "skills/setup-project"
 INIT_DOCS = SKILL / "scripts/init_docs.py"
 SCRIPT = SKILL / "scripts/init_toolchain.py"
-TOOLS = ("uv", "mise", "pnpm", "just", "swift")
+TOOLS = ("uv", "mise", "pnpm", "just", "swift", "xcodebuild")
 
 
 @pytest.fixture
@@ -154,7 +154,7 @@ def test_new_uv_project(project: Path, bin_dir: Path) -> None:
     assert stage3_markers(project) == {}
     workflow = (project / "docs/development/workflow.md").read_text()
     assert "## 命令与门禁" in workflow and "`just gate-core`" in workflow
-    assert "`uv`（Homebrew）、`just`（Homebrew）" in workflow
+    assert "宿主工具：`uv`、`just`，" in workflow and "Homebrew）" not in workflow
     assert "Python 解释器由 uv" in workflow and "### " not in workflow
     assert "<待填 按需：有发布流程时" in workflow
     assert "测试分层与资源边界" not in workflow and "local-acceptance.md" in workflow
@@ -296,11 +296,18 @@ def test_new_swift_project(project: Path, bin_dir: Path) -> None:
     assert not re.search(r"\{\{[A-Z_]+\}\}", text)
     assert stage3_markers(project) == {}
     workflow = (project / "docs/development/workflow.md").read_text()
-    assert "Xcode（App Store" in workflow
+    assert "Xcode（仅 macOS" in workflow
     assert "`CoreTests` target" in (project / "docs/development/test-layers.md").read_text()
     assert "Package.resolved" in (project / "docs/development/technology-stack.md").read_text()
     commands = [call.split(" | ")[0] for call in invocations(project)]
     assert commands == ["swift package resolve"]
+
+
+def test_new_swift_project_requires_xcodebuild(project: Path, bin_dir: Path) -> None:
+    (bin_dir / "xcodebuild").unlink()
+    result = run_script(project, bin_dir, "--stacks", "swift")
+    assert result.returncode == 1 and "仅支持 macOS" in result.stderr
+    assert not (project / "Package.swift").exists() and not (project / "justfile").exists()
 
 
 def test_existing_swift_project_gets_dependency_policy_and_common_scripts(

@@ -1,7 +1,7 @@
 {
   "label": "Python（uv）",
   "home_when_shared": ".",
-  "host_tools": "`uv`（Homebrew）",
+  "host_tools": "`uv`",
   "install": [{"args": ["uv", "sync"], "cwd": "home"}],
   "cells": {
     "install": "`uv sync --locked` 按 `uv.lock` 同步开发依赖",

@@ -47,4 +47,4 @@
 - 2026-11-13 在 bangou、x-media-saver、media-glance 各跑一次无参抽样模式：分别核对 136、73、约 60 条陈述；文档错就地改 6、0、1 处，代码注释错转票 2、1、1 张，需产品判断 1 张（bangou）；索引复核只在 media-glance 改了一条 ADR 状态。三个项目都已有 `covers`。diff 模式与无 `covers` 退路仍未经真实运行。
 - 首轮运行后的修正（见上节）尚未经真实运行验证，下次抽样时重点看子 agent 简报、正文冲突判定与 ADR 状态复核。
 - 两个项目的旧 skill 清理与 media-glance 的 `sources` → `covers` 字段对齐已在各自 Beads 建票（media-glance-7by、x-media-saver-yzh）。
-- `sort -R` 在 macOS 与 Linux 的 coreutils 都可用；没有其他平台的验证。
+- `sort -R` 在 macOS 与 Linux 的 coreutils 都可用；抽页命令 2026-11-19 在 Ubuntu（GNU awk、coreutils）上核对过可用，没有其他平台的验证。

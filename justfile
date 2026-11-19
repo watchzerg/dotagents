@@ -15,8 +15,8 @@ install:
 check-toolchain:
     #!/usr/bin/env bash
     set -euo pipefail
-    command -v uv >/dev/null || { echo '错误：请先通过 Homebrew 安装 uv。' >&2; exit 1; }
-    command -v just >/dev/null || { echo '错误：请先通过 Homebrew 安装 just。' >&2; exit 1; }
+    command -v uv >/dev/null || { echo '错误：缺少 uv；macOS 运行 brew install uv，Linux 用官方安装脚本 curl -LsSf https://astral.sh/uv/install.sh | sh。' >&2; exit 1; }
+    command -v just >/dev/null || { echo '错误：缺少 just；macOS 运行 brew install just，Linux 用系统包管理器（如 sudo apt install just）。' >&2; exit 1; }
     uv --version
     just --version
     uv run --no-project --offline --no-python-downloads --no-env-file --managed-python --python "$(cat .python-version)" python -B - <<'PY'

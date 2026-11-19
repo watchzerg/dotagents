@@ -5,7 +5,7 @@
 ## clone 后怎么用
 
 1. 将本仓库 clone 到准备长期保留的位置，进入仓库目录。
-2. 确保 `python3` 为 3.14+；setup 仅使用标准库。macOS 自带版本不满足，可用 `brew install uv && uv python install 3.14 --default` 或 `brew install python@3.14` 安装。
+2. 确保 `python3` 为 3.14+；setup 仅使用标准库。系统自带版本通常不满足，可先安装 uv（macOS：`brew install uv`；Linux：`curl -LsSf https://astral.sh/uv/install.sh | sh`），再运行 `uv python install 3.14 --default`。
 3. 在本仓库中打开 Claude Code，调用：
 
    ```text
@@ -87,12 +87,17 @@ dotagents/
 仅在维护脚本或运行检查时准备开发环境：
 
 ```sh
+# macOS
 brew install uv just
+# Linux（Ubuntu 等）：uv 用官方安装脚本，just 用系统包管理器
+curl -LsSf https://astral.sh/uv/install.sh | sh
+sudo apt install just
+
 just install
 just gate-full
 ```
 
-宿主 uv/just 由 Homebrew 管理，项目 Python 补丁版本由 `.python-version` 固定，开发依赖由 `uv.lock` 锁定。`just install` 安装开发环境；应用个人配置直接运行 setup skill 的 Python 脚本。
+支持 macOS 与 Linux。宿主 uv/just 由 Homebrew、系统包管理器或官方安装器管理，项目 Python 补丁版本由 `.python-version` 固定，开发依赖由 `uv.lock` 锁定。`just install` 安装开发环境；应用个人配置直接运行 setup skill 的 Python 脚本。
 
 | 命令 | 用途 |
 | --- | --- |

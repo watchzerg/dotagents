@@ -1,7 +1,7 @@
 {
   "label": "Node（pnpm）",
   "home_when_shared": "frontend",
-  "host_tools": "`mise`（Homebrew）",
+  "host_tools": "`mise`",
   "install": [
     {"args": ["mise", "trust"], "cwd": "root"},
     {"args": ["mise", "install"], "cwd": "root"},

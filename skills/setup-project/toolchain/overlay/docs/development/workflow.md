@@ -1,6 +1,6 @@
 ## 环境
 
-宿主工具：{{HOST_TOOLS}}。新环境先 `just install`，再 `just check-toolchain`。{{LAYOUT}}
+宿主工具：{{HOST_TOOLS}}，用 Homebrew、系统包管理器或官方安装方式安装，项目不锁定其版本。新环境先 `just install`，再 `just check-toolchain`。{{LAYOUT}}
 
 ## 命令与门禁
 

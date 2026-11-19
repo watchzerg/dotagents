@@ -38,6 +38,7 @@
 - **前端 stack 由 Bun 换为 Node + pnpm，只落工具链**（2026-11-11）：stack 名 `node`，直接替换 `bun` 而不并存，避免维护两套前端偏好。mise 同时管理 Node 与 pnpm 的版本 line，不写 `packageManager` 字段，版本来源只有 `mise.toml`。落地的只有 TypeScript、Biome、Vitest 与版本自检；React、Vite、Tailwind CSS、shadcn/ui、React Testing Library 作为固定选型写进文档片段的依赖政策，不落应用骨架，因为空项目里的页面骨架是编造内容，且 shadcn 的初始化依赖项目自己的别名与样式入口。Node 没有内置 TOML 解析，版本自检用正则读 `mise.toml`。full 测试文件的判定收窄为 Vitest 默认收集的 `*.test.*`、`*.spec.*`，不再认 `_test`、`_spec`。`bun.lock` 不再是判定证据：只有它和 `package.json` 的项目按无法判定处理。
 - **门禁契约固定，实现可换**：所有项目共用同一组公开 recipe 名；没有预置 stack 的项目 recipe 非零退出而非留空，沿用 Beadwork 的"验证未实现必须失败"。core/full 的定义写进目标项目文档正文，不只放 justfile 注释。
 - **swift 新项目只落 SwiftPM package，不生成 Xcode 工程**：`.xcodeproj` 无法可靠模板化；core 测试用 Swift Testing 的 `CoreTests` target，应用壳由用户在 Xcode 创建后把 package 作本地依赖，再把 `swift-*` recipe 切到 `xcodebuild`。`swift test` 零匹配退出 0，所以 recipe 自己检查零匹配；`tests/full/` 需要同步在 Package.swift 声明 target，否则 SwiftPM 对空目录 target 每次构建都告警。
+- **宿主工具不假设来源，swift 仅支持 macOS**（2026-11-19）：本仓库迁到 Ubuntu 后，模板与报错不再写死 Homebrew，宿主 uv、mise、just 可来自 Homebrew、系统包管理器或官方安装器，报错提示同时给 macOS 与 Linux 的装法。swift stack 依赖 Xcode，新项目选 swift 时脚本以 PATH 上有无 `xcodebuild` 作为前提检查，缺失则不写文件、退出码 1；检查的是 recipe 实际依赖的命令而非平台名，测试可用替身覆盖。existing 模式不检查，因为不碰工具链文件，Linux 上用 swift.org 工具链的已有项目仍可补文档。
 - **full 目录出现即收录**：`tests/full/` 不存在时 gate-full 打印提示而非失败，存在而无测试则失败。避免新项目的 gate-full 因零收集长期红灯，同时不给 skip 留口子。
 - **模板目录从本仓库的 pytest 与 Ruff 中排除**：`toolchain/` 下的 `pyproject.toml` 与测试文件是复制到目标项目的模板，不是本仓库的配置与测试。
 - **implement-spec 门禁靠触发词、审查项与主机锁，不加常驻约束**：目标是并行 worktree 的 ticket 只跑 `gate-core`，最终集成跑 `gate-full`，新测试持续遵守分层。规则正文在 testing.md，由触发表“执行 `implement-spec`”命中；分层归属的把关写进 CODING_STANDARDS，让 implement-spec 末尾的 code-review 检查。不复制 x-media-saver 的 6 条长版（通用流程常识）与收录表（和分层表重复）。x-media-saver 的做法是 full 测试在 ticket 阶段只写不跑，代价是 red → green 对 full 缺失、问题堆到最后才发现、implementer 有动机绕过规则；本 skill 改为给 `test-full` 与 `gate-full` 加主机级 `flock`，implementer 可定向跑自己的 full 测试并自动排队。选主机级而非仓库级，因为桌面与端口是主机资源，且各 worktree 的编译产物都在自己目录内。
@@ -140,6 +141,7 @@
 - 功能地图（2026-11-11）只改了模板与规则文本，未跑 e2e：existing 模式下补写文档的子 agent 与主 agent 是否按代码填出功能地图、真实开发会话里新增功能时是否登记，都没有数据；并入上一条的真实项目回看。
 - 合同独占页（2026-11-11）：`just gate-full` 通过；e2e 跑了 `empty`、`none-empty`、`uv-existing` 三个用例（未加 `--review`、`--rerun`），硬检查全部通过，含两张新页的存在与入链。`uv-existing` 前两次只失败 `description:GLOSSARY.md`，原因在 harness：fixture 的 `AGENTS.md` 已有描述，流程不提问，GLOSSARY 由那句描述展开，而检查拿预置答案的四字片段去比，命中与否取决于措辞。`Case` 加 `existing_description`，这类用例改用 fixture 里的描述取片段，第三次运行通过。其余用例未跑；真实项目上的 `/acceptance` 与 `/prune-tests` 未在新路径下运行过。
 - 三个项目重构后的回收（2026-11-11）：`just gate-full` 通过，其中新增用例验证 none、uv、node、swift 与三 stack 组合渲染出的文档都通过新检查器。e2e 跑了 `empty`、`none-empty`（sonnet）与 `uv-existing`（opus），未加 `--review`、`--rerun`，硬检查全部通过：`uv-existing` 里迁出的 ADR 登记进了索引并填了状态与何时读，模块页六节齐全，新检查器对 21 篇文档通过。`empty` 首轮在 `gate-core` 的 lint 失败：`check_docs.py` 有一行超过 100 列，本仓库的 Ruff 忽略 E501 而 uv 模板不忽略；已拆行，并加测试用 uv 模板的 Ruff 配置检查 `toolchain/common/scripts/`。`uv-existing` 在该修复前运行，existing 模式不跑项目 lint，未重跑。未验收：fixture 太小，没有触发超预算拆页与骨架不符的旧页重排这两类新候选；400 字符的行预算在真实项目里是否过紧，真实开发会话里超预算时是否按规则拆页而不是删内容，都没有数据。已由旧模板初始化的项目不受影响，`check_docs.py` 缺失才复制。
+- Linux 适配（2026-11-19）：只在 Ubuntu 上跑过 `just gate-full`，未跑 e2e；改过的 SKILL.md 提问措辞、references 与 overlay 文本未经真实 agent 验证，swift 平台检查未在 macOS 上实测。
 
 ## 演进记录
 
@@ -175,3 +177,4 @@
 | 2026-11-11 | 回收 x-media-saver、media-glance、bangou 重构后的通用做法：`check_docs.py` 加全量可达、索引登记、体量预算、标题骨架；模板加取舍原则、拆页规则、自动检查节、ADR 索引骨架、调研索引状态列，删架构总览的按任务阅读；收敛与补写规范同步 | 本文关键决策与待验收、docs-structure.md |
 | 2026-11-12 | 文档漂移审计做成用户级 `/docs-audit`，不进模板：`documentation.md` 自动检查节末句加一句指路，skill 读模板的 `covers`、`docs-affected`、随交付同步与拆页规则 | [docs-audit 设计说明](../docs-audit/design.md) |
 | 2026-11-12 | 模板 AGENTS.md 常驻约束与用户级规则对齐措辞：交付范围改为兼容与迁移先说明影响、获批准后纳入（原为仅在明确要求时纳入），补抽象等到第二个使用者；语言规则补代码注释等范围，保证读不到用户级规则的 agent 与协作者写出一致语言；随交付同步一行不变 | 无 |
+| 2026-11-19 | 适配 Linux：模板、报错与 references 去掉 Homebrew 专属措辞；新项目选 swift 而缺少 `xcodebuild` 时脚本拒绝落地，SKILL.md 提问时非 macOS 不提供 swift | 本文关键决策 |

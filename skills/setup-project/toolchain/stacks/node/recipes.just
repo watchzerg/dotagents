@@ -6,7 +6,7 @@
 node-check-toolchain:
     #!/usr/bin/env bash
     set -euo pipefail
-    command -v mise >/dev/null || { echo '错误：缺少 mise；macOS 请运行 brew install mise。' >&2; exit 1; }
+    command -v mise >/dev/null || { echo '错误：缺少 mise；macOS 可运行 brew install mise，Linux 可用官方安装脚本 curl https://mise.run | sh 或系统包管理器。' >&2; exit 1; }
     [ -f mise.lock ] || { echo '错误：缺少 mise.lock，请运行 mise lock。' >&2; exit 1; }
     for tool in node pnpm; do
       line="$(sed -n "s/^${tool} *= *\"\(.*\)\".*/\1/p" mise.toml)"

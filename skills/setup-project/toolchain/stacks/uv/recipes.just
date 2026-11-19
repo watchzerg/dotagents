@@ -6,7 +6,7 @@ uv-check-toolchain:
     #!/usr/bin/env bash
     set -euo pipefail
     cd {{HOME_DIR}}
-    command -v uv >/dev/null || { echo '错误：缺少 uv；macOS 请运行 brew install uv。' >&2; exit 1; }
+    command -v uv >/dev/null || { echo '错误：缺少 uv；macOS 可运行 brew install uv，Linux 可用官方安装脚本 curl -LsSf https://astral.sh/uv/install.sh | sh。' >&2; exit 1; }
     uv run --no-project --no-env-file --no-python-downloads --python "$(cat .python-version)" python -B - <<'PY'
     import pathlib
     import sys

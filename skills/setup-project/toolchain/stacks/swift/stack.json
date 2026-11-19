@@ -1,7 +1,7 @@
 {
   "label": "Swift",
   "home_when_shared": ".",
-  "host_tools": "Xcode（App Store；含 Swift、SwiftPM、swift-format 与 Swift Testing）",
+  "host_tools": "Xcode（仅 macOS，App Store；含 Swift、SwiftPM、swift-format 与 Swift Testing）",
   "install": [{"args": ["swift", "package", "resolve"], "cwd": "home"}],
   "cells": {
     "install": "`swift package --force-resolved-versions resolve` 按 `Package.resolved` 解析依赖，不升级已锁定版本",

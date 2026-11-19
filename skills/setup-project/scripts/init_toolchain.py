@@ -13,6 +13,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -207,7 +208,7 @@ def doc_placeholders(stacks: list[Stack]) -> dict[str, str]:
         layout = f"布局：{places}。"
     names = "、".join(f"`{s.name}`" for s in stacks)
     return {
-        "{{HOST_TOOLS}}": "、".join([s.host_tools for s in stacks] + ["`just`（Homebrew）"]),
+        "{{HOST_TOOLS}}": "、".join([s.host_tools for s in stacks] + ["`just`"]),
         "{{LAYOUT}}": layout,
         "{{ARGS}}": "[scope] [参数]" if multi else "[参数]",
         "{{SCOPE_NOTE}}": f"定向参数先写 scope（{names}），再写各自 runner 的参数。"
@@ -498,6 +499,12 @@ def main() -> int:
         print(f"请用 --stacks 指定后重试，可多选：{' '.join(STACKS)}，或 {NONE}。", file=sys.stderr)
         return EXIT_UNDETERMINED
     mode = "existing" if existing else "new"
+    if mode == "new" and "swift" in names and shutil.which("xcodebuild") is None:
+        print(
+            "错误：swift stack 依赖 Xcode，仅支持 macOS；未找到 xcodebuild，未写入任何文件。",
+            file=sys.stderr,
+        )
+        return 1
     print(
         f"stacks：{'、'.join(names) or '无预置'}；模式：{mode}；证据：{'、'.join(evidence) or '空项目'}"
     )
