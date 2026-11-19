@@ -24,7 +24,7 @@ description: 在本机真实环境按项目的行为文档完整验收功能：�
 ## 不做假设
 
 - 不假设项目有浏览器界面、数据库、网络服务或桌面应用。被验对象可能是 web 服务、CLI、后台任务、库的示例程序或桌面 app。界面是什么、数据存在哪、怎么观察，一律以环境契约为准：契约没声明的通道不发明，不额外起浏览器去找界面，不猜数据库连接串。
-- 契约声明 web 界面时用用户自己的 Chrome（Claude in Chrome 扩展，`mcp__claude-in-chrome__*`，延迟加载时先用 ToolSearch 一次加载全部所需工具）：最接近真实使用环境，复用已有登录态，还能读 console 与 network。代价是它操作的是真实浏览器与真实账号，所以只访问契约声明的地址，只在自己新建的标签页里操作，不动用户的其他标签页，不登出、不改浏览器设置，不另起 Playwright 等独立浏览器。桌面应用只用契约声明的手段；没有手段的通道记为“无法观测”，不记为通过。
+- 契约声明 web 界面时用 harness 原生方案连接用户自己的 Chrome：Claude Code 中只用 Claude in Chrome 扩展（`mcp__claude-in-chrome__*`，延迟加载时先用 ToolSearch 一次加载全部所需工具），不用桌面版内置浏览器。它最接近真实使用环境，复用已有登录态，还能读 console 与 network。代价是它操作的是真实浏览器与真实账号，所以只访问契约声明的地址，只在自己新建的标签页里操作，不动用户的其他标签页，不登出、不改浏览器设置。扩展未连接时不回退到 Playwright 等独立浏览器。只有 harness 本身没有原生浏览器方案时才用 Playwright 官方 skill + CLI，此时没有用户登录态，登录方式只按契约声明，契约没写就是硬阻塞。任何情况都不用 Playwright MCP。桌面应用只用契约声明的手段；没有手段的通道记为“无法观测”，不记为通过。
 - 账本是跨轮唯一真相：每轮开始先读账本再行动；对话被压缩后以账本为准，不凭记忆续跑。
 
 ## 阶段 0：前提与输入（只读）
@@ -32,7 +32,7 @@ description: 在本机真实环境按项目的行为文档完整验收功能：�
 1. 当前目录是 Git 工作区根目录，且工作树干净。有未提交改动时停下：修复会逐个 commit 到当前分支，脏工作树会混入无关改动；让用户先提交或暂存。
 2. 预期来源：`docs/behaviors/*.md`，其次 `docs/architecture/modules/*.md` 的“当前行为规格”章节。两处都没有可用内容时停下说明“没有可验收的预期”，不读代码编预期。给了 `<topic>` 时只取对应文件；找不到就停下列出可选主题。
 3. 环境契约：目标项目的 `docs/development/local-acceptance.md` 整页，只认这一个路径，内容要求见 [references/environment.md](references/environment.md)。文件缺失或仍是 `<待填` 标记时，按该文件从 justfile、README 与配置起草整页，纳入阶段 1 的一次确认；契约声明的命令不存在或运行失败是硬阻塞。
-4. 观测工具：契约声明 web 界面时先调用 `tabs_context_mcp` 确认 Chrome 扩展已连接，未连接是硬阻塞，提示用户打开 Chrome 并确认 Claude in Chrome 扩展在线；其他通道按契约声明的命令逐个核对可执行。
+4. 观测工具：契约声明 web 界面时先调用 `tabs_context_mcp` 确认 Chrome 扩展已连接，未连接是硬阻塞，提示用户打开 Chrome 并确认 Claude in Chrome 扩展在线（无原生方案的 harness 改为确认 Playwright CLI 可执行）；其他通道按契约声明的命令逐个核对可执行。
 5. 账本：在会话临时目录（有 scratchpad 时用它，否则 `mktemp -d`）建 `ledger.md`，把路径打印到对话；格式见 [references/checklist.md](references/checklist.md#账本)。
 
 ## 阶段 1：清单与一次确认

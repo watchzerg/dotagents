@@ -178,3 +178,4 @@
 | 2026-11-12 | 文档漂移审计做成用户级 `/docs-audit`，不进模板：`documentation.md` 自动检查节末句加一句指路，skill 读模板的 `covers`、`docs-affected`、随交付同步与拆页规则 | [docs-audit 设计说明](../docs-audit/design.md) |
 | 2026-11-12 | 模板 AGENTS.md 常驻约束与用户级规则对齐措辞：交付范围改为兼容与迁移先说明影响、获批准后纳入（原为仅在明确要求时纳入），补抽象等到第二个使用者；语言规则补代码注释等范围，保证读不到用户级规则的 agent 与协作者写出一致语言；随交付同步一行不变 | 无 |
 | 2026-11-19 | 适配 Linux：模板、报错与 references 去掉 Homebrew 专属措辞；新项目选 swift 而缺少 `xcodebuild` 时脚本拒绝落地，SKILL.md 提问时非 macOS 不提供 swift | 本文关键决策 |
+| 2026-11-20 | `test-layers.md` 模板与 toolchain.md 的 full 层说明补一句：浏览器测试以开发依赖引入 Playwright，用自带 Chromium、headless、独立 context；未跑 e2e | `global/AGENTS.md` 浏览器测试节 |
