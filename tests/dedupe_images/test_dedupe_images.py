@@ -174,3 +174,52 @@ def test_topdir_trash_on_other_mount(tmp_path: Path, monkeypatch: pytest.MonkeyP
     assert (own / "files/a (1).jpg").exists()
     assert stat.S_IMODE(own.stat().st_mode) == 0o700
     assert "Path=s/a%20%281%29.jpg\n" in (own / "info/a (1).jpg.trashinfo").read_text()
+
+
+def summarize(directory: Path) -> tuple[list[tuple[str, list[str], str | None]], list[list[str]]]:
+    planned = dedupe.plan_directory(directory, ".", [])
+    if planned is None:
+        return [], []
+    groups = [
+        (g["keep"]["name"], [r["name"] for r in g["remove"]], g["rename_to"])
+        for g in planned["groups"]
+    ]
+    return groups, [[f["name"] for f in r["files"]] for r in planned["review"]]
+
+
+def test_page_series(tmp_path: Path) -> None:
+    pages = [f"P{i}".encode() * (10 + i) for i in range(1, 6)]
+
+    # 补零与不补零两套整套重复，编号错开一位：移走不补零的一套，保留补零的一套，不改名；
+    # 页面体积相同，同页码两份（如 page (002) 与 page (2)）内容不同，整套移走后不进人工确认
+    whole = tmp_path / "whole"
+    write(whole / "page (1).jpg", b"cover")
+    for i, data in enumerate((f"Q{i}".encode() * 10 for i in range(1, 6)), 1):
+        write(whole / f"page ({i:03d}).jpg", data)
+        write(whole / f"page ({i + 1}).jpg", data)
+    groups, review = summarize(whole)
+    assert groups == [(f"page ({i:03d}).jpg", [f"page ({i + 1}).jpg"], None) for i in range(1, 6)]
+    assert review == []
+
+    # 两套只零星几页相同，是不同版本：不动
+    sporadic = tmp_path / "sporadic"
+    for i, data in enumerate(pages, 1):
+        write(sporadic / f"page ({i:03d}).jpg", data)
+        write(sporadic / f"page ({i}).jpg", pages[0] if i == 2 else data + b"v2")
+    assert summarize(sporadic) == ([], [])
+
+    # 两套页码相同：同一页的两种写法，留补零的一份
+    same = tmp_path / "same"
+    for i, data in enumerate(pages[:4], 1):
+        write(same / f"page ({i:03d}).png", data)
+        write(same / f"page ({i}).png", data)
+    groups, _ = summarize(same)
+    assert groups == [(f"page ({i:03d}).png", [f"page ({i}).png"], None) for i in range(1, 5)]
+
+    # 单套序列：相邻页相同是作品本身的重复页，不删；不同页同体积也不进人工确认；
+    # 同一页的副本照常去重但不改名
+    single = tmp_path / "single"
+    for i, data in enumerate([pages[0], pages[1], pages[1], pages[2], pages[3]], 1):
+        write(single / f"00 ({i}).jpg", data)
+    write(single / "00 (3) (1).jpg", pages[1])
+    assert summarize(single) == ([("00 (3).jpg", ["00 (3) (1).jpg"], None)], [])

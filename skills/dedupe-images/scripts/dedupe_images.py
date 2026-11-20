@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
-PLAN_VERSION = 3
+PLAN_VERSION = 4
 
 # 目录里直接有这些文件（或目录名以 .app 结尾）即视为软件目录，连同子目录整体跳过。
 PROGRAM_EXTENSIONS = frozenset("exe dll so dylib msi assets pak".split())
@@ -69,6 +69,11 @@ WEAK_MARKERS: list[tuple[re.Pattern[str], int]] = [
 # 序号达到该值（如 `(2019)`）更像年份等正常命名，不据此改名。
 RENAME_NUMBER_LIMIT = 1000
 
+# 名称组内最内层序号的不同取值达到该数，视为页码序列（`page (1)…page (95)`），序号是页码而非副本标记。
+SERIES_MIN_PAGES = 4
+# 页码序列里补零一套（`page (001)`）至少有该比例在不补零一套里有同内容文件，才视为整套重复。
+WHOLE_SET_RATIO = 0.9
+
 WGET = re.compile(r"^(?P<inner>.+\.(?P<ext>[^.]+))\.(?P<n>\d+)$")
 
 
@@ -81,6 +86,12 @@ class Parsed:
     ext: str
     numbers: tuple[int, ...]
     weak: bool
+    padded: bool = False  # 最内层序号是否补零书写（`(001)`）
+
+    @property
+    def page(self) -> int | None:
+        """页码序列中的页码：最内层序号；外层序号才是副本标记。"""
+        return self.numbers[-1] if self.numbers else None
 
     @property
     def key(self) -> tuple[str, str]:
@@ -97,22 +108,28 @@ class Parsed:
     def rank(self) -> tuple[bool, int, tuple[int, ...], int, str]:
         return (bool(self.numbers), len(self.numbers), self.numbers, len(self.name), self.name)
 
+    def series_rank(self) -> tuple[int, tuple[int, ...], bool, int, str]:
+        """页码序列内的保留顺序：副本层少的优先，再优先补零书写，与整套重复时保留补零一套一致。"""
+        return (len(self.numbers), self.numbers[:-1], not self.padded, len(self.name), self.name)
 
-def _strip(stem: str, markers: list[tuple[re.Pattern[str], int]]) -> tuple[str, int] | None:
+
+def _strip(stem: str, markers: list[tuple[re.Pattern[str], int]]) -> tuple[str, int, str] | None:
     for pattern, default in markers:
         match = pattern.match(stem)
         if match:
             number = match.groupdict().get("n")
-            return match["rest"], int(number) if number else default
+            return match["rest"], int(number) if number else default, number or ""
     return None
 
 
 def parse_name(name: str, *, weak: bool = True) -> Parsed | None:
     """解析图片文件名；不是图片扩展名时返回 None。weak=False 时只剥离强标记。"""
     numbers: list[int] = []
+    text = ""
     wget = WGET.match(name)
     if wget and wget["ext"].lower() in EXTENSIONS:
         numbers.append(int(wget["n"]))
+        text = wget["n"]
         name_core = wget["inner"]
     else:
         name_core = name
@@ -127,9 +144,10 @@ def parse_name(name: str, *, weak: bool = True) -> Parsed | None:
             used_weak = used_weak or stripped is not None
         if stripped is None:
             break
-        stem, number = stripped
+        stem, number, text = stripped
         numbers.append(number)
-    return Parsed(name, stem, ext, tuple(numbers), used_weak)
+    padded = len(text) > 1 and text.startswith("0")
+    return Parsed(name, stem, ext, tuple(numbers), used_weak, padded)
 
 
 def parse_directory(names: list[str]) -> list[Parsed]:
@@ -183,85 +201,189 @@ def resolve_damaged(directory: Path, clusters: dict[str, list[Parsed]]) -> str |
     return healthy[0] if len(healthy) == 1 else None
 
 
+Found = tuple[Parsed, str, list[tuple[Parsed, str, bool]], int]
+
+
+def _hash(directory: Path, name: str, cache: dict[str, str]) -> str:
+    if name not in cache:
+        cache[name] = sha256(directory / name)
+    return cache[name]
+
+
+def find_duplicates(
+    directory: Path,
+    members: list[Parsed],
+    sizes: dict[str, int],
+    rank: Callable[[Parsed], Any],
+    errors: list[str],
+    cache: dict[str, str],
+) -> tuple[list[Found], int, bool, list[dict[str, Any]]]:
+    """在一批候选内按体积、哈希与损坏特征找重复组，按 rank 取保留项。
+
+    返回 (重复组, 待删文件数, 是否有未定项, 需人工确认项)。
+    """
+    by_size: dict[int, list[Parsed]] = defaultdict(list)
+    for parsed in members:
+        by_size[sizes[parsed.name]].append(parsed)
+    found: list[Found] = []
+    review: list[dict[str, Any]] = []
+    removed = 0
+    unresolved = False
+    for size, same_size in by_size.items():
+        if len(same_size) < 2:
+            continue
+        by_hash: dict[str, list[Parsed]] = defaultdict(list)
+        for parsed in same_size:
+            try:
+                by_hash[_hash(directory, parsed.name, cache)].append(parsed)
+            except OSError as exc:
+                errors.append(f"{directory / parsed.name}: {exc}")
+                unresolved = True
+        clusters = {h: sorted(ps, key=rank) for h, ps in by_hash.items()}
+        if len(clusters) > 1:
+            healthy = resolve_damaged(directory, clusters)
+            if healthy is None:
+                unresolved = True
+                review.append(
+                    {
+                        "size": size,
+                        "files": sorted(
+                            (
+                                {"name": p.name, "sha256": h}
+                                for h, ps in clusters.items()
+                                for p in ps
+                            ),
+                            key=lambda f: f["name"],
+                        ),
+                    }
+                )
+            else:
+                keep, *same = clusters[healthy]
+                remove = [(p, healthy, False) for p in same] + [
+                    (p, h, True) for h, ps in clusters.items() if h != healthy for p in ps
+                ]
+                found.append((keep, healthy, remove, size))
+                removed += len(remove)
+                continue
+        for digest, same in clusters.items():
+            if len(same) >= 2:
+                found.append((same[0], digest, [(p, digest, False) for p in same[1:]], size))
+                removed += len(same) - 1
+    return found, removed, unresolved, review
+
+
+def find_series_duplicates(
+    directory: Path,
+    members: list[Parsed],
+    sizes: dict[str, int],
+    errors: list[str],
+    cache: dict[str, str],
+) -> tuple[list[Found], list[dict[str, Any]]]:
+    """页码序列：只在同一页码内去重；不同页码的同内容文件只在补零与不补零两套整套重复时移走不补零的一套。"""
+    pages: dict[int | None, list[Parsed]] = defaultdict(list)
+    for parsed in members:
+        pages[parsed.page].append(parsed)
+    found: list[Found] = []
+    review: list[dict[str, Any]] = []
+    for same_page in pages.values():
+        if len(same_page) >= 2:
+            page_found, _, _, page_review = find_duplicates(
+                directory, same_page, sizes, Parsed.series_rank, errors, cache
+            )
+            found += page_found
+            review += page_review
+    removed = {p.name for _, _, remove, _ in found for p, _, _ in remove}
+    left = [p for p in members if p.numbers and p.name not in removed]
+    padded = [p for p in left if p.padded]
+    plain = [p for p in left if not p.padded]
+    if not padded or not plain:
+        return found, review
+    plain_sizes = {sizes[p.name] for p in plain}
+    by_digest: dict[str, list[Parsed]] = defaultdict(list)
+    for parsed in padded:
+        if sizes[parsed.name] in plain_sizes:
+            try:
+                by_digest[_hash(directory, parsed.name, cache)].append(parsed)
+            except OSError as exc:
+                errors.append(f"{directory / parsed.name}: {exc}")
+    padded_sizes = {sizes[p.name] for ps in by_digest.values() for p in ps}
+    matches: dict[str, list[Parsed]] = defaultdict(list)
+    for parsed in plain:
+        if sizes[parsed.name] not in padded_sizes:
+            continue
+        try:
+            digest = _hash(directory, parsed.name, cache)
+        except OSError as exc:
+            errors.append(f"{directory / parsed.name}: {exc}")
+            continue
+        if digest in by_digest:
+            matches[digest].append(parsed)
+    covered = sum(len(by_digest[h]) for h in matches)
+    if covered < WHOLE_SET_RATIO * len(padded):
+        return found, review
+    for digest, duplicates in matches.items():
+        keep = min(by_digest[digest], key=Parsed.series_rank)
+        remove = [(p, digest, False) for p in sorted(duplicates, key=Parsed.series_rank)]
+        found.append((keep, digest, remove, sizes[keep.name]))
+        removed.update(p.name for p in duplicates)
+    # 整套移走后，同页码里与被移走文件的冲突不再需要人工确认
+    review = [r for r in review if sum(f["name"] not in removed for f in r["files"]) >= 2]
+    return found, review
+
+
+def _group(
+    directory: Path,
+    keep: Parsed,
+    digest: str | None,
+    size: int,
+    remove: list[tuple[Parsed, str, bool]],
+    rename_to: str | None,
+) -> dict[str, Any]:
+    return {
+        "keep": _entry(directory / keep.name, size, digest),
+        "remove": [
+            {**_entry(directory / p.name, size, h), "damaged": damaged} for p, h, damaged in remove
+        ],
+        "rename_to": rename_to,
+    }
+
+
 def plan_directory(directory: Path, rel: str, errors: list[str]) -> dict[str, Any] | None:
     names = [
         entry.name
         for entry in os.scandir(directory)
         if not entry.name.startswith(".") and entry.is_file(follow_symlinks=False)
     ]
+    sizes: dict[str, int] = {}
     name_groups: dict[tuple[str, str], list[Parsed]] = defaultdict(list)
     for parsed in parse_directory(names):
+        try:
+            sizes[parsed.name] = (directory / parsed.name).stat().st_size
+        except OSError as exc:
+            errors.append(f"{directory / parsed.name}: {exc}")
+            continue
         name_groups[parsed.key].append(parsed)
 
+    cache: dict[str, str] = {}
     groups: list[dict[str, Any]] = []
     review: list[dict[str, Any]] = []
     for members in name_groups.values():
+        if len({p.page for p in members if p.numbers}) >= SERIES_MIN_PAGES:
+            found, series_review = find_series_duplicates(directory, members, sizes, errors, cache)
+            review += series_review
+            groups += [_group(directory, k, d, s, rm, None) for k, d, rm, s in found]
+            continue
         if len(members) == 1:
             lone = members[0]
-            target = directory / lone.original_name
-            if lone.renamable and not os.path.lexists(target):
-                try:
-                    size = (directory / lone.name).stat().st_size
-                except OSError as exc:
-                    errors.append(f"{directory / lone.name}: {exc}")
-                    continue
+            if lone.renamable and not os.path.lexists(directory / lone.original_name):
                 groups.append(
-                    {
-                        "keep": _entry(directory / lone.name, size, None),
-                        "remove": [],
-                        "rename_to": lone.original_name,
-                    }
+                    _group(directory, lone, None, sizes[lone.name], [], lone.original_name)
                 )
             continue
-        by_size: dict[int, list[Parsed]] = defaultdict(list)
-        for parsed in members:
-            try:
-                by_size[(directory / parsed.name).stat().st_size].append(parsed)
-            except OSError as exc:
-                errors.append(f"{directory / parsed.name}: {exc}")
-        removed = 0
-        unresolved = False
-        found: list[tuple[Parsed, str, list[tuple[Parsed, str, bool]], int]] = []
-        for size, same_size in by_size.items():
-            if len(same_size) < 2:
-                continue
-            by_hash: dict[str, list[Parsed]] = defaultdict(list)
-            for parsed in same_size:
-                try:
-                    by_hash[sha256(directory / parsed.name)].append(parsed)
-                except OSError as exc:
-                    errors.append(f"{directory / parsed.name}: {exc}")
-                    unresolved = True
-            clusters = {h: sorted(ps, key=Parsed.rank) for h, ps in by_hash.items()}
-            if len(clusters) > 1:
-                healthy = resolve_damaged(directory, clusters)
-                if healthy is None:
-                    unresolved = True
-                    review.append(
-                        {
-                            "size": size,
-                            "files": sorted(
-                                (
-                                    {"name": p.name, "sha256": h}
-                                    for h, ps in clusters.items()
-                                    for p in ps
-                                ),
-                                key=lambda f: f["name"],
-                            ),
-                        }
-                    )
-                else:
-                    keep, *same = clusters[healthy]
-                    remove = [(p, healthy, False) for p in same] + [
-                        (p, h, True) for h, ps in clusters.items() if h != healthy for p in ps
-                    ]
-                    found.append((keep, healthy, remove, size))
-                    removed += len(remove)
-                    continue
-            for digest, same in clusters.items():
-                if len(same) >= 2:
-                    found.append((same[0], digest, [(p, digest, False) for p in same[1:]], size))
-                    removed += len(same) - 1
+        found, removed, unresolved, group_review = find_duplicates(
+            directory, members, sizes, Parsed.rank, errors, cache
+        )
+        review += group_review
         alone = len(members) - removed == 1 and not unresolved
         for keep, digest, remove, size in found:
             rename_to = None
@@ -269,16 +391,7 @@ def plan_directory(directory: Path, rel: str, errors: list[str]) -> dict[str, An
             freed = any(p.name == target for p, _, _ in remove)  # 原名文件本身将被移走
             if alone and keep.renamable and (freed or not os.path.lexists(directory / target)):
                 rename_to = target
-            groups.append(
-                {
-                    "keep": _entry(directory / keep.name, size, digest),
-                    "remove": [
-                        {**_entry(directory / p.name, size, h), "damaged": damaged}
-                        for p, h, damaged in remove
-                    ],
-                    "rename_to": rename_to,
-                }
-            )
+            groups.append(_group(directory, keep, digest, size, remove, rename_to))
     if not groups and not review:
         return None
     groups.sort(key=lambda g: g["keep"]["name"])
