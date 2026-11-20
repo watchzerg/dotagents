@@ -63,6 +63,9 @@ WEAK_MARKERS: list[tuple[re.Pattern[str], int]] = [
     (re.compile(_REST + r"\s+(?P<n>\d+)$"), 1),
 ]
 
+# 序号达到该值（如 `(2019)`）更像年份等正常命名，不据此改名。
+RENAME_NUMBER_LIMIT = 1000
+
 WGET = re.compile(r"^(?P<inner>.+\.(?P<ext>[^.]+))\.(?P<n>\d+)$")
 
 
@@ -83,6 +86,10 @@ class Parsed:
     @property
     def original_name(self) -> str:
         return f"{self.base}.{self.ext}"
+
+    @property
+    def renamable(self) -> bool:
+        return bool(self.numbers) and max(self.numbers) < RENAME_NUMBER_LIMIT
 
     def rank(self) -> tuple[bool, int, tuple[int, ...], int, str]:
         return (bool(self.numbers), len(self.numbers), self.numbers, len(self.name), self.name)
@@ -139,7 +146,7 @@ def sha256(path: Path) -> str:
         return hashlib.file_digest(handle, "sha256").hexdigest()
 
 
-def _entry(path: Path, size: int, digest: str) -> dict[str, Any]:
+def _entry(path: Path, size: int, digest: str | None) -> dict[str, Any]:
     return {"name": path.name, "size": size, "sha256": digest}
 
 
@@ -156,7 +163,22 @@ def plan_directory(directory: Path, errors: list[str]) -> dict[str, Any] | None:
     groups: list[dict[str, Any]] = []
     review: list[dict[str, Any]] = []
     for members in name_groups.values():
-        if len(members) < 2:
+        if len(members) == 1:
+            lone = members[0]
+            target = directory / lone.original_name
+            if lone.renamable and not os.path.lexists(target):
+                try:
+                    size = (directory / lone.name).stat().st_size
+                except OSError as exc:
+                    errors.append(f"{directory / lone.name}: {exc}")
+                    continue
+                groups.append(
+                    {
+                        "keep": _entry(directory / lone.name, size, None),
+                        "remove": [],
+                        "rename_to": lone.original_name,
+                    }
+                )
             continue
         by_size: dict[int, list[Parsed]] = defaultdict(list)
         for parsed in members:
@@ -200,7 +222,7 @@ def plan_directory(directory: Path, errors: list[str]) -> dict[str, Any] | None:
         alone = len(members) - removed == 1 and not unresolved
         for keep, remove, size, digest in found:
             rename_to = None
-            if alone and keep.numbers and not (directory / keep.original_name).exists():
+            if alone and keep.renamable and not os.path.lexists(directory / keep.original_name):
                 rename_to = keep.original_name
             groups.append(
                 {
@@ -242,7 +264,7 @@ def build_plan(root: Path) -> dict[str, Any]:
         "dirs": dirs,
         "errors": errors,
         "summary": {
-            "groups": len(groups),
+            "groups": sum(1 for g in groups if g["remove"]),
             "remove_files": len(removes),
             "remove_bytes": sum(r["size"] for r in removes),
             "renames": sum(1 for g in groups if g["rename_to"]),
@@ -413,6 +435,8 @@ def _verify(path: Path, entry: dict) -> str | None:
         return f"{path.name} 不再是普通文件"
     if info.st_size != entry["size"]:
         return f"{path.name} 体积已变化"
+    if entry["sha256"] is None:
+        return None
     try:
         if sha256(path) != entry["sha256"]:
             return f"{path.name} 内容已变化"
@@ -434,7 +458,7 @@ def apply_plan(plan: dict) -> dict[str, list]:
                 result["skipped"].append({"path": str(keep), "reason": "；".join(problems)})
                 continue
             targets = [base / r["name"] for r in group["remove"]]
-            failures = trash_files(targets)
+            failures = trash_files(targets) if targets else []
             failed = {path for path, _ in failures}
             result["failed"] += [{"path": str(p), "error": e} for p, e in failures]
             result["trashed"] += [

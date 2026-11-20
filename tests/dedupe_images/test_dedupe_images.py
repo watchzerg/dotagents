@@ -84,6 +84,8 @@ def library(tmp_path: Path) -> Path:
     write(root / "s3/c (1).jpg", b"DD")  # 同体积不同内容，交人工确认
     write(root / "s3/IMG_0001.jpg", b"Q")
     write(root / "s3/IMG_0002.jpg", b"Q")  # 弱标记且无主名文件，不分组
+    write(root / "s4/d (3).png", b"D")  # 单独存在的副本，改回原名
+    write(root / "s4/Trip (2019).png", b"T")  # 序号像年份，不改名
     return root
 
 
@@ -94,7 +96,7 @@ def test_plan_and_apply(library: Path, tmp_path: Path) -> None:
     assert planned.returncode == 0, planned.stderr
     plan = json.loads(plan_path.read_text(encoding="utf-8"))
     dirs = {d["dir"]: d for d in plan["dirs"]}
-    assert set(dirs) == {"s1", "s2", "s3"}
+    assert set(dirs) == {"s1", "s2", "s3", "s4"}
     assert [
         (g["keep"]["name"], [r["name"] for r in g["remove"]]) for g in dirs["s1"]["groups"]
     ] == [("a.jpg", ["a (1).jpg"])]
@@ -112,6 +114,7 @@ def test_plan_and_apply(library: Path, tmp_path: Path) -> None:
         "nested",
     ]
     assert sorted(p.name for p in (library / "s2").iterdir()) == ["b.jpeg"]
+    assert sorted(p.name for p in (library / "s4").iterdir()) == ["Trip (2019).png", "d.png"]
     assert (library / "s3/c (1).jpg").exists() and (library / "s3/IMG_0002.jpg").exists()
     trash = xdg / "Trash"
     assert sorted(p.name for p in (trash / "files").iterdir()) == ["a (1).jpg", "b (2).JPG"]
