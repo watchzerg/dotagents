@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""按一级子目录对图片库去重：同名带副本标记且内容相同的图片只留一张，其余移入回收站。
+"""递归地按目录对图片库去重，每个目录只比较自己直接包含的图片：同名带副本标记且内容相同的图片只留一张，其余移入回收站。
 
 用法：
   python3 dedupe_images.py plan <总目录> --out <计划.json>
@@ -25,7 +25,10 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
-PLAN_VERSION = 1
+PLAN_VERSION = 3
+
+# 目录里直接有这些文件（或目录名以 .app 结尾）即视为软件目录，连同子目录整体跳过。
+PROGRAM_EXTENSIONS = frozenset("exe dll so dylib msi assets pak".split())
 
 # 扩展名 -> 分组用的规范扩展名；不区分大小写。
 EXTENSIONS = {
@@ -150,7 +153,37 @@ def _entry(path: Path, size: int, digest: str | None) -> dict[str, Any]:
     return {"name": path.name, "size": size, "sha256": digest}
 
 
-def plan_directory(directory: Path, errors: list[str]) -> dict[str, Any] | None:
+# 压缩格式里不会自然出现成片的 0 字节；未压缩格式（bmp、tif、raw 等）的纯黑区域可能是 0，不判定。
+COMPRESSED = frozenset("jpg png webp gif heic avif jxl".split())
+ZERO_BLOCK = bytes(4096)
+END_MARKERS = {"jpg": b"\xff\xd9", "png": b"IEND\xaeB`\x82"}
+
+
+def looks_damaged(path: Path, ext: str) -> bool:
+    """含 4 KiB 对齐的全 0 块，或 JPEG/PNG 去掉末尾 0 后缺结束标记，视为写入不完整。"""
+    data = path.read_bytes()
+    if any(data[i : i + 4096] == ZERO_BLOCK for i in range(0, len(data) - 4095, 4096)):
+        return True
+    marker = END_MARKERS.get(ext)
+    return marker is not None and not data.rstrip(b"\0").endswith(marker)
+
+
+def resolve_damaged(directory: Path, clusters: dict[str, list[Parsed]]) -> str | None:
+    """同体积不同内容时，若恰有一个内容是完好的、其余都有损坏特征，返回完好者的哈希。"""
+    first = next(iter(clusters.values()))[0]
+    ext = EXTENSIONS[first.ext.lower()]
+    if ext not in COMPRESSED:
+        return None
+    try:
+        healthy = [
+            h for h, ps in clusters.items() if not looks_damaged(directory / ps[0].name, ext)
+        ]
+    except OSError:
+        return None
+    return healthy[0] if len(healthy) == 1 else None
+
+
+def plan_directory(directory: Path, rel: str, errors: list[str]) -> dict[str, Any] | None:
     names = [
         entry.name
         for entry in os.scandir(directory)
@@ -188,7 +221,7 @@ def plan_directory(directory: Path, errors: list[str]) -> dict[str, Any] | None:
                 errors.append(f"{directory / parsed.name}: {exc}")
         removed = 0
         unresolved = False
-        found: list[tuple[Parsed, list[Parsed], int, str]] = []
+        found: list[tuple[Parsed, str, list[tuple[Parsed, str, bool]], int]] = []
         for size, same_size in by_size.items():
             if len(same_size) < 2:
                 continue
@@ -199,35 +232,50 @@ def plan_directory(directory: Path, errors: list[str]) -> dict[str, Any] | None:
                 except OSError as exc:
                     errors.append(f"{directory / parsed.name}: {exc}")
                     unresolved = True
-            if len(by_hash) > 1:
-                unresolved = True
-                review.append(
-                    {
-                        "size": size,
-                        "files": sorted(
-                            (
-                                {"name": p.name, "sha256": h}
-                                for h, ps in by_hash.items()
-                                for p in ps
+            clusters = {h: sorted(ps, key=Parsed.rank) for h, ps in by_hash.items()}
+            if len(clusters) > 1:
+                healthy = resolve_damaged(directory, clusters)
+                if healthy is None:
+                    unresolved = True
+                    review.append(
+                        {
+                            "size": size,
+                            "files": sorted(
+                                (
+                                    {"name": p.name, "sha256": h}
+                                    for h, ps in clusters.items()
+                                    for p in ps
+                                ),
+                                key=lambda f: f["name"],
                             ),
-                            key=lambda f: f["name"],
-                        ),
-                    }
-                )
-            for digest, same in by_hash.items():
+                        }
+                    )
+                else:
+                    keep, *same = clusters[healthy]
+                    remove = [(p, healthy, False) for p in same] + [
+                        (p, h, True) for h, ps in clusters.items() if h != healthy for p in ps
+                    ]
+                    found.append((keep, healthy, remove, size))
+                    removed += len(remove)
+                    continue
+            for digest, same in clusters.items():
                 if len(same) >= 2:
-                    ordered = sorted(same, key=Parsed.rank)
-                    found.append((ordered[0], ordered[1:], size, digest))
-                    removed += len(ordered) - 1
+                    found.append((same[0], digest, [(p, digest, False) for p in same[1:]], size))
+                    removed += len(same) - 1
         alone = len(members) - removed == 1 and not unresolved
-        for keep, remove, size, digest in found:
+        for keep, digest, remove, size in found:
             rename_to = None
-            if alone and keep.renamable and not os.path.lexists(directory / keep.original_name):
-                rename_to = keep.original_name
+            target = keep.original_name
+            freed = any(p.name == target for p, _, _ in remove)  # 原名文件本身将被移走
+            if alone and keep.renamable and (freed or not os.path.lexists(directory / target)):
+                rename_to = target
             groups.append(
                 {
                     "keep": _entry(directory / keep.name, size, digest),
-                    "remove": [_entry(directory / p.name, size, digest) for p in remove],
+                    "remove": [
+                        {**_entry(directory / p.name, size, h), "damaged": damaged}
+                        for p, h, damaged in remove
+                    ],
                     "rename_to": rename_to,
                 }
             )
@@ -235,22 +283,39 @@ def plan_directory(directory: Path, errors: list[str]) -> dict[str, Any] | None:
         return None
     groups.sort(key=lambda g: g["keep"]["name"])
     review.sort(key=lambda r: r["files"][0]["name"])
-    return {"dir": directory.name, "groups": groups, "review": review}
+    return {"dir": rel, "groups": groups, "review": review}
+
+
+def is_program_dir(name: str, files: list[str]) -> bool:
+    return name.lower().endswith(".app") or any(
+        f.rpartition(".")[2].lower() in PROGRAM_EXTENSIONS for f in files if "." in f
+    )
 
 
 def build_plan(root: Path) -> dict[str, Any]:
     errors: list[str] = []
     dirs: list[dict[str, Any]] = []
-    subdirs = sorted(
-        entry.name
-        for entry in os.scandir(root)
-        if not entry.name.startswith(".") and entry.is_dir(follow_symlinks=False)
-    )
-    for name in subdirs:
+    skipped: list[str] = []
+    scanned = 0
+
+    def on_error(exc: OSError) -> None:
+        errors.append(f"{exc.filename}: {exc.strerror or exc}")
+
+    for current, subdirs, files in os.walk(root, onerror=on_error):
+        directory = Path(current)
+        rel = directory.relative_to(root).as_posix()
+        subdirs[:] = sorted(
+            d for d in subdirs if not d.startswith(".") and not (directory / d).is_symlink()
+        )
+        if is_program_dir(directory.name, files):
+            skipped.append(rel)
+            subdirs[:] = []
+            continue
+        scanned += 1
         try:
-            planned = plan_directory(root / name, errors)
+            planned = plan_directory(directory, rel, errors)
         except OSError as exc:
-            errors.append(f"{root / name}: {exc}")
+            errors.append(f"{directory}: {exc}")
             continue
         if planned is not None:
             dirs.append(planned)
@@ -260,13 +325,15 @@ def build_plan(root: Path) -> dict[str, Any]:
         "version": PLAN_VERSION,
         "root": str(root),
         "created": datetime.now().isoformat(timespec="seconds"),
-        "scanned_dirs": len(subdirs),
+        "scanned_dirs": scanned,
         "dirs": dirs,
+        "skipped_program_dirs": skipped,
         "errors": errors,
         "summary": {
             "groups": sum(1 for g in groups if g["remove"]),
             "remove_files": len(removes),
             "remove_bytes": sum(r["size"] for r in removes),
+            "damaged_files": sum(1 for r in removes if r["damaged"]),
             "renames": sum(1 for g in groups if g["rename_to"]),
             "review_sets": sum(len(d["review"]) for d in dirs),
         },
@@ -282,24 +349,40 @@ def human_size(size: int) -> str:
     raise AssertionError
 
 
+def _top(rel: str) -> str:
+    return "（总目录本身）" if rel == "." else rel.split("/", 1)[0] + "/"
+
+
 def print_plan(plan: dict, out: Path) -> None:
     summary = plan["summary"]
     print(f"总目录：{plan['root']}")
-    print(f"扫描子目录 {plan['scanned_dirs']} 个，其中 {len(plan['dirs'])} 个有待处理项。")
+    print(f"扫描目录 {plan['scanned_dirs']} 个，其中 {len(plan['dirs'])} 个有待处理项。")
     print(
         f"重复组 {summary['groups']} 个，待移入回收站 {summary['remove_files']} 个文件"
-        f"（{human_size(summary['remove_bytes'])}），改回原名 {summary['renames']} 个。"
+        f"（{human_size(summary['remove_bytes'])}，其中损坏副本 {summary['damaged_files']} 个），"
+        f"改回原名 {summary['renames']} 个。"
     )
+    per_top: dict[str, list[int]] = defaultdict(lambda: [0, 0])
     for directory in plan["dirs"]:
-        removes = sum(len(g["remove"]) for g in directory["groups"])
-        renames = sum(1 for g in directory["groups"] if g["rename_to"])
-        print(f"  {directory['dir']}/：删除 {removes} 个，改名 {renames} 个")
+        counts = per_top[_top(directory["dir"])]
+        counts[0] += sum(len(g["remove"]) for g in directory["groups"])
+        counts[1] += sum(1 for g in directory["groups"] if g["rename_to"])
+    for top, (removes, renames) in sorted(per_top.items()):
+        print(f"  {top}：删除 {removes} 个，改名 {renames} 个")
     if summary["review_sets"]:
-        print(f"需人工确认 {summary['review_sets']} 组（同名同体积、内容不同，不会删除）：")
+        print(
+            f"需人工确认 {summary['review_sets']} 组（同名同体积、内容不同且无法判定哪个损坏，不会删除）："
+        )
         for directory in plan["dirs"]:
             for item in directory["review"]:
                 names = "，".join(f["name"] for f in item["files"])
                 print(f"  {directory['dir']}/：{names}（{human_size(item['size'])}）")
+    if plan["skipped_program_dirs"]:
+        print(
+            f"跳过软件目录 {len(plan['skipped_program_dirs'])} 个（含程序文件，连同子目录不处理）："
+        )
+        for rel in plan["skipped_program_dirs"]:
+            print(f"  {rel}/")
     if plan["errors"]:
         print(f"读取出错 {len(plan['errors'])} 项（已跳过）：")
         for error in plan["errors"]:
@@ -496,7 +579,7 @@ def print_result(result: dict[str, list]) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="按一级子目录对图片库去重。")
+    parser = argparse.ArgumentParser(description="递归地按目录对图片库去重。")
     commands = parser.add_subparsers(dest="command", required=True)
     plan_cmd = commands.add_parser("plan", help="扫描并生成去重计划，不改动文件")
     plan_cmd.add_argument("root", type=Path, help="总目录")

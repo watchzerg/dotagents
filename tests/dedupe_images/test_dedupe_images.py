@@ -69,15 +69,26 @@ def run(*args: str, xdg: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
+def healthy_bytes() -> bytes:
+    return b"\xff\xd8" + b"\x01" * 8188 + b"\xff\xd9"
+
+
 @pytest.fixture
 def library(tmp_path: Path) -> Path:
     root = tmp_path / "lib"
     write(root / "s1/a.jpg", b"AAAA")
     write(root / "s1/a (1).jpg", b"AAAA")
     write(root / "s1/a (2).jpg", b"BBBBBB")  # 体积不同，不动
-    write(root / "s1/nested/a (1).jpg", b"AAAA")  # 不递归
+    write(root / "s1/nested/e.jpg", b"E")
+    write(root / "s1/nested/e (1).jpg", b"E")  # 递归处理，只与同目录比较
     write(root / "s1/.a (3).jpg", b"AAAA")  # 隐藏文件
-    write(root / "a (1).jpg", b"AAAA")  # 总目录本身的文件
+    write(root / "a (1).jpg", b"AAAA")  # 总目录本身也是处理单元：单独副本改回原名
+    write(root / "s5/h.jpg", b"\xff\xd8" + b"\x01" * 4094 + bytes(4096))  # 原名文件损坏
+    write(root / "s5/h (1).jpg", healthy_bytes())  # 同体积完好：留它并改回原名
+    write(root / ".hid/g (1).png", b"G")  # 隐藏目录不进入
+    write(root / "game/game.exe", b"MZ")
+    write(root / "game/f (1).png", b"F")  # 软件目录连同子目录跳过
+    write(root / "game/data/f (1).png", b"F")
     write(root / "s2/b (2).JPG", b"X")
     write(root / "s2/b (1).jpeg", b"X")  # 都带序号，留最小者并改回原名
     write(root / "s3/c.jpg", b"CC")
@@ -96,7 +107,11 @@ def test_plan_and_apply(library: Path, tmp_path: Path) -> None:
     assert planned.returncode == 0, planned.stderr
     plan = json.loads(plan_path.read_text(encoding="utf-8"))
     dirs = {d["dir"]: d for d in plan["dirs"]}
-    assert set(dirs) == {"s1", "s2", "s3", "s4"}
+    assert set(dirs) == {".", "s1", "s1/nested", "s2", "s3", "s4", "s5"}
+    damaged = dirs["s5"]["groups"][0]
+    assert damaged["keep"]["name"] == "h (1).jpg" and damaged["rename_to"] == "h.jpg"
+    assert [(r["name"], r["damaged"]) for r in damaged["remove"]] == [("h.jpg", True)]
+    assert plan["skipped_program_dirs"] == ["game"]
     assert [
         (g["keep"]["name"], [r["name"] for r in g["remove"]]) for g in dirs["s1"]["groups"]
     ] == [("a.jpg", ["a (1).jpg"])]
@@ -113,11 +128,22 @@ def test_plan_and_apply(library: Path, tmp_path: Path) -> None:
         "a.jpg",
         "nested",
     ]
+    assert sorted(p.name for p in (library / "s1/nested").iterdir()) == ["e.jpg"]
     assert sorted(p.name for p in (library / "s2").iterdir()) == ["b.jpeg"]
+    assert sorted(p.name for p in (library / "s5").iterdir()) == ["h.jpg"]
+    assert (library / "s5/h.jpg").read_bytes() == healthy_bytes()
+    assert (library / "a.jpg").exists() and not (library / "a (1).jpg").exists()
+    assert (library / "game/f (1).png").exists() and (library / "game/data/f (1).png").exists()
+    assert (library / ".hid/g (1).png").exists()
     assert sorted(p.name for p in (library / "s4").iterdir()) == ["Trip (2019).png", "d.png"]
     assert (library / "s3/c (1).jpg").exists() and (library / "s3/IMG_0002.jpg").exists()
     trash = xdg / "Trash"
-    assert sorted(p.name for p in (trash / "files").iterdir()) == ["a (1).jpg", "b (2).JPG"]
+    assert sorted(p.name for p in (trash / "files").iterdir()) == [
+        "a (1).jpg",
+        "b (2).JPG",
+        "e (1).jpg",
+        "h.jpg",
+    ]
     info = (trash / "info/a (1).jpg.trashinfo").read_text(encoding="utf-8")
     assert info.startswith("[Trash Info]\nPath=/")
     assert "/s1/a%20%281%29.jpg\nDeletionDate=" in info
