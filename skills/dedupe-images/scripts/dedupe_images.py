@@ -114,7 +114,13 @@ class Parsed:
 
     @property
     def renamable(self) -> bool:
-        return bool(self.numbers) and max(self.numbers) < RENAME_NUMBER_LIMIT
+        """序号小于 1000（不是年份），且原名不以分隔符结尾：`page - (1)` 去掉序号只剩 `page -`，
+        说明序号是页码而不是副本标记（整套页码被跨名称匹配移走后常剩这样一张）。"""
+        return (
+            bool(self.numbers)
+            and max(self.numbers) < RENAME_NUMBER_LIMIT
+            and not self.base.rstrip().endswith(("-", "_", ".", "~", "#"))
+        )
 
     def rank(self) -> tuple[bool, int, tuple[int, ...], int, str]:
         return (bool(self.numbers), len(self.numbers), self.numbers, len(self.name), self.name)
@@ -788,6 +794,18 @@ def _pair_stats(mapping: dict[str, str]) -> dict[str, Any]:
     }
 
 
+# 同名子集要覆盖保留目录这么多的内容（按去重后的哈希），才算同一份东西的不完整副本；
+# 占比低的多是单话与合集、独立作品与杂图包，移走会丢掉作品的独立目录
+SUBSET_COVER_RATIO = 0.9
+
+
+def _covers(superset: Superset, errors: list[str], cache: dict[str, str]) -> bool:
+    keep = _dir_digests(superset.keep, sorted(superset.keep.images), errors, cache)
+    if keep is None:
+        return False
+    return len(set(superset.digests.values())) >= SUBSET_COVER_RATIO * len(set(keep.values()))
+
+
 def find_dir_duplicates(
     infos: list[DirInfo], all_dirs: list[str], errors: list[str], cache: dict[str, str]
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -808,15 +826,18 @@ def find_dir_duplicates(
             (s for s in supersets.get(info.rel, []) if s.keep.rel in kept),
             key=lambda s: position[s.keep.rel],
         )
-        auto = [s for s in options if s.named]
-        chosen = (auto or options or [None])[0]
+        named = [s for s in options if s.named]
+        auto = [s for s in named if s.equal or _covers(s, errors, cache)]
+        chosen = (auto or named or options or [None])[0]
         if chosen is None:
             kept.add(info.rel)
             continue
         relation = "equal" if chosen.equal else "subset"
         reason = None
         others = None
-        if not auto:
+        if named and not auto:
+            reason = "同名子集只占保留目录一部分"
+        elif not auto:
             reason = "内容相同但文件名不同" if chosen.equal else "文件名不同的子集"
         elif not info.leaf:
             reason = "含子目录"
@@ -1387,6 +1408,15 @@ def describe_dir(root: Path, rel: str, indent: str = "  ") -> list[str]:
     return lines
 
 
+def _shown(path: str) -> str:
+    """首尾有空白的路径加引号显示：` 01/` 混在缩进里看不出前导空格，照抄会写错决策路径。"""
+    return (
+        f"「{path}」"
+        if path != path.strip() or any(p != p.strip() for p in path.split("/"))
+        else path
+    )
+
+
 def _pair_line(item: dict, left: str | None = None) -> str:
     """跨父目录的案例给出 left（左侧父目录）：只写目录名，左侧固定为该父目录下的目录，
     被包含方在右侧时符号写作 ⊃。"""
@@ -1398,7 +1428,7 @@ def _pair_line(item: dict, left: str | None = None) -> str:
             sign = "=" if sign == "=" else "⊃"
         a, b = posixpath.basename(a), posixpath.basename(b)
     line = (
-        f"  {a}/ {sign} {b}/（{item['reason']}；{item['images']} 张，"
+        f"  {_shown(a)}/ {sign} {_shown(b)}/（{item['reason']}；{item['images']} 张，"
         f"文件名原样相同 {item['same_name']} 张"
     )
     if item["renamed_samples"]:

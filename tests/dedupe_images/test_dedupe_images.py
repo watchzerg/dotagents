@@ -100,6 +100,7 @@ def library(tmp_path: Path) -> Path:
     write(root / "s3/IMG_0002.jpg", b"Q")  # 弱标记且无主名文件，不分组
     write(root / "s4/d (3).png", b"D")  # 单独存在的副本，改回原名
     write(root / "s4/Trip (2019).png", b"T")  # 序号像年份，不改名
+    write(root / "s4/page - (1).png", b"P")  # 去掉序号只剩 `page -`：序号是页码，不改名
     return root
 
 
@@ -141,7 +142,11 @@ def test_plan_and_apply(library: Path, tmp_path: Path) -> None:
     assert (library / "a.jpg").exists() and not (library / "a (1).jpg").exists()
     assert (library / "game/f (1).png").exists() and (library / "game/data/f (1).png").exists()
     assert (library / ".hid/g (1).png").exists()
-    assert sorted(p.name for p in (library / "s4").iterdir()) == ["Trip (2019).png", "d.png"]
+    assert sorted(p.name for p in (library / "s4").iterdir()) == [
+        "Trip (2019).png",
+        "d.png",
+        "page - (1).png",
+    ]
     assert (library / "s3/c (1).jpg").exists() and (library / "s3/IMG_0002.jpg").exists()
     trash = xdg / "Trash"
     assert sorted(p.name for p in (trash / "files").iterdir()) == [
@@ -309,17 +314,22 @@ def test_dir_duplicates(tmp_path: Path) -> None:
     fill("[P (皮)] Lily", lily)  # 目录名不同、内容与文件名相同：留目录名更长的
     fill("Ren", {"a.jpg": b"ren-a", "b.jpg": b"ren-b"})
     fill("Ren copy", {"x1.jpg": b"ren-a", "x2.jpg": b"ren-b"})  # 内容相同但文件名不同：交模型判断
-    part = {f"{i:03d}.jpg": f"part{i}".encode() for i in range(4)}
+    part = {f"{i:03d}.jpg": f"part{i}".encode() for i in range(20)}
     fill("full/[L] Part 1", part)
     fill("full/[L] Part 1 more", {**part, "100.jpg": b"extra"})  # 更大的超集
-    fill("only/Part 1", dict(list(part.items())[:3]))  # 同名子集：移走，指向最大的超集
+    fill("only/Part 1", dict(list(part.items())[:19]))  # 同名子集（覆盖 90%）：移走，指向最大的超集
+    fill("Vol 1", {"v1.jpg": b"vol1", "v2.jpg": b"vol2"})
+    fill(
+        "Omnibus",
+        {"v1.jpg": b"vol1", "v2.jpg": b"vol2", **{f"x{i}.jpg": b"x%d" % i for i in range(5)}},
+    )
     fill("Omni", {f"{i:04d}.jpg": f"ch{i}".encode() for i in range(6)})
     fill("Ch2", {f"{i}.jpg": f"ch{i + 3}".encode() for i in range(3)})  # 文件名改过的子集：人工确认
     fill("NoteA", {"a.jpg": b"note-a", "info.txt": b"v1"})
     fill("NoteB", {"a.jpg": b"note-a", "info.txt": b"v2"})  # 非图片文件不一致：人工确认
     fill("Tree", {"t.jpg": b"tree"})
     fill("Tree/sub", {"s.jpg": b"sub"})
-    fill("Tree2", {"t.jpg": b"tree", "u.jpg": b"u"})  # Tree 含子目录：人工确认
+    fill("Tree2", {"t.jpg": b"tree"})  # Tree 含子目录：交模型判断
     for ch in (1, 3, 4):
         fill(f"Big/ch{ch}", {"p.jpg": f"chapter{ch}".encode()})
     # 保留子目录多的合集里那份；移走会拆散 Small：人工确认
@@ -337,6 +347,7 @@ def test_dir_duplicates(tmp_path: Path) -> None:
     review = {r["dir"]: r["reason"] for r in plan["dir_review"]}
     assert review == {
         "Ren copy": "内容相同但文件名不同",
+        "Vol 1": "同名子集只占保留目录一部分",
         "Ch2": "文件名不同的子集",
         "NoteB": "非图片文件不一致",
         "Small/ch1": "会拆散所在合集",
@@ -417,6 +428,11 @@ def test_cases_and_decisions(tmp_path: Path) -> None:
     assert "Lone/q.jpg 在保留路径下没有相同内容的文件" in applied.stdout
     assert "保留路径 Big/ch1 在被移走的路径里" in applied.stdout
     assert sorted(p.name for p in (xdg / "Trash/files").iterdir()) == ["Small"]
+
+
+def test_shown_quotes_surrounding_whitespace() -> None:
+    assert dedupe._shown("a/ 01") == "「a/ 01」"
+    assert dedupe._shown("a/01") == "a/01"
 
 
 def test_number_gaps() -> None:
