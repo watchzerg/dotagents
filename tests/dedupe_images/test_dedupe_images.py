@@ -484,6 +484,69 @@ def test_composed_collection_and_trash_matching(tmp_path: Path) -> None:
     assert "Work 中没有与保留路径相同内容的文件" in applied.stdout
 
 
+def test_clean_junk(tmp_path: Path) -> None:
+    root = tmp_path / "lib"
+    write(root / "Work/01.jpg", b"A")
+    write(root / "Work/02.jpg.bc!", b"B")  # 有下载完成的同名文件
+    write(root / "Work/03.jpg.!qB", b"C")  # 没有，移走后缺页
+    write(root / "Work/复件 (1) Thumbs.db", b"D")
+    write(root / "Work/._01.jpg", b"\x00\x05\x16\x07rest")
+    write(root / "Work/._keep.jpg", b"not apple double")
+    write(root / "Work/广告.url", b"E")
+    write(root / "Work/ComicInfo.xml", b"F")
+    write(root / "Work/人物简介.txt", b"G")
+    write(root / "Work/book.pdf", b"H")
+    write(root / "Work/02.jpg", b"B")
+    write(root / "Partial/x.jpg.bc!", b"I")  # 只有残缺文件的目录，清理后变空
+    write(root / "Game/game.exe", b"J")
+    write(root / "Game/desktop.ini", b"K")  # 软件目录不处理
+    xdg = tmp_path / "xdg"
+    listed = run("clean", str(root), xdg=xdg)
+    assert listed.returncode == 0
+    assert "非图片杂项 7 个" in listed.stdout
+    assert "Work/03.jpg.!qB" in listed.stdout and "Partial/x.jpg.bc!" in listed.stdout
+    assert "Work/02.jpg.bc!" not in listed.stdout
+    assert "pdf 1" in listed.stdout and "txt 1" in listed.stdout
+    assert (root / "Work/广告.url").exists()  # 不加 --apply 不改动
+
+    applied = run("clean", str(root), "--apply", xdg=xdg)
+    assert applied.returncode == 0, applied.stdout + applied.stderr
+    assert sorted(p.name for p in (root / "Work").iterdir()) == [
+        "._keep.jpg",
+        "01.jpg",
+        "02.jpg",
+        "book.pdf",
+        "人物简介.txt",
+    ]
+    assert not (root / "Partial").exists()
+    assert (root / "Game/desktop.ini").exists()
+
+
+def test_check_decisions_without_changes(tmp_path: Path) -> None:
+    root = tmp_path / "lib"
+    write(root / "A/1.jpg", b"A")
+    write(root / "A/2.jpg", b"B")
+    write(root / "B/1.jpg", b"A")
+    decisions_path = tmp_path / "decisions.json"
+    decisions_path.write_text(
+        json.dumps(
+            {
+                "root": str(root),
+                "actions": [
+                    {"case": "x", "op": "trash", "path": "A", "keep": ["B"]},
+                    {"case": "y", "op": "trash", "path": "B", "keep": ["A"]},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    checked = run("apply-decisions", str(decisions_path), "--check", xdg=tmp_path / "xdg")
+    assert checked.returncode == 0
+    assert "校验通过（未执行）案例 1 个" in checked.stdout
+    assert "A/2.jpg" in checked.stdout  # 列出未覆盖的文件，据此决定先移动哪些
+    assert (root / "A/2.jpg").exists() and (root / "B/1.jpg").exists()
+
+
 def test_shown_quotes_surrounding_whitespace() -> None:
     assert dedupe._shown("a/ 01") == "「a/ 01」"
     assert dedupe._shown("a/01") == "a/01"

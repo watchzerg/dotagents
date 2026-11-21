@@ -6,7 +6,8 @@
   python3 dedupe_images.py show <计划.json> --sample 5      # 自动处理部分的抽查材料
   python3 dedupe_images.py show <计划.json> [案例编号 ...]  # 案例的判断材料，不给编号则输出全部
   python3 dedupe_images.py apply <计划.json>
-  python3 dedupe_images.py apply-decisions <决策.json>
+  python3 dedupe_images.py apply-decisions <决策.json> [--check]  # --check 只校验不执行
+  python3 dedupe_images.py clean <总目录> [--apply]           # 非图片杂项，不加 --apply 只列出
 
 只依赖 Python 3.14+ 标准库。判定规则见 docs/skills/dedupe-images/design.md。
 """
@@ -1342,6 +1343,109 @@ def print_result(result: dict[str, list]) -> None:
             print(f"  {item['path']}：{item['error']}")
 
 
+# ---------- 清理非图片杂项 ----------
+
+# 类别 -> 小写文件名后缀；txt 不在内（可能是作品的设定或简介）。
+JUNK_SUFFIXES = {
+    "未下载完的残缺文件": (".bc!", ".!qb"),
+    "广告链接与网页": (".url", ".torrent", ".mht", ".mhtml", ".html", ".htm"),
+    "下载站与电子书元数据": (".opf", ".nfo"),
+    "文件夹图标": (".ico",),
+}
+JUNK_NAMES = {
+    "desktop.ini": "文件夹图标",
+    "comicinfo.xml": "下载站与电子书元数据",
+    ".ehviewer": "看图软件与系统残留",
+    ".thumb": "看图软件与系统残留",
+}
+APPLE_DOUBLE = b"\x00\x05\x16\x07"
+
+
+def junk_kind(path: Path) -> str | None:
+    name = path.name.lower()
+    if name in JUNK_NAMES:
+        return JUNK_NAMES[name]
+    if name.endswith(".db") and "thumbs" in name:  # 含 复件 (1) Thumbs.db、Thumbs(1).db
+        return "看图软件与系统残留"
+    if name.startswith("._"):
+        try:
+            with path.open("rb") as handle:
+                magic = handle.read(4)
+        except OSError:
+            return None
+        return "看图软件与系统残留" if magic == APPLE_DOUBLE else None
+    for kind, suffixes in JUNK_SUFFIXES.items():
+        if name.endswith(suffixes):
+            return kind
+    return None
+
+
+def find_junk(root: Path) -> dict[str, Any]:
+    """找出非图片杂项；同时统计其余非图片文件的扩展名，供汇报。跳过隐藏目录、符号链接与软件目录。"""
+    junk: list[dict[str, Any]] = []
+    missing: list[str] = []
+    others: Counter[str] = Counter()
+    for dirpath, dirnames, filenames in os.walk(root):
+        directory = Path(dirpath)
+        dirnames[:] = sorted(
+            d for d in dirnames if not d.startswith(".") and not (directory / d).is_symlink()
+        )
+        if directory != root and is_program_dir(directory.name, filenames):
+            dirnames[:] = []
+            continue
+        for name in sorted(filenames):
+            path = directory / name
+            if path.is_symlink() or not path.is_file():
+                continue
+            kind = junk_kind(path)
+            rel = str(path.relative_to(root))
+            if kind:
+                junk.append({"path": rel, "kind": kind, "size": path.stat().st_size})
+                if (
+                    kind == "未下载完的残缺文件"
+                    and not (directory / name.rpartition(".")[0]).exists()
+                ):
+                    missing.append(rel)
+            elif not name.startswith(".") and name.rpartition(".")[2].lower() not in EXTENSIONS:
+                others[name.rpartition(".")[2].lower() if "." in name else "（无扩展名）"] += 1
+    return {"junk": junk, "missing": missing, "others": dict(others.most_common())}
+
+
+def print_junk(found: dict[str, Any]) -> None:
+    by_kind: dict[str, list[dict]] = defaultdict(list)
+    for item in found["junk"]:
+        by_kind[item["kind"]].append(item)
+    total = sum(item["size"] for item in found["junk"])
+    print(f"非图片杂项 {len(found['junk'])} 个（{human_size(total)}）：")
+    for kind, items in by_kind.items():
+        names = Counter(Path(i["path"]).name for i in items).most_common(3)
+        print(f"  {kind} {len(items)} 个，如 {'，'.join(n for n, _ in names)}")
+    if found["missing"]:
+        print(
+            f"其中 {len(found['missing'])} 个残缺文件没有下载完成的同名文件，移走后作品会缺这些页："
+        )
+        for rel in found["missing"]:
+            print(f"  {rel}")
+    if found["others"]:
+        listed = "，".join(f"{ext} {n}" for ext, n in found["others"].items())
+        print(f"不处理的其余非图片文件：{listed}")
+
+
+def clean_junk(root: Path, found: dict[str, Any]) -> dict[str, list]:
+    paths = [root / item["path"] for item in found["junk"]]
+    failures = trash_files(paths) if paths else []
+    failed = {path for path, _ in failures}
+    removed: list[str] = []
+    for path in paths:
+        if path not in failed:
+            removed += _remove_empty_parents(root, path)
+    return {
+        "trashed": [p for p in paths if p not in failed],
+        "removed_empty_dirs": removed,
+        "failed": [{"path": str(p), "error": e} for p, e in failures],
+    }
+
+
 # ---------- 交模型判断的案例 ----------
 
 
@@ -1771,7 +1875,7 @@ def expand_matching(root: Path, actions: list[dict], cache: dict[str, str]) -> l
     return problems
 
 
-def apply_decisions(decisions: dict) -> dict[str, list]:
+def apply_decisions(decisions: dict, check_only: bool = False) -> dict[str, list]:
     root = Path(decisions["root"])
     result: dict[str, list] = {
         "done": [],
@@ -1789,6 +1893,15 @@ def apply_decisions(decisions: dict) -> dict[str, list]:
         problems = expand_matching(root, actions, cache) or check_case(root, actions, cache)
         if problems:
             result["skipped"].append({"case": case, "reason": "；".join(problems)})
+            continue
+        if check_only:
+            result["done"].append(case)
+            for move in (a for a in actions if a["op"] == "move"):
+                src = root / move["src"]
+                result["moved"].append(
+                    {"from": str(src), "to": str(root / move["dest"] / src.name)}
+                )
+            result["trashed"] += [str(root / a["path"]) for a in actions if a["op"] == "trash"]
             continue
         sources: list[Path] = []
         try:
@@ -1817,9 +1930,9 @@ def apply_decisions(decisions: dict) -> dict[str, list]:
     return result
 
 
-def print_decision_result(result: dict[str, list]) -> None:
+def print_decision_result(result: dict[str, list], check_only: bool = False) -> None:
     print(
-        f"执行案例 {len(result['done'])} 个：移动 {len(result['moved'])} 项，"
+        f"{'校验通过（未执行）' if check_only else '执行'}案例 {len(result['done'])} 个：移动 {len(result['moved'])} 项，"
         f"移入回收站 {len(result['trashed'])} 项，删除变空的上级目录 {len(result['removed_empty_dirs'])} 个。"
     )
     for item in result["moved"]:
@@ -1852,6 +1965,12 @@ def main(argv: list[str] | None = None) -> int:
     apply_cmd.add_argument("plan", type=Path, help="plan 生成的计划 JSON")
     decide_cmd = commands.add_parser("apply-decisions", help="校验并执行模型写出的案例决策")
     decide_cmd.add_argument("decisions", type=Path, help="决策 JSON")
+    decide_cmd.add_argument(
+        "--check", action="store_true", help="只校验并列出将执行的操作与不满足的原因，不改动文件"
+    )
+    clean_cmd = commands.add_parser("clean", help="列出非图片杂项；加 --apply 移入回收站")
+    clean_cmd.add_argument("root", type=Path, help="总目录")
+    clean_cmd.add_argument("--apply", action="store_true", help="移入回收站并删除因此变空的目录")
     args = parser.parse_args(argv)
 
     if args.command == "plan":
@@ -1863,6 +1982,30 @@ def main(argv: list[str] | None = None) -> int:
         args.out.write_text(json.dumps(plan, ensure_ascii=False, indent=2), encoding="utf-8")
         print_plan(plan, args.out)
         return 0
+
+    if args.command == "clean":
+        root = Path(os.path.abspath(args.root))
+        if not root.is_dir():
+            print(f"错误：总目录不存在或不是目录：{root}", file=sys.stderr)
+            return 2
+        found = find_junk(root)
+        print_junk(found)
+        if not args.apply:
+            return 0
+        problem = check_platform()
+        if problem:
+            print(f"错误：{problem}", file=sys.stderr)
+            return 2
+        cleaned = clean_junk(root, found)
+        print(
+            f"移入回收站 {len(cleaned['trashed'])} 个，"
+            f"删除变空的目录 {len(cleaned['removed_empty_dirs'])} 个。"
+        )
+        for item in cleaned["removed_empty_dirs"]:
+            print(f"  删除空目录 {item}")
+        for item in cleaned["failed"]:
+            print(f"  失败 {item['path']}：{item['error']}")
+        return 1 if cleaned["failed"] else 0
 
     source = args.decisions if args.command == "apply-decisions" else args.plan
     try:
@@ -1894,6 +2037,10 @@ def main(argv: list[str] | None = None) -> int:
                 for line in describe_case(root, case)
             ]
         print("\n".join(lines))
+        return 0
+    if args.command == "apply-decisions" and args.check:
+        checked = apply_decisions(data, check_only=True)
+        print_decision_result(checked, check_only=True)
         return 0
     problem = check_platform()
     if problem:
