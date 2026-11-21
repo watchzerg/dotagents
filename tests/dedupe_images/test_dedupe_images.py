@@ -223,3 +223,63 @@ def test_page_series(tmp_path: Path) -> None:
         write(single / f"00 ({i}).jpg", data)
     write(single / "00 (3) (1).jpg", pages[1])
     assert summarize(single) == ([("00 (3).jpg", ["00 (3) (1).jpg"], None)], [])
+
+
+def test_cross_name(tmp_path: Path) -> None:
+    pages = [f"page-{i}".encode() * (5 + i) for i in range(12)]
+
+    # 只差补零：留补零写法
+    pad = tmp_path / "pad"
+    write(pad / "0630_A_76.png", pages[0])
+    write(pad / "630_A_76.png", pages[0])
+    write(pad / "631_A_77.png", pages[1])  # 无对应，不动
+    assert summarize(pad) == ([("0630_A_76.png", ["630_A_76.png"], None)], [])
+
+    # 只差开头流水号且整套存了两遍：留流水号小的
+    index = tmp_path / "index"
+    for i, data in enumerate(pages[:4]):
+        write(index / f"{i + 1:03d}_hellven_{i:03d}.jpg", data)
+        write(index / f"{i + 5:03d}_hellven_{i:03d}.jpg", data)
+    groups, _ = summarize(index)
+    assert groups == [
+        (f"{i + 1:03d}_hellven_{i:03d}.jpg", [f"{i + 5:03d}_hellven_{i:03d}.jpg"], None)
+        for i in range(4)
+    ]
+
+    # 只差流水号的只有零星一对（每章重复的声明页）：不动
+    credit = tmp_path / "credit"
+    for i, data in enumerate(pages[:10]):
+        write(credit / f"{i + 1:03d}_page.jpg", data)
+    write(credit / "001_credit.jpg", b"credit")
+    write(credit / "050_credit.jpg", b"credit")
+    assert summarize(credit) == ([], [])
+
+    # 两种命名、编号错开一位的整套重复：留不带副本标记的一套，多出的一页不动
+    both = tmp_path / "both"
+    write(both / "page - (1).jpg", b"cover")
+    for i, data in enumerate(pages, 1):
+        write(both / f"{i:03d}.jpg", data)
+        write(both / f"page - ({i + 1}).jpg", data)
+    groups, _ = summarize(both)
+    assert groups == [(f"{i:03d}.jpg", [f"page - ({i + 1}).jpg"], None) for i in range(1, 13)]
+
+    # 大部分同名配对、后半段错位：同名的由名称组处理，错位的按整套对应移走
+    shifted = tmp_path / "shifted"
+    for i, data in enumerate(pages, 1):
+        write(shifted / f"{i:02d}.jpg", data)
+        copy = data if i <= 9 else pages[i - 2]
+        write(shifted / f"{i:02d} (1).jpg", copy)
+    groups, _ = summarize(shifted)
+    assert groups == [(f"{i:02d}.jpg", [f"{i:02d} (1).jpg"], None) for i in range(1, 10)] + [
+        (f"{i - 1:02d}.jpg", [f"{i:02d} (1).jpg"], None) for i in range(10, 13)
+    ]
+
+    # 套太小（双语版各自的封面）、或只有少数页相同（不同语言版本）：不动
+    bilingual = tmp_path / "bilingual"
+    for i, data in enumerate(pages, 1):
+        write(bilingual / f"{i:03d}.jpg", data)
+        write(bilingual / f"k{i:03d}.jpg", data if i <= 3 else data + b"ko")
+    for i in range(1, 4):
+        write(bilingual / f"000c{i:02d}.jpg", f"c{i}".encode())
+        write(bilingual / f"k000c{i:02d}.jpg", f"c{i}".encode())
+    assert summarize(bilingual) == ([], [])

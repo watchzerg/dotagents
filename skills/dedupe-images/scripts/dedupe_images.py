@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
-PLAN_VERSION = 4
+PLAN_VERSION = 5
 
 # 目录里直接有这些文件（或目录名以 .app 结尾）即视为软件目录，连同子目录整体跳过。
 PROGRAM_EXTENSIONS = frozenset("exe dll so dylib msi assets pak".split())
@@ -73,6 +73,13 @@ RENAME_NUMBER_LIMIT = 1000
 SERIES_MIN_PAGES = 4
 # 页码序列里补零一套（`page (001)`）至少有该比例在不补零一套里有同内容文件，才视为整套重复。
 WHOLE_SET_RATIO = 0.9
+# 两套命名模板整套对应时，两套文件数之比的下限，避免小套与大画集偶然配上。
+SET_SIZE_RATIO = 0.9
+# 参与整套对应的命名模板至少要有的文件数；双语版各自的几张封面（`000c01` 与 `k000c01`）不应整套移走。
+NAME_SET_MIN_FILES = 10
+# 只差开头流水号的同内容文件，待删数至少占目录图片数的该比例才移走（整套存了两遍）；
+# 零星几对多是每章重复的声明页，不动。
+INDEX_SET_RATIO = 0.25
 
 WGET = re.compile(r"^(?P<inner>.+\.(?P<ext>[^.]+))\.(?P<n>\d+)$")
 
@@ -345,7 +352,204 @@ def _group(
             {**_entry(directory / p.name, size, h), "damaged": damaged} for p, h, damaged in remove
         ],
         "rename_to": rename_to,
+        "match": "name",
     }
+
+
+# ---------- 跨名称匹配：同一批图片以两种文件名各存一份 ----------
+
+
+def _stem_ext(parsed: Parsed) -> tuple[str, str]:
+    stem = parsed.name.rpartition(".")[0]
+    return unicodedata.normalize("NFC", stem).casefold(), EXTENSIONS[parsed.ext.lower()]
+
+
+def zero_pad_key(parsed: Parsed) -> tuple[str, str]:
+    """各处数字去掉前导 0 后的名字：`0630_A_76.png` 与 `630_A_76.png` 相同。"""
+    stem, ext = _stem_ext(parsed)
+    return re.sub(r"\d+", lambda m: str(int(m[0])), stem), ext
+
+
+LEADING_INDEX = re.compile(r"^(?P<index>\d+)[_ -](?P<rest>.+)$")
+
+
+def index_key(parsed: Parsed) -> tuple[str, str] | None:
+    """去掉开头流水号后的名字（`121_hellven_000.jpg` → `hellven_000`）；剩余部分须含字母。"""
+    stem, ext = _stem_ext(parsed)
+    match = LEADING_INDEX.match(stem)
+    if match is None or not re.search(r"[^\W\d_]", match["rest"]):
+        return None
+    return match["rest"], ext
+
+
+def _index_rank(parsed: Parsed) -> tuple[int, str]:
+    match = LEADING_INDEX.match(parsed.name)
+    return (int(match["index"]) if match else 0, parsed.name)
+
+
+def template_key(parsed: Parsed) -> tuple[str, str]:
+    """数字替换为 # 后的命名模板：`page (001).jpg` 与 `page (74).jpg` 同属 `page (#)`。"""
+    stem, ext = _stem_ext(parsed)
+    return re.sub(r"\d+", "#", stem), ext
+
+
+def _digests(
+    directory: Path, members: list[Parsed], errors: list[str], cache: dict[str, str]
+) -> dict[str, str]:
+    result: dict[str, str] = {}
+    for parsed in members:
+        try:
+            result[parsed.name] = _hash(directory, parsed.name, cache)
+        except OSError as exc:
+            errors.append(f"{directory / parsed.name}: {exc}")
+    return result
+
+
+def match_by_key(
+    directory: Path,
+    members: list[Parsed],
+    sizes: dict[str, int],
+    key: Callable[[Parsed], Any],
+    rank: Callable[[Parsed], Any],
+    errors: list[str],
+    cache: dict[str, str],
+) -> list[Found]:
+    """key 相同、体积与哈希都相同的文件构成重复组，按 rank 取保留项；不做损坏判定，也不产生人工确认项。"""
+    buckets: dict[tuple[Any, int], list[Parsed]] = defaultdict(list)
+    for parsed in members:
+        k = key(parsed)
+        if k is not None:
+            buckets[(k, sizes[parsed.name])].append(parsed)
+    found: list[Found] = []
+    for (_, size), bucket in buckets.items():
+        if len(bucket) < 2:
+            continue
+        digests = _digests(directory, bucket, errors, cache)
+        by_hash: dict[str, list[Parsed]] = defaultdict(list)
+        for parsed in bucket:
+            if parsed.name in digests:
+                by_hash[digests[parsed.name]].append(parsed)
+        for digest, same in by_hash.items():
+            if len(same) >= 2:
+                keep, *remove = sorted(same, key=rank)
+                found.append((keep, digest, [(p, digest, False) for p in remove], size))
+    return found
+
+
+def _has_marker(parsed: Parsed) -> bool:
+    strong = parse_name(parsed.name, weak=False)
+    return strong is not None and bool(strong.numbers)
+
+
+def find_whole_sets(
+    directory: Path,
+    members: list[Parsed],
+    sizes: dict[str, int],
+    gone: set[str],
+    fixed: set[str],
+    errors: list[str],
+    cache: dict[str, str],
+) -> list[Found]:
+    """按命名模板分套；某套至少 WHOLE_SET_RATIO 的文件在数量相近的另一套里有同内容文件时，移走这些文件。
+
+    members 是目录内全部图片。gone 是前面规则已移走的文件：它们在别处另有同内容文件，算作已覆盖，
+    但不再作保留项；fixed 是前面规则的保留项，可以作保留项但不移走。
+    """
+    sets: dict[tuple[str, str], list[Parsed]] = defaultdict(list)
+    for parsed in members:
+        sets[template_key(parsed)].append(parsed)
+    # 保留优先：不带副本标记的套、文件多的套
+    order = sorted(
+        (t for t, ps in sets.items() if len(ps) >= NAME_SET_MIN_FILES),
+        key=lambda t: (any(_has_marker(p) for p in sets[t]), -len(sets[t]), t),
+    )
+    keepers: set[tuple[str, str]] = set()
+    dropped: set[tuple[str, str]] = set()
+    found: list[Found] = []
+    for b_key in reversed(order):
+        if b_key in keepers:
+            continue
+        b_set = sets[b_key]
+        b_open = [p for p in b_set if p.name not in gone]
+        for a_key in order:
+            if a_key == b_key:
+                break
+            a_set = [p for p in sets[a_key] if p.name not in gone]
+            if a_key in dropped or min(len(sets[a_key]), len(b_set)) < SET_SIZE_RATIO * max(
+                len(sets[a_key]), len(b_set)
+            ):
+                continue
+            b_sizes = {sizes[p.name] for p in b_open}
+            a_digests = _digests(
+                directory, [p for p in a_set if sizes[p.name] in b_sizes], errors, cache
+            )
+            a_sizes = {sizes[n] for n in a_digests}
+            b_digests = _digests(
+                directory, [p for p in b_open if sizes[p.name] in a_sizes], errors, cache
+            )
+            by_digest: dict[str, list[Parsed]] = defaultdict(list)
+            for parsed in a_set:
+                if parsed.name in a_digests:
+                    by_digest[a_digests[parsed.name]].append(parsed)
+            matched: dict[str, list[Parsed]] = defaultdict(list)
+            for parsed in b_open:
+                digest = b_digests.get(parsed.name)
+                if digest in by_digest:
+                    matched[digest].append(parsed)
+            covered = len(b_set) - len(b_open) + sum(map(len, matched.values()))
+            if covered < WHOLE_SET_RATIO * len(b_set):
+                continue
+            for digest, duplicates in matched.items():
+                remove = sorted(
+                    (p for p in duplicates if p.name not in fixed), key=lambda p: p.name
+                )
+                if remove:
+                    keep = min(by_digest[digest], key=lambda p: p.name)
+                    found.append(
+                        (keep, digest, [(p, digest, False) for p in remove], sizes[keep.name])
+                    )
+            dropped.add(b_key)
+            keepers.add(a_key)
+            break
+    return found
+
+
+def find_cross_name(
+    directory: Path,
+    members: list[Parsed],
+    sizes: dict[str, int],
+    gone: set[str],
+    fixed: set[str],
+    errors: list[str],
+    cache: dict[str, str],
+) -> list[tuple[Parsed, str, list[tuple[Parsed, str, bool]], int, str]]:
+    """名称组之外的重复：只差补零、只差开头流水号（须整套）、两套命名模板整套对应，依次匹配。
+
+    members 是目录内全部图片；gone、fixed 是名称组规则移走的文件与保留（含改名）的文件。
+    补零与流水号只在两者之外的文件里配对；每一步的结果并入 gone、fixed 供后一步使用。
+    """
+    result: list[tuple[Parsed, str, list[tuple[Parsed, str, bool]], int, str]] = []
+    gone, fixed = set(gone), set(fixed)
+
+    def take(found: list[Found], match: str) -> None:
+        gone.update(p.name for f in found for p, _, _ in f[2])
+        fixed.update(k.name for k, _, _, _ in found)
+        result.extend((k, d, rm, s, match) for k, d, rm, s in found)
+
+    def free() -> list[Parsed]:
+        return [p for p in members if p.name not in gone and p.name not in fixed]
+
+    take(
+        match_by_key(
+            directory, free(), sizes, zero_pad_key, lambda p: (-len(p.name), p.name), errors, cache
+        ),
+        "zero_pad",
+    )
+    indexed = match_by_key(directory, free(), sizes, index_key, _index_rank, errors, cache)
+    if sum(len(rm) for _, _, rm, _ in indexed) >= INDEX_SET_RATIO * len(members):
+        take(indexed, "index_prefix")
+    take(find_whole_sets(directory, members, sizes, gone, fixed, errors, cache), "name_set")
+    return result
 
 
 def plan_directory(directory: Path, rel: str, errors: list[str]) -> dict[str, Any] | None:
@@ -392,6 +596,13 @@ def plan_directory(directory: Path, rel: str, errors: list[str]) -> dict[str, An
             if alone and keep.renamable and (freed or not os.path.lexists(directory / target)):
                 rename_to = target
             groups.append(_group(directory, keep, digest, size, remove, rename_to))
+    gone = {r["name"] for g in groups for r in g["remove"]}
+    fixed = {g["keep"]["name"] for g in groups}
+    everything = [p for ps in name_groups.values() for p in ps]
+    for keep, digest, remove, size, match in find_cross_name(
+        directory, everything, sizes, gone, fixed, errors, cache
+    ):
+        groups.append({**_group(directory, keep, digest, size, remove, None), "match": match})
     if not groups and not review:
         return None
     groups.sort(key=lambda g: g["keep"]["name"])
@@ -447,6 +658,7 @@ def build_plan(root: Path) -> dict[str, Any]:
             "remove_files": len(removes),
             "remove_bytes": sum(r["size"] for r in removes),
             "damaged_files": sum(1 for r in removes if r["damaged"]),
+            "cross_name_files": sum(len(g["remove"]) for g in groups if g["match"] != "name"),
             "renames": sum(1 for g in groups if g["rename_to"]),
             "review_sets": sum(len(d["review"]) for d in dirs),
         },
@@ -475,6 +687,11 @@ def print_plan(plan: dict, out: Path) -> None:
         f"（{human_size(summary['remove_bytes'])}，其中损坏副本 {summary['damaged_files']} 个），"
         f"改回原名 {summary['renames']} 个。"
     )
+    if summary["cross_name_files"]:
+        print(
+            f"其中 {summary['cross_name_files']} 个按命名对应识别"
+            "（只差补零、只差开头流水号或两套编号整套相同），与保留项文件名不同。"
+        )
     per_top: dict[str, list[int]] = defaultdict(lambda: [0, 0])
     for directory in plan["dirs"]:
         counts = per_top[_top(directory["dir"])]
