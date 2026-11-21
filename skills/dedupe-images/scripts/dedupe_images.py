@@ -1762,6 +1762,11 @@ def _tree_files(root: Path, rel: str) -> tuple[dict[str, int], list[str]]:
     return files, problems
 
 
+def _move_name(move: dict) -> str:
+    """move 移进 dest 后的文件名：给了 name 用 name，否则沿用 src 的名字。"""
+    return move.get("name") or posixpath.basename(move["src"])
+
+
 def check_case(root: Path, actions: list[dict], cache: dict[str, str]) -> list[str]:
     """执行前校验一个案例的全部操作：路径合法、移动不覆盖，且每个被移走的文件在 keep 路径下
     （含移动进 keep 的目录）有 SHA-256 相同的文件，keep 不能落在被移走的路径里。"""
@@ -1771,18 +1776,27 @@ def check_case(root: Path, actions: list[dict], cache: dict[str, str]) -> list[s
     for action in actions:
         if action.get("op") not in ("move", "trash", "trash_matching", "keep"):
             problems.append(f"未知操作 {action.get('op')!r}")
+    targets: set[str] = set()
     for move in moves:
         src, dest = _clean_rel(move.get("src")), _clean_rel(move.get("dest"))
+        name = move.get("name")
         if src is None or dest is None:
             problems.append(f"移动路径不合法：{move.get('src')!r} → {move.get('dest')!r}")
             continue
+        if name is not None and (
+            not isinstance(name, str) or name in ("", ".", "..") or "/" in name or "\\" in name
+        ):
+            problems.append(f"新文件名不合法：{name!r}")
+            continue
         move["src"], move["dest"] = src, dest
+        target = f"{dest}/{_move_name(move)}"
         if not (root / src).exists() or (root / src).is_symlink():
             problems.append(f"{src} 不存在或是符号链接")
         if not (root / dest).is_dir():
             problems.append(f"目标目录 {dest} 不存在")
-        if os.path.lexists(root / dest / posixpath.basename(src)):
-            problems.append(f"{dest}/{posixpath.basename(src)} 已存在")
+        if os.path.lexists(root / target) or target in targets:
+            problems.append(f"{target} 已存在")
+        targets.add(target)
         if _inside(dest, src):
             problems.append(f"不能把 {src} 移进它自己")
         if any(_inside(dest, _clean_rel(t.get("path")) or "") for t in trashes):
@@ -1899,7 +1913,7 @@ def apply_decisions(decisions: dict, check_only: bool = False) -> dict[str, list
             for move in (a for a in actions if a["op"] == "move"):
                 src = root / move["src"]
                 result["moved"].append(
-                    {"from": str(src), "to": str(root / move["dest"] / src.name)}
+                    {"from": str(src), "to": str(root / move["dest"] / _move_name(move))}
                 )
             result["trashed"] += [str(root / a["path"]) for a in actions if a["op"] == "trash"]
             continue
@@ -1907,7 +1921,7 @@ def apply_decisions(decisions: dict, check_only: bool = False) -> dict[str, list
         try:
             for move in (a for a in actions if a["op"] == "move"):
                 src = root / move["src"]
-                target = root / move["dest"] / src.name
+                target = root / move["dest"] / _move_name(move)
                 os.rename(src, target)
                 sources.append(src)
                 result["moved"].append({"from": str(src), "to": str(target)})

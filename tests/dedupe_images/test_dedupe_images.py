@@ -547,6 +547,48 @@ def test_check_decisions_without_changes(tmp_path: Path) -> None:
     assert (root / "A/2.jpg").exists() and (root / "B/1.jpg").exists()
 
 
+def test_move_with_new_name(tmp_path: Path) -> None:
+    root = tmp_path / "lib"
+    write(root / "Named/001_a.png", b"A")
+    write(root / "Named/002_b.png", b"B")
+    write(root / "Flat/00000001.png", b"A")
+    write(root / "Flat/00000002.png", b"X")  # 只在 Flat 里有，改名插到 001_a 之后
+    write(root / "Flat/00000003.png", b"B")
+    decisions_path = tmp_path / "decisions.json"
+
+    def decide(name: str) -> subprocess.CompletedProcess[str]:
+        decisions_path.write_text(
+            json.dumps(
+                {
+                    "root": str(root),
+                    "actions": [
+                        {
+                            "case": "m",
+                            "op": "move",
+                            "src": "Flat/00000002.png",
+                            "dest": "Named",
+                            "name": name,
+                        },
+                        {"case": "m", "op": "trash", "path": "Flat", "keep": ["Named"]},
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        return run("apply-decisions", str(decisions_path), xdg=tmp_path / "xdg")
+
+    assert "Named/002_b.png 已存在" in decide("002_b.png").stdout
+    assert "新文件名不合法" in decide("../x.png").stdout
+    applied = decide("001_a_00000002.png")
+    assert applied.returncode == 0, applied.stdout + applied.stderr
+    assert sorted(p.name for p in (root / "Named").iterdir()) == [
+        "001_a.png",
+        "001_a_00000002.png",
+        "002_b.png",
+    ]
+    assert not (root / "Flat").exists()
+
+
 def test_shown_quotes_surrounding_whitespace() -> None:
     assert dedupe._shown("a/ 01") == "「a/ 01」"
     assert dedupe._shown("a/01") == "a/01"
