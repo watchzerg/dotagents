@@ -541,10 +541,42 @@ def test_check_decisions_without_changes(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     checked = run("apply-decisions", str(decisions_path), "--check", xdg=tmp_path / "xdg")
-    assert checked.returncode == 0
+    assert checked.returncode == 1  # 有跳过项
     assert "校验通过（未执行）案例 1 个" in checked.stdout
     assert "A/2.jpg" in checked.stdout  # 列出未覆盖的文件，据此决定先移动哪些
     assert (root / "A/2.jpg").exists() and (root / "B/1.jpg").exists()
+
+    # 两个案例各自都成立、合起来会互相删掉保留处：校验模式按顺序模拟，后一个报冲突
+    (root / "A/2.jpg").unlink()
+    checked = run("apply-decisions", str(decisions_path), "--check", xdg=tmp_path / "xdg")
+    assert checked.returncode == 1
+    assert "y：A 与案例 x 冲突" in checked.stdout
+
+
+def test_decisions_reject_malformed_keep(tmp_path: Path) -> None:
+    root = tmp_path / "lib"
+    write(root / "A/1.jpg", b"A")
+    write(root / "B/1.jpg", b"A")
+    decisions_path = tmp_path / "decisions.json"
+    decisions_path.write_text(
+        json.dumps(
+            {
+                "root": str(root),
+                "actions": [
+                    {"case": "x", "op": "trash", "path": "A", "keep": "B"},
+                    {"case": "y", "op": "trash_matching", "path": "A", "keep": "B"},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    checked = run("apply-decisions", str(decisions_path), "--check", xdg=tmp_path / "xdg")
+    assert "x：移走项路径或 keep 不合法" in checked.stdout
+    assert "y：trash_matching 路径或 keep 不合法" in checked.stdout
+    decisions_path.write_text(
+        json.dumps({"root": str(root), "actions": ["oops"]}), encoding="utf-8"
+    )
+    assert run("apply-decisions", str(decisions_path), xdg=tmp_path / "xdg").returncode == 2
 
 
 def test_move_with_new_name(tmp_path: Path) -> None:

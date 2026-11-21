@@ -42,7 +42,7 @@ EXTENSIONS = {
     **dict.fromkeys(("heic", "heif"), "heic"),
     **{
         ext: ext
-        for ext in ("png gif webp bmp avif jxl svg ico dng cr2 cr3 nef arw raf orf rw2".split())
+        for ext in ("png gif webp bmp avif jxl svg dng cr2 cr3 nef arw raf orf rw2".split())
     },
 }
 
@@ -970,7 +970,7 @@ def build_plan(root: Path) -> dict[str, Any]:
         subdirs[:] = sorted(
             d for d in subdirs if not d.startswith(".") and not (directory / d).is_symlink()
         )
-        if is_program_dir(directory.name, files):
+        if rel != "." and is_program_dir(directory.name, files):
             skipped.append(rel)
             subdirs[:] = []
             continue
@@ -1024,7 +1024,6 @@ def build_plan(root: Path) -> dict[str, Any]:
             "damaged_files": sum(1 for r in removes if r["damaged"]),
             "cross_name_files": sum(len(g["remove"]) for g in groups if g["match"] != "name"),
             "renames": sum(1 for g in groups if g["rename_to"]),
-            "review_sets": sum(len(d["review"]) for d in dirs),
             "dir_cases": sum(1 for c in cases if c["kind"] == "dir"),
             "file_cases": sum(1 for c in cases if c["kind"] == "file"),
             "composed_cases": sum(1 for c in cases if "composed" in c),
@@ -1189,12 +1188,17 @@ def trash_files(paths: list[Path]) -> list[tuple[Path, str]]:
     """把文件移入回收站，返回失败项 (路径, 原因)。"""
     failures: list[tuple[Path, str]] = []
     if sys.platform == "darwin":
-        result = subprocess.run(
-            [str(MAC_TRASH), *map(str, paths)], capture_output=True, text=True, check=False
-        )
-        for path in paths:
-            if os.path.lexists(path):
-                failures.append((path, result.stderr.strip() or f"退出码 {result.returncode}"))
+        # 分批调用，避免上千个路径超出命令行长度上限
+        for start in range(0, len(paths), 200):
+            batch = paths[start : start + 200]
+            try:
+                result = subprocess.run(
+                    [str(MAC_TRASH), *map(str, batch)], capture_output=True, text=True, check=False
+                )
+                reason = result.stderr.strip() or f"退出码 {result.returncode}"
+            except OSError as exc:
+                reason = str(exc)
+            failures += [(path, reason) for path in batch if os.path.lexists(path)]
         return failures
     for path in paths:
         try:
@@ -1385,7 +1389,12 @@ def find_junk(root: Path) -> dict[str, Any]:
     junk: list[dict[str, Any]] = []
     missing: list[str] = []
     others: Counter[str] = Counter()
-    for dirpath, dirnames, filenames in os.walk(root):
+    errors: list[str] = []
+
+    def on_error(exc: OSError) -> None:
+        errors.append(f"{exc.filename}：{exc.strerror or exc}")
+
+    for dirpath, dirnames, filenames in os.walk(root, onerror=on_error):
         directory = Path(dirpath)
         dirnames[:] = sorted(
             d for d in dirnames if not d.startswith(".") and not (directory / d).is_symlink()
@@ -1400,7 +1409,12 @@ def find_junk(root: Path) -> dict[str, Any]:
             kind = junk_kind(path)
             rel = str(path.relative_to(root))
             if kind:
-                junk.append({"path": rel, "kind": kind, "size": path.stat().st_size})
+                try:
+                    size = path.stat().st_size
+                except OSError as exc:
+                    errors.append(f"{rel}：{exc.strerror or exc}")
+                    continue
+                junk.append({"path": rel, "kind": kind, "size": size})
                 if (
                     kind == "未下载完的残缺文件"
                     and not (directory / name.rpartition(".")[0]).exists()
@@ -1408,7 +1422,12 @@ def find_junk(root: Path) -> dict[str, Any]:
                     missing.append(rel)
             elif not name.startswith(".") and name.rpartition(".")[2].lower() not in EXTENSIONS:
                 others[name.rpartition(".")[2].lower() if "." in name else "（无扩展名）"] += 1
-    return {"junk": junk, "missing": missing, "others": dict(others.most_common())}
+    return {
+        "junk": junk,
+        "missing": missing,
+        "others": dict(others.most_common()),
+        "errors": errors,
+    }
 
 
 def print_junk(found: dict[str, Any]) -> None:
@@ -1426,6 +1445,10 @@ def print_junk(found: dict[str, Any]) -> None:
         )
         for rel in found["missing"]:
             print(f"  {rel}")
+    if found["errors"]:
+        print(f"无法读取 {len(found['errors'])} 项（未处理）：")
+        for error in found["errors"]:
+            print(f"  {error}")
     if found["others"]:
         listed = "，".join(f"{ext} {n}" for ext, n in found["others"].items())
         print(f"不处理的其余非图片文件：{listed}")
@@ -1612,7 +1635,7 @@ def describe_case(root: Path, case: dict) -> list[str]:
             lines.append(
                 f"  {path}（损坏特征：{'有' if damaged else '无' if damaged is False else '不判定'}）"
             )
-        if len(data) == 2:
+        if len(data) == 2 and len(set(map(len, data.values()))) == 1:
             a, b = data.values()
             diff = [i for i in range(len(a)) if a[i] != b[i]]
             if diff:
@@ -1654,7 +1677,11 @@ def describe_case(root: Path, case: dict) -> list[str]:
             described = describe_dir(root, parent)
             lines.append("  所在父目录：" + described[0].strip())
             # 父目录是大分类（几百个作品）时列子目录没有帮助
-            if len(_listing(root / parent)[2]) <= 40:
+            try:
+                few = len(_listing(root / parent)[2]) <= 40
+            except OSError:
+                few = False
+            if few:
                 lines += [line for line in described if "子目录：" in line]
         return lines
     # 跨父目录：两个合集之间的取舍，列出两边父目录及各自没有对应关系的子目录
@@ -1803,7 +1830,8 @@ def check_case(root: Path, actions: list[dict], cache: dict[str, str]) -> list[s
             problems.append(f"不能移进将被移走的 {dest}")
     for trash in trashes:
         path = _clean_rel(trash.get("path"))
-        keeps = [_clean_rel(k) for k in trash.get("keep") or []]
+        raw = trash.get("keep")
+        keeps = [_clean_rel(k) for k in raw] if isinstance(raw, list) else []
         if path is None or not keeps or None in keeps:
             problems.append(f"移走项路径或 keep 不合法：{trash.get('path')!r}")
             continue
@@ -1860,7 +1888,8 @@ def expand_matching(root: Path, actions: list[dict], cache: dict[str, str]) -> l
     for action in [a for a in actions if a.get("op") == "trash_matching"]:
         actions.remove(action)
         path = _clean_rel(action.get("path"))
-        raw = action.get("keep") or []
+        raw = action.get("keep")
+        raw = raw if isinstance(raw, list) else []
         keeps = [k for k in map(_clean_rel, raw) if k is not None]
         if path is None or not keeps or len(keeps) != len(raw) or not (root / path).is_dir():
             problems.append(f"trash_matching 路径或 keep 不合法：{action.get('path')!r}")
@@ -1902,13 +1931,29 @@ def apply_decisions(decisions: dict, check_only: bool = False) -> dict[str, list
     by_case: dict[str, list[dict]] = defaultdict(list)
     for action in decisions["actions"]:
         by_case[str(action.get("case", ""))].append(action)
-    cache: dict[str, str] = {}
+    shared: dict[str, str] = {}
+    consumed: dict[str, str] = {}  # 校验模式下，前面通过的案例将移走或移动的路径 -> 案例编号
     for case, actions in by_case.items():
+        # 执行模式下前面的案例已改动文件，路径对应的哈希可能过期，所以每个案例重新计算
+        cache = shared if check_only else {}
         problems = expand_matching(root, actions, cache) or check_case(root, actions, cache)
+        if check_only and not problems:
+            used = [
+                str(v)
+                for a in actions
+                for v in (a.get("src"), a.get("dest"), a.get("path"), *(a.get("keep") or []))
+                if v
+            ]
+            problems = sorted(
+                {f"{u} 与案例 {c} 冲突" for u in used for p, c in consumed.items() if _inside(u, p)}
+            )
         if problems:
             result["skipped"].append({"case": case, "reason": "；".join(problems)})
             continue
         if check_only:
+            for a in actions:
+                if a["op"] in ("move", "trash"):
+                    consumed[a.get("src") or a["path"]] = case
             result["done"].append(case)
             for move in (a for a in actions if a["op"] == "move"):
                 src = root / move["src"]
@@ -1945,9 +1990,11 @@ def apply_decisions(decisions: dict, check_only: bool = False) -> dict[str, list
 
 
 def print_decision_result(result: dict[str, list], check_only: bool = False) -> None:
+    head = "校验通过（未执行）" if check_only else "执行"
+    tail = "" if check_only else f"，删除变空的上级目录 {len(result['removed_empty_dirs'])} 个"
     print(
-        f"{'校验通过（未执行）' if check_only else '执行'}案例 {len(result['done'])} 个：移动 {len(result['moved'])} 项，"
-        f"移入回收站 {len(result['trashed'])} 项，删除变空的上级目录 {len(result['removed_empty_dirs'])} 个。"
+        f"{head}案例 {len(result['done'])} 个：移动 {len(result['moved'])} 项，"
+        f"移入回收站 {len(result['trashed'])} 项{tail}。"
     )
     for item in result["moved"]:
         print(f"  移动 {item['from']} → {item['to']}")
@@ -1961,6 +2008,14 @@ def print_decision_result(result: dict[str, list], check_only: bool = False) -> 
         print(f"失败 {len(result['failed'])} 项：")
         for item in result["failed"]:
             print(f"  {item['case']}：{item['error']}")
+
+
+def _root(value: Path | str) -> Path | None:
+    root = Path(os.path.abspath(value))
+    if root.is_dir():
+        return root
+    print(f"错误：总目录不存在或不是目录：{root}", file=sys.stderr)
+    return None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1988,9 +2043,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "plan":
-        root = Path(os.path.abspath(args.root))
-        if not root.is_dir():
-            print(f"错误：总目录不存在或不是目录：{root}", file=sys.stderr)
+        root = _root(args.root)
+        if root is None:
             return 2
         plan = build_plan(root)
         args.out.write_text(json.dumps(plan, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -1998,9 +2052,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "clean":
-        root = Path(os.path.abspath(args.root))
-        if not root.is_dir():
-            print(f"错误：总目录不存在或不是目录：{root}", file=sys.stderr)
+        root = _root(args.root)
+        if root is None:
             return 2
         found = find_junk(root)
         print_junk(found)
@@ -2028,8 +2081,15 @@ def main(argv: list[str] | None = None) -> int:
         print(f"错误：无法读取 {source}：{exc}", file=sys.stderr)
         return 2
     if args.command == "apply-decisions":
-        if not isinstance(data.get("root"), str) or not isinstance(data.get("actions"), list):
-            print("错误：决策文件须有 root 与 actions。", file=sys.stderr)
+        actions = data.get("actions")
+        if (
+            not isinstance(data.get("root"), str)
+            or not isinstance(actions, list)
+            or not all(isinstance(a, dict) for a in actions)
+        ):
+            print("错误：决策文件须有 root 与由对象组成的 actions。", file=sys.stderr)
+            return 2
+        if _root(data["root"]) is None:
             return 2
     elif data.get("version") != PLAN_VERSION:
         print("错误：计划版本不符，请重新运行 plan。", file=sys.stderr)
@@ -2055,7 +2115,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "apply-decisions" and args.check:
         checked = apply_decisions(data, check_only=True)
         print_decision_result(checked, check_only=True)
-        return 0
+        return 1 if checked["skipped"] else 0
     problem = check_platform()
     if problem:
         print(f"错误：{problem}", file=sys.stderr)
