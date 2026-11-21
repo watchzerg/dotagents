@@ -283,3 +283,71 @@ def test_cross_name(tmp_path: Path) -> None:
         write(bilingual / f"000c{i:02d}.jpg", f"c{i}".encode())
         write(bilingual / f"k000c{i:02d}.jpg", f"c{i}".encode())
     assert summarize(bilingual) == ([], [])
+
+
+def test_dir_duplicates(tmp_path: Path) -> None:
+    root = tmp_path / "lib"
+
+    def fill(rel: str, files: dict[str, bytes]) -> None:
+        for name, data in files.items():
+            write(root / rel / name, data)
+
+    pages = {f"{i:02d}.jpg": f"x{i}".encode() * 5 for i in range(1, 4)}
+    fill("X", pages)
+    fill("X (2)", pages)  # 内容相同、名字带副本标记：移走
+    fill("X (2)", {"01 (1).jpg": pages["01.jpg"]})  # 移走的目录不再做目录内去重
+    fill("X", {"01 (1).jpg": pages["01.jpg"]})
+    lily = {f"{i}.jpg": f"lily{i}".encode() for i in range(3)}
+    fill("[P] Lily", lily)
+    fill("[P (皮)] Lily", lily)  # 名字不同、内容相同：留目录名更长的
+    part = {f"{i:03d}.jpg": f"part{i}".encode() for i in range(4)}
+    fill("full/[L] Part 1", part)
+    fill("full/[L] Part 1 more", {**part, "100.jpg": b"extra"})  # 更大的超集
+    fill("only/Part 1", dict(list(part.items())[:3]))  # 同名子集：移走，指向最大的超集
+    fill("Omni", {f"{i:04d}.jpg": f"ch{i}".encode() for i in range(6)})
+    fill("Ch2", {f"{i}.jpg": f"ch{i + 3}".encode() for i in range(3)})  # 文件名改过的子集：人工确认
+    fill("NoteA", {"a.jpg": b"note-a", "info.txt": b"v1"})
+    fill("NoteB", {"a.jpg": b"note-a", "info.txt": b"v2"})  # 非图片文件不一致：人工确认
+    fill("Tree", {"t.jpg": b"tree"})
+    fill("Tree/sub", {"s.jpg": b"sub"})
+    fill("Tree2", {"t.jpg": b"tree", "u.jpg": b"u"})  # Tree 含子目录：人工确认
+    for ch in (1, 3, 4):
+        fill(f"Big/ch{ch}", {"p.jpg": f"chapter{ch}".encode()})
+    # 保留子目录多的合集里那份；移走会拆散 Small：人工确认
+    fill("Small/ch1", {"p.jpg": b"chapter1"})
+    fill("Small/ch2", {"p.jpg": b"chapter2"})
+
+    plan = dedupe.build_plan(root)
+    removals = {r["dir"]: (r["keep_dir"], r["relation"]) for r in plan["dir_removals"]}
+    assert removals == {
+        "X (2)": ("X", "equal"),
+        "[P] Lily": ("[P (皮)] Lily", "equal"),
+        "full/[L] Part 1": ("full/[L] Part 1 more", "subset"),
+        "only/Part 1": ("full/[L] Part 1 more", "subset"),
+    }
+    review = {r["dir"]: r["reason"] for r in plan["dir_review"]}
+    assert review == {
+        "Ch2": "文件名不同的子集",
+        "NoteB": "非图片文件不一致",
+        "Small/ch1": "会拆散所在合集",
+        "Tree": "含子目录",
+    }
+    assert [d["dir"] for d in plan["dirs"]] == ["X"]
+
+    xdg = tmp_path / "xdg"
+    plan_path = tmp_path / "plan.json"
+    plan_path.write_text(json.dumps(plan, ensure_ascii=False), encoding="utf-8")
+    write(root / "[P] Lily/new.jpg", b"new")  # 计划之后新增文件：跳过
+    applied = run("apply", str(plan_path), xdg=xdg)
+    assert applied.returncode == 0, applied.stdout + applied.stderr
+    assert "[P] Lily 文件清单已变化" in applied.stdout
+    assert not (root / "X (2)").exists() and not (root / "full/[L] Part 1").exists()
+    assert not (root / "only").exists()  # 移走后变空的上级目录一并删除
+    assert (root / "[P] Lily/new.jpg").exists()
+    assert sorted(p.name for p in (root / "X").iterdir()) == ["01.jpg", "02.jpg", "03.jpg"]
+    assert sorted(p.name for p in (xdg / "Trash/files").iterdir()) == [
+        "01 (1).jpg",
+        "Part 1",
+        "X (2)",
+        "[L] Part 1",
+    ]
