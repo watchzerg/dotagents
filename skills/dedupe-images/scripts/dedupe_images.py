@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
-PLAN_VERSION = 7
+PLAN_VERSION = 8
 
 # 目录里直接有这些文件（或目录名以 .app 结尾）即视为软件目录，连同子目录整体跳过。
 PROGRAM_EXTENSIONS = frozenset("exe dll so dylib msi assets pak".split())
@@ -907,6 +907,47 @@ def find_dir_duplicates(
     return removals, review
 
 
+def find_composed(
+    review: list[dict[str, Any]], infos: list[DirInfo], errors: list[str], cache: dict[str, str]
+) -> dict[str, dict[str, Any]]:
+    """合集恰好由单章拼成：dir_review 中被同一保留目录包含的目录，去掉内容完全相同的重复单章后，
+    至少两个、图片数之和等于合集图片数且哈希多重集合一致。重复单章优先舍弃与其他单章不同父目录的。"""
+    by_rel = {info.rel: info for info in infos}
+    members: dict[str, list[str]] = defaultdict(list)
+    for item in review:
+        members[item["keep_dir"]].append(item["dir"])
+
+    def counted(rel: str) -> Counter[str] | None:
+        info = by_rel[rel]
+        digests = _dir_digests(info, sorted(info.images), errors, cache)
+        return None if digests is None else Counter(digests.values())
+
+    composed: dict[str, dict[str, Any]] = {}
+    for keep, dirs in members.items():
+        if len(dirs) < 2 or (whole := counted(keep)) is None:
+            continue
+        parents = Counter(_parent(d) for d in dirs)
+        chapters: list[str] = []
+        duplicates: list[str] = []
+        seen: set[frozenset] = set()
+        total: Counter[str] = Counter()
+        for rel in sorted(dirs, key=lambda d: (-parents[_parent(d)], d)):
+            part = counted(rel)
+            if part is None:
+                break
+            key = frozenset(part.items())
+            if key in seen:
+                duplicates.append(rel)
+                continue
+            seen.add(key)
+            chapters.append(rel)
+            total += part
+        else:
+            if len(chapters) >= 2 and total == whole:
+                composed[keep] = {"chapters": sorted(chapters), "duplicates": sorted(duplicates)}
+    return composed
+
+
 def is_program_dir(name: str, files: list[str]) -> bool:
     return name.lower().endswith(".app") or any(
         f.rpartition(".")[2].lower() in PROGRAM_EXTENSIONS for f in files if "." in f
@@ -958,7 +999,7 @@ def build_plan(root: Path) -> dict[str, Any]:
             dirs.append(planned)
     groups = [g for d in dirs for g in d["groups"]]
     removes = [r for g in groups for r in g["remove"]]
-    cases = build_cases(dir_review, dirs)
+    cases = build_cases(dir_review, dirs, find_composed(dir_review, infos, errors, cache))
     return {
         "version": PLAN_VERSION,
         "root": str(root),
@@ -985,6 +1026,7 @@ def build_plan(root: Path) -> dict[str, Any]:
             "review_sets": sum(len(d["review"]) for d in dirs),
             "dir_cases": sum(1 for c in cases if c["kind"] == "dir"),
             "file_cases": sum(1 for c in cases if c["kind"] == "file"),
+            "composed_cases": sum(1 for c in cases if "composed" in c),
         },
     }
 
@@ -1039,6 +1081,7 @@ def print_plan(plan: dict, out: Path) -> None:
     if plan["cases"]:
         print(
             f"交模型判断的案例 {len(plan['cases'])} 个（目录 {summary['dir_cases']} 个，"
+            f"其中合集恰好由单章拼成 {summary['composed_cases']} 个；"
             f"同名同体积内容不同的文件 {summary['file_cases']} 个），apply 不处理，用 show 查看材料。"
         )
     if plan["skipped_program_dirs"]:
@@ -1302,23 +1345,34 @@ def print_result(result: dict[str, list]) -> None:
 # ---------- 交模型判断的案例 ----------
 
 
-def build_cases(dir_review: list[dict], dirs: list[dict]) -> list[dict[str, Any]]:
-    """把 dir_review 与文件级人工确认项整理成案例。保留目录与被包含目录不在同一父目录时，
-    同一对父目录之间的包含关系合成一个案例（两个合集之间的取舍要整体决定）。"""
+def build_cases(
+    dir_review: list[dict], dirs: list[dict], composed: dict[str, dict] | None = None
+) -> list[dict[str, Any]]:
+    """把 dir_review 与文件级人工确认项整理成案例。由单章恰好拼成的合集，与它有关的包含关系合成一个
+    案例；其余保留目录与被包含目录不在同一父目录时，同一对父目录之间的包含关系合成一个案例
+    （两个合集之间的取舍要整体决定）。"""
+    composed = composed or {}
     by_parents: dict[tuple[str, str], list[dict]] = defaultdict(list)
+    by_whole: dict[str, list[dict]] = defaultdict(list)
     units: list[list[dict]] = []
     for item in dir_review:
         a, b = _parent(item["dir"]), _parent(item["keep_dir"])
-        if a == b:
+        if item["keep_dir"] in composed:
+            by_whole[item["keep_dir"]].append(item)
+        elif a == b:
             units.append([item])
         else:
             by_parents[(min(a, b), max(a, b))].append(item)
     units += by_parents.values()
+    units += by_whole.values()
     units.sort(key=lambda items: items[0]["dir"])
-    cases: list[dict[str, Any]] = [
-        {"kind": "dir", "reasons": sorted({i["reason"] for i in items}), "pairs": items}
-        for items in units
-    ]
+    cases: list[dict[str, Any]] = []
+    for items in units:
+        case = {"kind": "dir", "reasons": sorted({i["reason"] for i in items}), "pairs": items}
+        whole = items[0]["keep_dir"]
+        if whole in composed:
+            case["composed"] = {"dir": whole, **composed[whole]}
+        cases.append(case)
     cases += [{"kind": "file", "dir": d["dir"], **r} for d in dirs for r in d["review"]]
     for index, case in enumerate(cases, 1):
         case["id"] = f"c{index:03d}"
@@ -1464,6 +1518,22 @@ def describe_case(root: Path, case: dict) -> list[str]:
         return lines
     pairs = case["pairs"]
     lines = [f"== {case['id']} 目录：{'、'.join(case['reasons'])}（{len(pairs)} 对）"]
+    if "composed" in case:
+        info = case["composed"]
+        chapter_parents = sorted({_parent(c) for c in info["chapters"]})
+        where = (
+            f"都在 {_shown(chapter_parents[0])}/ 下"
+            if len(chapter_parents) == 1
+            else f"分散在 {len(chapter_parents)} 个父目录"
+        )
+        lines.append(
+            f"  合集 {_shown(info['dir'])}/ 恰好由 {len(info['chapters'])} 个单章拼成"
+            f"（图片数与哈希一致），单章{where}：{'，'.join(_shown(c) for c in info['chapters'])}"
+        )
+        if info["duplicates"]:
+            lines.append(
+                f"  与某个单章内容相同的重复单章：{'，'.join(map(_shown, info['duplicates']))}"
+            )
     siblings = all(_parent(i["dir"]) == _parent(i["keep_dir"]) for i in pairs)
     if not siblings:
         first = pairs[0]
@@ -1595,7 +1665,7 @@ def check_case(root: Path, actions: list[dict], cache: dict[str, str]) -> list[s
     moves = [a for a in actions if a.get("op") == "move"]
     trashes = [a for a in actions if a.get("op") == "trash"]
     for action in actions:
-        if action.get("op") not in ("move", "trash", "keep"):
+        if action.get("op") not in ("move", "trash", "trash_matching", "keep"):
             problems.append(f"未知操作 {action.get('op')!r}")
     for move in moves:
         src, dest = _clean_rel(move.get("src")), _clean_rel(move.get("dest"))
@@ -1665,6 +1735,42 @@ def check_case(root: Path, actions: list[dict], cache: dict[str, str]) -> list[s
     return problems
 
 
+def expand_matching(root: Path, actions: list[dict], cache: dict[str, str]) -> list[str]:
+    """把 trash_matching 展开为逐个文件的 trash：path 目录直接包含的非隐藏普通文件中，SHA-256 在 keep
+    路径下出现过的都移走，keep 不变。展开后的 trash 照常校验。"""
+    problems: list[str] = []
+    for action in [a for a in actions if a.get("op") == "trash_matching"]:
+        actions.remove(action)
+        path = _clean_rel(action.get("path"))
+        raw = action.get("keep") or []
+        keeps = [k for k in map(_clean_rel, raw) if k is not None]
+        if path is None or not keeps or len(keeps) != len(raw) or not (root / path).is_dir():
+            problems.append(f"trash_matching 路径或 keep 不合法：{action.get('path')!r}")
+            continue
+        try:
+            wanted: set[str] = set()
+            for keep in keeps:
+                found, link_problems = _tree_files(root, keep)
+                problems += link_problems
+                wanted |= {_hash(root, f, cache) for f in found}
+            names = sorted(
+                e.name
+                for e in os.scandir(root / path)
+                if e.is_file(follow_symlinks=False) and not e.name.startswith(".")
+            )
+            matched = [n for n in names if _hash(root, f"{path}/{n}", cache) in wanted]
+        except OSError as exc:
+            problems.append(f"读取失败：{exc}")
+            continue
+        if not matched:
+            problems.append(f"{path} 中没有与保留路径相同内容的文件")
+        actions += [
+            {"case": action.get("case"), "op": "trash", "path": f"{path}/{n}", "keep": keeps}
+            for n in matched
+        ]
+    return problems
+
+
 def apply_decisions(decisions: dict) -> dict[str, list]:
     root = Path(decisions["root"])
     result: dict[str, list] = {
@@ -1680,7 +1786,7 @@ def apply_decisions(decisions: dict) -> dict[str, list]:
         by_case[str(action.get("case", ""))].append(action)
     cache: dict[str, str] = {}
     for case, actions in by_case.items():
-        problems = check_case(root, actions, cache)
+        problems = expand_matching(root, actions, cache) or check_case(root, actions, cache)
         if problems:
             result["skipped"].append({"case": case, "reason": "；".join(problems)})
             continue

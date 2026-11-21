@@ -430,6 +430,60 @@ def test_cases_and_decisions(tmp_path: Path) -> None:
     assert sorted(p.name for p in (xdg / "Trash/files").iterdir()) == ["Small"]
 
 
+def test_composed_collection_and_trash_matching(tmp_path: Path) -> None:
+    root = tmp_path / "lib"
+    for name, data in (("p1", b"A"), ("p2", b"B"), ("p3", b"CC"), ("p4", b"DD")):
+        write(root / f"Full/{name}.jpg", data)
+    write(root / "Parts/Ch1/01.jpg", b"A")
+    write(root / "Parts/Ch1/02.jpg", b"B")
+    write(root / "Parts/Ch1 copy/x1.jpg", b"A")  # 与 Ch1 内容相同的重复单章
+    write(root / "Parts/Ch1 copy/x2.jpg", b"B")
+    write(root / "Loose/Ch2/01.jpg", b"CC")
+    write(root / "Loose/Ch2/02.jpg", b"DD")
+    write(root / "Pack/a.jpg", b"EEE")  # 杂图包：前两张与独立作品相同
+    write(root / "Pack/b.jpg", b"FFF")
+    write(root / "Pack/c.jpg", b"GGG")
+    write(root / "Work/1.jpg", b"EEE")
+    write(root / "Work/2.jpg", b"FFF")
+    xdg = tmp_path / "xdg"
+    plan_path = tmp_path / "plan.json"
+    assert run("plan", str(root), "--out", str(plan_path), xdg=xdg).returncode == 0
+    plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    composed = [c for c in plan["cases"] if "composed" in c]
+    assert [c["composed"] for c in composed] == [
+        {"dir": "Full", "chapters": ["Loose/Ch2", "Parts/Ch1"], "duplicates": ["Parts/Ch1 copy"]}
+    ]
+    assert plan["summary"]["composed_cases"] == 1
+    shown = run("show", str(plan_path), composed[0]["id"], xdg=xdg).stdout
+    assert "合集 Full/ 恰好由 2 个单章拼成" in shown and "分散在 2 个父目录" in shown
+
+    decisions = {
+        "root": str(root),
+        "actions": [
+            # 单章集中到合集目录下，合集自己的图片按内容移走
+            {"case": "a", "op": "move", "src": "Parts/Ch1", "dest": "Full"},
+            {"case": "a", "op": "move", "src": "Loose/Ch2", "dest": "Full"},
+            {
+                "case": "a",
+                "op": "trash_matching",
+                "path": "Full",
+                "keep": ["Parts/Ch1", "Loose/Ch2"],
+            },
+            {"case": "b", "op": "trash_matching", "path": "Pack", "keep": ["Work"]},
+            {"case": "none", "op": "trash_matching", "path": "Work", "keep": ["Full/Ch2"]},
+        ],
+    }
+    decisions_path = tmp_path / "decisions.json"
+    decisions_path.write_text(json.dumps(decisions), encoding="utf-8")
+    applied = run("apply-decisions", str(decisions_path), xdg=xdg)
+    assert applied.returncode == 0, applied.stdout + applied.stderr
+    assert sorted(p.name for p in (root / "Full").iterdir()) == ["Ch1", "Ch2"]
+    assert not (root / "Loose").exists()
+    assert sorted(p.name for p in (root / "Pack").iterdir()) == ["c.jpg"]
+    assert sorted(p.name for p in (root / "Work").iterdir()) == ["1.jpg", "2.jpg"]
+    assert "Work 中没有与保留路径相同内容的文件" in applied.stdout
+
+
 def test_shown_quotes_surrounding_whitespace() -> None:
     assert dedupe._shown("a/ 01") == "「a/ 01」"
     assert dedupe._shown("a/01") == "a/01"
