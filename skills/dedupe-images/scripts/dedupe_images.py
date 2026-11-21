@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
-"""递归地按目录对图片库去重，每个目录只比较自己直接包含的图片：同名带副本标记且内容相同的图片只留一张，其余移入回收站。
+"""递归地对图片库去重：有把握的重复写入计划自动处理，拿不准的整理成案例交模型判断。
 
 用法：
   python3 dedupe_images.py plan <总目录> --out <计划.json>
+  python3 dedupe_images.py show <计划.json> --sample 5      # 自动处理部分的抽查材料
+  python3 dedupe_images.py show <计划.json> [案例编号 ...]  # 案例的判断材料，不给编号则输出全部
   python3 dedupe_images.py apply <计划.json>
+  python3 dedupe_images.py apply-decisions <决策.json>
 
 只依赖 Python 3.14+ 标准库。判定规则见 docs/skills/dedupe-images/design.md。
 """
@@ -26,7 +29,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
-PLAN_VERSION = 6
+PLAN_VERSION = 7
 
 # 目录里直接有这些文件（或目录名以 .app 结尾）即视为软件目录，连同子目录整体跳过。
 PROGRAM_EXTENSIONS = frozenset("exe dll so dylib msi assets pak".split())
@@ -194,8 +197,20 @@ def looks_damaged(path: Path, ext: str) -> bool:
     return marker is not None and not data.rstrip(b"\0").endswith(marker)
 
 
+def zeroed_copy(good: bytes, other: bytes) -> bool:
+    """other 与 good 同长且凡是不同的字节在 other 里都是 0：other 是 good 被局部清零后的损坏副本。"""
+    if len(good) != len(other) or good == other:
+        return False
+    for start in range(0, len(good), 4096):
+        a, b = good[start : start + 4096], other[start : start + 4096]
+        if a != b and any(y != x and y != 0 for x, y in zip(a, b, strict=True)):
+            return False
+    return True
+
+
 def resolve_damaged(directory: Path, clusters: dict[str, list[Parsed]]) -> str | None:
-    """同体积不同内容时，若恰有一个内容是完好的、其余都有损坏特征，返回完好者的哈希。"""
+    """同体积不同内容时返回应保留内容的哈希：恰有一个内容完好、其余都有损坏特征；
+    或其余每个内容都是同一个内容被局部清零后的副本（该内容自身缺结束标记也保留，它不比副本差）。"""
     first = next(iter(clusters.values()))[0]
     ext = EXTENSIONS[first.ext.lower()]
     if ext not in COMPRESSED:
@@ -204,9 +219,15 @@ def resolve_damaged(directory: Path, clusters: dict[str, list[Parsed]]) -> str |
         healthy = [
             h for h, ps in clusters.items() if not looks_damaged(directory / ps[0].name, ext)
         ]
+        if len(healthy) == 1:
+            return healthy[0]
+        data = {h: (directory / ps[0].name).read_bytes() for h, ps in clusters.items()}
     except OSError:
         return None
-    return healthy[0] if len(healthy) == 1 else None
+    sources = [
+        h for h in data if all(zeroed_copy(data[h], data[other]) for other in data if other != h)
+    ]
+    return sources[0] if len(sources) == 1 else None
 
 
 Found = tuple[Parsed, str, list[tuple[Parsed, str, bool]], int]
@@ -757,11 +778,21 @@ def _others_match(
     return digests
 
 
+def _pair_stats(mapping: dict[str, str]) -> dict[str, Any]:
+    """供模型判断的文件对应概况：图片数、文件名原样相同的数量、几对改名样例。"""
+    renamed = sorted((a, b) for a, b in mapping.items() if a != b)
+    return {
+        "images": len(mapping),
+        "same_name": len(mapping) - len(renamed),
+        "renamed_samples": [list(pair) for pair in renamed[:3]],
+    }
+
+
 def find_dir_duplicates(
     infos: list[DirInfo], all_dirs: list[str], errors: list[str], cache: dict[str, str]
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """目录级重复：按保留优先顺序逐个决定，目录的图片被已保留的目录完全包含，且两边内容相同、
-    或它的文件名在保留目录里原样存在时，整目录移走；不满足移走条件的包含关系列入人工确认。"""
+    """目录级重复：按保留优先顺序逐个决定，目录的图片被已保留的目录完全包含、且它的文件名在保留目录里
+    原样存在时，整目录移走；其余包含关系（含内容相同但文件名不同的）列入 dir_review，交模型判断。"""
     children: dict[str, list[str]] = defaultdict(list)
     for rel in all_dirs:
         if rel != ".":
@@ -777,7 +808,7 @@ def find_dir_duplicates(
             (s for s in supersets.get(info.rel, []) if s.keep.rel in kept),
             key=lambda s: position[s.keep.rel],
         )
-        auto = [s for s in options if s.equal or s.named]
+        auto = [s for s in options if s.named]
         chosen = (auto or options or [None])[0]
         if chosen is None:
             kept.add(info.rel)
@@ -786,7 +817,7 @@ def find_dir_duplicates(
         reason = None
         others = None
         if not auto:
-            reason = "文件名不同的子集"
+            reason = "内容相同但文件名不同" if chosen.equal else "文件名不同的子集"
         elif not info.leaf:
             reason = "含子目录"
         elif info.links:
@@ -803,6 +834,7 @@ def find_dir_duplicates(
                     "keep_dir": chosen.keep.rel,
                     "relation": relation,
                     "reason": reason,
+                    **_pair_stats(chosen.mapping),
                 }
             )
             continue
@@ -846,6 +878,7 @@ def find_dir_duplicates(
                     "keep_dir": r["keep_dir"],
                     "relation": r["relation"],
                     "reason": "会拆散所在合集",
+                    **_pair_stats({f["name"]: f["keep_name"] for f in r["files"]}),
                 }
             )
     removals.sort(key=lambda r: r["dir"])
@@ -904,6 +937,7 @@ def build_plan(root: Path) -> dict[str, Any]:
             dirs.append(planned)
     groups = [g for d in dirs for g in d["groups"]]
     removes = [r for g in groups for r in g["remove"]]
+    cases = build_cases(dir_review, dirs)
     return {
         "version": PLAN_VERSION,
         "root": str(root),
@@ -912,6 +946,7 @@ def build_plan(root: Path) -> dict[str, Any]:
         "dir_removals": dir_removals,
         "dir_review": dir_review,
         "dirs": dirs,
+        "cases": cases,
         "skipped_program_dirs": skipped,
         "errors": errors,
         "summary": {
@@ -927,6 +962,8 @@ def build_plan(root: Path) -> dict[str, Any]:
             "cross_name_files": sum(len(g["remove"]) for g in groups if g["match"] != "name"),
             "renames": sum(1 for g in groups if g["rename_to"]),
             "review_sets": sum(len(d["review"]) for d in dirs),
+            "dir_cases": sum(1 for c in cases if c["kind"] == "dir"),
+            "file_cases": sum(1 for c in cases if c["kind"] == "file"),
         },
     }
 
@@ -958,9 +995,7 @@ def print_plan(plan: dict, out: Path) -> None:
         )
         if summary["dir_review"]:
             reasons = "，".join(f"{k} {v} 个" for k, v in summary["dir_review"].items())
-            print(
-                f"  需人工确认的目录 {sum(summary['dir_review'].values())} 个（{reasons}），明细见计划 dir_review。"
-            )
+            print(f"  不自动处理的包含关系 {sum(summary['dir_review'].values())} 对（{reasons}）。")
     print(
         f"重复组 {summary['groups']} 个，待移入回收站 {summary['remove_files']} 个文件"
         f"（{human_size(summary['remove_bytes'])}，其中损坏副本 {summary['damaged_files']} 个），"
@@ -980,14 +1015,11 @@ def print_plan(plan: dict, out: Path) -> None:
         counts[2] += sum(1 for g in directory["groups"] if g["rename_to"])
     for top, (dir_count, removes, renames) in sorted(per_top.items()):
         print(f"  {top}：移走目录 {dir_count} 个，删除文件 {removes} 个，改名 {renames} 个")
-    if summary["review_sets"]:
+    if plan["cases"]:
         print(
-            f"需人工确认 {summary['review_sets']} 组（同名同体积、内容不同且无法判定哪个损坏，不会删除）："
+            f"交模型判断的案例 {len(plan['cases'])} 个（目录 {summary['dir_cases']} 个，"
+            f"同名同体积内容不同的文件 {summary['file_cases']} 个），apply 不处理，用 show 查看材料。"
         )
-        for directory in plan["dirs"]:
-            for item in directory["review"]:
-                names = "，".join(f["name"] for f in item["files"])
-                print(f"  {directory['dir']}/：{names}（{human_size(item['size'])}）")
     if plan["skipped_program_dirs"]:
         print(
             f"跳过软件目录 {len(plan['skipped_program_dirs'])} 个（含程序文件，连同子目录不处理）："
@@ -1246,14 +1278,444 @@ def print_result(result: dict[str, list]) -> None:
             print(f"  {item['path']}：{item['error']}")
 
 
+# ---------- 交模型判断的案例 ----------
+
+
+def build_cases(dir_review: list[dict], dirs: list[dict]) -> list[dict[str, Any]]:
+    """把 dir_review 与文件级人工确认项整理成案例。保留目录与被包含目录不在同一父目录时，
+    同一对父目录之间的包含关系合成一个案例（两个合集之间的取舍要整体决定）。"""
+    by_parents: dict[tuple[str, str], list[dict]] = defaultdict(list)
+    units: list[list[dict]] = []
+    for item in dir_review:
+        a, b = _parent(item["dir"]), _parent(item["keep_dir"])
+        if a == b:
+            units.append([item])
+        else:
+            by_parents[(min(a, b), max(a, b))].append(item)
+    units += by_parents.values()
+    units.sort(key=lambda items: items[0]["dir"])
+    cases: list[dict[str, Any]] = [
+        {"kind": "dir", "reasons": sorted({i["reason"] for i in items}), "pairs": items}
+        for items in units
+    ]
+    cases += [{"kind": "file", "dir": d["dir"], **r} for d in dirs for r in d["review"]]
+    for index, case in enumerate(cases, 1):
+        case["id"] = f"c{index:03d}"
+    return cases
+
+
+NUMBER = re.compile(r"(\d+)")
+
+
+def _natural(name: str) -> list[Any]:
+    return [int(part) if part.isdecimal() else part for part in NUMBER.split(name.casefold())]
+
+
+def _listing(path: Path) -> tuple[list[str], list[str], list[str]]:
+    """按自然顺序（2 在 10 前）列出非隐藏的图片、其他文件与子目录。"""
+    images, others, subdirs = [], [], []
+    for entry in sorted(os.scandir(path), key=lambda e: _natural(e.name)):
+        if entry.name.startswith("."):
+            continue
+        if entry.is_dir(follow_symlinks=False):
+            subdirs.append(entry.name)
+        elif parse_name(entry.name) is not None:
+            images.append(entry.name)
+        else:
+            others.append(entry.name)
+    return images, others, subdirs
+
+
+def number_gaps(numbers: list[int], limit: int = 10) -> tuple[int, list[int]] | None:
+    """编号缺口：(缺号个数, 前 limit 个缺号)。编号跨度远大于个数时（文件名里的作品 ID、时间戳）
+    不是页码序列，返回 None；只沿相邻编号逐段计算，不展开整个区间。"""
+    unique = sorted(set(numbers))
+    if not unique or unique[-1] - unique[0] + 1 > 2 * len(unique) + 10:
+        return None
+    count = unique[-1] - unique[0] + 1 - len(unique)
+    shown: list[int] = []
+    for low, high in zip(unique, unique[1:], strict=False):
+        shown += range(low + 1, min(high, low + 1 + limit - len(shown)))
+        if len(shown) >= limit:
+            break
+    return count, shown
+
+
+def describe_dir(root: Path, rel: str, indent: str = "  ") -> list[str]:
+    """一个目录的判断材料：图片数与体积、命名模板、首尾样例、主模板缺号、其他文件与子目录。"""
+    path = root / rel
+    try:
+        images, others, subdirs = _listing(path)
+        size = sum((path / n).stat().st_size for n in images)
+    except OSError as exc:
+        return [f"{indent}{rel}/ 不可访问：{exc.strerror or exc}"]
+    lines = [
+        f"{indent}{rel}/  图片 {len(images)} 张（{human_size(size)}），子目录 {len(subdirs)} 个"
+    ]
+    templates = Counter(NUMBER.sub("#", n) for n in images)
+    if templates:
+        lines.append(
+            f"{indent}  命名："
+            + "；".join(f"{t} ×{c}" for t, c in templates.most_common(4))
+            + ("；…" if len(templates) > 4 else "")
+        )
+        sample = images if len(images) <= 6 else [*images[:3], "…", *images[-3:]]
+        lines.append(f"{indent}  样例：{'，'.join(sample)}")
+        main = templates.most_common(1)[0][0]
+        numbers = sorted(
+            int(NUMBER.findall(n)[-1])
+            for n in images
+            if NUMBER.sub("#", n) == main and NUMBER.search(n)
+        )
+        gaps = number_gaps(numbers)
+        if gaps is not None and gaps[0]:
+            count, shown = gaps
+            more = "，…" if count > len(shown) else ""
+            lines.append(
+                f"{indent}  主模板编号 {numbers[0]}–{numbers[-1]}，缺 {count} 个："
+                + "，".join(map(str, shown))
+                + more
+            )
+    if others:
+        lines.append(
+            f"{indent}  其他文件：{'，'.join(others[:8])}{'，…' if len(others) > 8 else ''}"
+        )
+    if subdirs:
+        lines.append(
+            f"{indent}  子目录：{'，'.join(subdirs[:12])}{'，…' if len(subdirs) > 12 else ''}"
+        )
+    return lines
+
+
+def _pair_line(item: dict, left: str | None = None) -> str:
+    """跨父目录的案例给出 left（左侧父目录）：只写目录名，左侧固定为该父目录下的目录，
+    被包含方在右侧时符号写作 ⊃。"""
+    sign = "=" if item["relation"] == "equal" else "⊂"
+    a, b = item["dir"], item["keep_dir"]
+    if left is not None:
+        if _parent(a) != left:
+            a, b = b, a
+            sign = "=" if sign == "=" else "⊃"
+        a, b = posixpath.basename(a), posixpath.basename(b)
+    line = (
+        f"  {a}/ {sign} {b}/（{item['reason']}；{item['images']} 张，"
+        f"文件名原样相同 {item['same_name']} 张"
+    )
+    if item["renamed_samples"]:
+        line += "；改名如 " + "，".join(f"{a} → {b}" for a, b in item["renamed_samples"])
+    return line + "）"
+
+
+def describe_case(root: Path, case: dict) -> list[str]:
+    if case["kind"] == "file":
+        lines = [
+            f"== {case['id']} 同名同体积、内容不同（{case['dir']}/，{human_size(case['size'])}）"
+        ]
+        data: dict[str, bytes] = {}
+        for f in case["files"]:
+            path = root / case["dir"] / f["name"]
+            try:
+                data[f["name"]] = path.read_bytes()
+            except OSError as exc:
+                lines.append(f"  {path} 不可访问：{exc.strerror or exc}")
+                continue
+            ext = EXTENSIONS.get(f["name"].rpartition(".")[2].lower(), "")
+            damaged = looks_damaged(path, ext) if ext in COMPRESSED else None
+            lines.append(
+                f"  {path}（损坏特征：{'有' if damaged else '无' if damaged is False else '不判定'}）"
+            )
+        if len(data) == 2:
+            a, b = data.values()
+            diff = [i for i in range(len(a)) if a[i] != b[i]]
+            if diff:
+                lines.append(
+                    f"  不同字节 {len(diff)} 个，位于 {diff[0]}–{diff[-1]}（文件长 {len(a)}）"
+                )
+        return lines
+    pairs = case["pairs"]
+    lines = [f"== {case['id']} 目录：{'、'.join(case['reasons'])}（{len(pairs)} 对）"]
+    siblings = all(_parent(i["dir"]) == _parent(i["keep_dir"]) for i in pairs)
+    if not siblings:
+        first = pairs[0]
+        lines.append(f"  左侧父目录：{_parent(first['dir'])}/")
+        lines.append(f"  右侧父目录：{_parent(first['keep_dir'])}/")
+    left = None if siblings else _parent(pairs[0]["dir"])
+    lines += [_pair_line(item, left) for item in pairs]
+    if len(pairs) <= 3:
+        for rel in dict.fromkeys(r for item in pairs for r in (item["dir"], item["keep_dir"])):
+            lines += describe_dir(root, rel)
+    if siblings:
+        parent = _parent(pairs[0]["dir"])
+        if parent != ".":
+            described = describe_dir(root, parent)
+            lines.append("  所在父目录：" + described[0].strip())
+            # 父目录是大分类（几百个作品）时列子目录没有帮助
+            if len(_listing(root / parent)[2]) <= 40:
+                lines += [line for line in described if "子目录：" in line]
+        return lines
+    # 跨父目录：两个合集之间的取舍，列出两边父目录及各自没有对应关系的子目录
+    matched = {r for item in pairs for r in (item["dir"], item["keep_dir"])}
+    for parent in sorted({_parent(r) for r in matched}):
+        lines.append("  合集：" + describe_dir(root, parent)[0].strip())
+        try:
+            subdirs = _listing(root / parent)[2]
+        except OSError:
+            continue
+        prefix = "" if parent == "." else parent + "/"
+        unmatched = [d for d in subdirs if prefix + d not in matched]
+        if unmatched and len(subdirs) <= 200:
+            more = "，…" if len(unmatched) > 12 else ""
+            lines.append(
+                f"    无对应的子目录 {len(unmatched)} 个：{'，'.join(unmatched[:12])}{more}"
+            )
+    return lines
+
+
+def _spread(items: list, count: int) -> list:
+    """均匀取样，结果确定。"""
+    if len(items) <= count:
+        return items
+    step = len(items) / count
+    return [items[int(i * step)] for i in range(count)]
+
+
+def describe_sample(root: Path, plan: dict, count: int) -> list[str]:
+    """自动处理部分的抽查材料：目录级每种关系、文件级每种匹配方式各均匀取样，另列移走比例过半的目录。"""
+    lines: list[str] = []
+    for relation in ("equal", "subset"):
+        items = [r for r in plan["dir_removals"] if r["relation"] == relation]
+        if items:
+            lines.append(f"== 目录级 {relation}（共 {len(items)} 个）")
+            for r in _spread(items, count):
+                lines.append(f"  {r['dir']}/ → 保留 {r['keep_dir']}/（{len(r['files'])} 张）")
+    kinds: dict[str, list[tuple[str, dict]]] = defaultdict(list)
+    for d in plan["dirs"]:
+        for g in d["groups"]:
+            if any(r["damaged"] for r in g["remove"]):
+                kinds["damaged"].append((d["dir"], g))
+            elif g["remove"]:
+                kinds[g["match"]].append((d["dir"], g))
+            else:
+                kinds["rename_only"].append((d["dir"], g))
+    for kind, items in sorted(kinds.items()):
+        lines.append(f"== 文件级 {kind}（共 {len(items)} 组）")
+        for rel, g in _spread(items, count):
+            removes = "，".join(r["name"] for r in g["remove"]) or "—"
+            rename = f"，改名为 {g['rename_to']}" if g["rename_to"] else ""
+            lines.append(f"  {rel}/：保留 {g['keep']['name']}，移走 {removes}{rename}")
+    heavy: list[str] = []
+    for d in plan["dirs"]:
+        removed = sum(len(g["remove"]) for g in d["groups"])
+        try:
+            total = len(_listing(root / d["dir"])[0])
+        except OSError:
+            continue
+        if removed and removed * 2 > total:
+            heavy.append(f"  {d['dir']}/：移走 {removed}/{total}")
+    if heavy:
+        lines.append(f"== 文件级移走超过一半图片的目录（{len(heavy)} 个）")
+        lines += heavy
+    return lines
+
+
+# ---------- 执行模型的决策 ----------
+
+
+def _inside(path: str, base: str) -> bool:
+    return path == base or path.startswith(base + "/")
+
+
+def _clean_rel(value: Any) -> str | None:
+    if not isinstance(value, str) or not value or os.path.isabs(value):
+        return None
+    rel = posixpath.normpath(value)
+    return None if rel in (".", "..") or rel.startswith("../") else rel
+
+
+def _tree_files(root: Path, rel: str) -> tuple[dict[str, int], list[str]]:
+    """rel（文件或目录）下的非隐藏普通文件 -> 体积；符号链接记为问题。隐藏文件与隐藏目录不比较。"""
+    path = root / rel
+    if path.is_symlink():
+        return {}, [f"{rel} 是符号链接"]
+    if path.is_file():
+        return {rel: path.stat().st_size}, []
+    files: dict[str, int] = {}
+    problems: list[str] = []
+    for current, subdirs, names in os.walk(path):
+        base = Path(current).relative_to(root).as_posix()
+        for d in list(subdirs):
+            if (Path(current) / d).is_symlink():
+                problems.append(f"{base}/{d} 是符号链接")
+        subdirs[:] = [d for d in subdirs if not d.startswith(".")]
+        for name in names:
+            if name.startswith("."):
+                continue
+            full = Path(current) / name
+            if full.is_symlink():
+                problems.append(f"{base}/{name} 是符号链接")
+            else:
+                files[f"{base}/{name}"] = full.stat().st_size
+    return files, problems
+
+
+def check_case(root: Path, actions: list[dict], cache: dict[str, str]) -> list[str]:
+    """执行前校验一个案例的全部操作：路径合法、移动不覆盖，且每个被移走的文件在 keep 路径下
+    （含移动进 keep 的目录）有 SHA-256 相同的文件，keep 不能落在被移走的路径里。"""
+    problems: list[str] = []
+    moves = [a for a in actions if a.get("op") == "move"]
+    trashes = [a for a in actions if a.get("op") == "trash"]
+    for action in actions:
+        if action.get("op") not in ("move", "trash", "keep"):
+            problems.append(f"未知操作 {action.get('op')!r}")
+    for move in moves:
+        src, dest = _clean_rel(move.get("src")), _clean_rel(move.get("dest"))
+        if src is None or dest is None:
+            problems.append(f"移动路径不合法：{move.get('src')!r} → {move.get('dest')!r}")
+            continue
+        move["src"], move["dest"] = src, dest
+        if not (root / src).exists() or (root / src).is_symlink():
+            problems.append(f"{src} 不存在或是符号链接")
+        if not (root / dest).is_dir():
+            problems.append(f"目标目录 {dest} 不存在")
+        if os.path.lexists(root / dest / posixpath.basename(src)):
+            problems.append(f"{dest}/{posixpath.basename(src)} 已存在")
+        if _inside(dest, src):
+            problems.append(f"不能把 {src} 移进它自己")
+        if any(_inside(dest, _clean_rel(t.get("path")) or "") for t in trashes):
+            problems.append(f"不能移进将被移走的 {dest}")
+    for trash in trashes:
+        path = _clean_rel(trash.get("path"))
+        keeps = [_clean_rel(k) for k in trash.get("keep") or []]
+        if path is None or not keeps or None in keeps:
+            problems.append(f"移走项路径或 keep 不合法：{trash.get('path')!r}")
+            continue
+        trash["path"], trash["keep"] = path, keeps
+        if not os.path.lexists(root / path):
+            problems.append(f"{path} 不存在")
+    if problems:
+        return problems
+    trashed = [t["path"] for t in trashes]
+    moved = [m["src"] for m in moves]
+    for trash in trashes:
+        for keep in trash["keep"]:
+            if any(_inside(keep, t) for t in trashed) and not any(_inside(keep, m) for m in moved):
+                problems.append(f"保留路径 {keep} 在被移走的路径里")
+            elif not (root / keep).exists():
+                problems.append(f"保留路径 {keep} 不存在")
+    if problems:
+        return problems
+    try:
+        for trash in trashes:
+            files, link_problems = _tree_files(root, trash["path"])
+            problems += link_problems
+            files = {f: s for f, s in files.items() if not any(_inside(f, m) for m in moved)}
+            pool: dict[str, int] = {}
+            sources = list(trash["keep"]) + [
+                m["src"] for m in moves if any(_inside(m["dest"], k) for k in trash["keep"])
+            ]
+            for source in sources:
+                found, link_problems = _tree_files(root, source)
+                problems += link_problems
+                pool.update(found)
+            pool = {
+                f: s
+                for f, s in pool.items()
+                if not any(_inside(f, t) for t in trashed) or any(_inside(f, m) for m in moved)
+            }
+            sizes = set(files.values())
+            digests = {_hash(root, f, cache) for f, s in pool.items() if s in sizes}
+            missing = [f for f, s in sorted(files.items()) if _hash(root, f, cache) not in digests]
+            if missing:
+                more = f" 等 {len(missing)} 个" if len(missing) > 3 else ""
+                problems.append(
+                    f"{trash['path']} 中 {'，'.join(missing[:3])}{more} 在保留路径下没有相同内容的文件"
+                )
+    except OSError as exc:
+        problems.append(f"读取失败：{exc}")
+    return problems
+
+
+def apply_decisions(decisions: dict) -> dict[str, list]:
+    root = Path(decisions["root"])
+    result: dict[str, list] = {
+        "done": [],
+        "moved": [],
+        "trashed": [],
+        "removed_empty_dirs": [],
+        "skipped": [],
+        "failed": [],
+    }
+    by_case: dict[str, list[dict]] = defaultdict(list)
+    for action in decisions["actions"]:
+        by_case[str(action.get("case", ""))].append(action)
+    cache: dict[str, str] = {}
+    for case, actions in by_case.items():
+        problems = check_case(root, actions, cache)
+        if problems:
+            result["skipped"].append({"case": case, "reason": "；".join(problems)})
+            continue
+        sources: list[Path] = []
+        try:
+            for move in (a for a in actions if a["op"] == "move"):
+                src = root / move["src"]
+                target = root / move["dest"] / src.name
+                os.rename(src, target)
+                sources.append(src)
+                result["moved"].append({"from": str(src), "to": str(target)})
+        except OSError as exc:
+            result["failed"].append({"case": case, "error": f"移动失败：{exc}"})
+            continue
+        targets = [root / a["path"] for a in actions if a["op"] == "trash"]
+        failures = trash_files(targets) if targets else []
+        failed = {path for path, _ in failures}
+        result["failed"] += [{"case": case, "error": f"{p}：{e}"} for p, e in failures]
+        for target in targets:
+            if target not in failed:
+                result["trashed"].append(str(target))
+                result["removed_empty_dirs"] += _remove_empty_parents(root, target)
+        # 移走之后再清理移动源留下的空目录，避免先把待移走的父目录删掉
+        for src in sources:
+            result["removed_empty_dirs"] += _remove_empty_parents(root, src)
+        if not failures:
+            result["done"].append(case)
+    return result
+
+
+def print_decision_result(result: dict[str, list]) -> None:
+    print(
+        f"执行案例 {len(result['done'])} 个：移动 {len(result['moved'])} 项，"
+        f"移入回收站 {len(result['trashed'])} 项，删除变空的上级目录 {len(result['removed_empty_dirs'])} 个。"
+    )
+    for item in result["moved"]:
+        print(f"  移动 {item['from']} → {item['to']}")
+    for item in result["trashed"]:
+        print(f"  移走 {item}")
+    if result["skipped"]:
+        print(f"跳过 {len(result['skipped'])} 个案例（未做任何改动）：")
+        for item in result["skipped"]:
+            print(f"  {item['case']}：{item['reason']}")
+    if result["failed"]:
+        print(f"失败 {len(result['failed'])} 项：")
+        for item in result["failed"]:
+            print(f"  {item['case']}：{item['error']}")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="递归地按目录对图片库去重。")
     commands = parser.add_subparsers(dest="command", required=True)
     plan_cmd = commands.add_parser("plan", help="扫描并生成去重计划，不改动文件")
     plan_cmd.add_argument("root", type=Path, help="总目录")
     plan_cmd.add_argument("--out", type=Path, required=True, help="计划 JSON 的输出路径")
+    show_cmd = commands.add_parser("show", help="输出抽查材料或案例的判断材料，不改动文件")
+    show_cmd.add_argument("plan", type=Path, help="plan 生成的计划 JSON")
+    show_cmd.add_argument("cases", nargs="*", help="案例编号，不给则输出全部案例")
+    show_cmd.add_argument(
+        "--sample", type=int, metavar="N", help="改为输出自动处理部分每类 N 个样本"
+    )
     apply_cmd = commands.add_parser("apply", help="复核并执行计划：移入回收站、改回原名")
     apply_cmd.add_argument("plan", type=Path, help="plan 生成的计划 JSON")
+    decide_cmd = commands.add_parser("apply-decisions", help="校验并执行模型写出的案例决策")
+    decide_cmd.add_argument("decisions", type=Path, help="决策 JSON")
     args = parser.parse_args(argv)
 
     if args.command == "plan":
@@ -1266,19 +1728,46 @@ def main(argv: list[str] | None = None) -> int:
         print_plan(plan, args.out)
         return 0
 
+    source = args.decisions if args.command == "apply-decisions" else args.plan
     try:
-        plan = json.loads(args.plan.read_text(encoding="utf-8"))
+        data = json.loads(source.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
-        print(f"错误：无法读取计划：{exc}", file=sys.stderr)
+        print(f"错误：无法读取 {source}：{exc}", file=sys.stderr)
         return 2
-    if plan.get("version") != PLAN_VERSION:
+    if args.command == "apply-decisions":
+        if not isinstance(data.get("root"), str) or not isinstance(data.get("actions"), list):
+            print("错误：决策文件须有 root 与 actions。", file=sys.stderr)
+            return 2
+    elif data.get("version") != PLAN_VERSION:
         print("错误：计划版本不符，请重新运行 plan。", file=sys.stderr)
         return 2
+    if args.command == "show":
+        root = Path(data["root"])
+        if args.sample is not None:
+            lines = describe_sample(root, data, args.sample)
+        else:
+            wanted = set(args.cases)
+            unknown = wanted - {c["id"] for c in data["cases"]}
+            if unknown:
+                print(f"错误：没有这些案例：{'，'.join(sorted(unknown))}", file=sys.stderr)
+                return 2
+            lines = [
+                line
+                for case in data["cases"]
+                if not wanted or case["id"] in wanted
+                for line in describe_case(root, case)
+            ]
+        print("\n".join(lines))
+        return 0
     problem = check_platform()
     if problem:
         print(f"错误：{problem}", file=sys.stderr)
         return 2
-    result = apply_plan(plan)
+    if args.command == "apply-decisions":
+        decided = apply_decisions(data)
+        print_decision_result(decided)
+        return 1 if decided["failed"] else 0
+    result = apply_plan(data)
     print_result(result)
     return 1 if result["failed"] else 0
 

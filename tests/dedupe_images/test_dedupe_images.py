@@ -85,6 +85,9 @@ def library(tmp_path: Path) -> Path:
     write(root / "a (1).jpg", b"AAAA")  # 总目录本身也是处理单元：单独副本改回原名
     write(root / "s5/h.jpg", b"\xff\xd8" + b"\x01" * 4094 + bytes(4096))  # 原名文件损坏
     write(root / "s5/h (1).jpg", healthy_bytes())  # 同体积完好：留它并改回原名
+    tail_cut = b"\xff\xd8" + b"\x02" * 8190  # 缺结束标记
+    write(root / "s6/i.jpg", tail_cut)
+    write(root / "s6/i (1).jpg", bytes(4100) + tail_cut[4100:])  # 开头被清零的副本：移走它
     write(root / ".hid/g (1).png", b"G")  # 隐藏目录不进入
     write(root / "game/game.exe", b"MZ")
     write(root / "game/f (1).png", b"F")  # 软件目录连同子目录跳过
@@ -107,7 +110,10 @@ def test_plan_and_apply(library: Path, tmp_path: Path) -> None:
     assert planned.returncode == 0, planned.stderr
     plan = json.loads(plan_path.read_text(encoding="utf-8"))
     dirs = {d["dir"]: d for d in plan["dirs"]}
-    assert set(dirs) == {".", "s1", "s1/nested", "s2", "s3", "s4", "s5"}
+    assert set(dirs) == {".", "s1", "s1/nested", "s2", "s3", "s4", "s5", "s6"}
+    zeroed = dirs["s6"]["groups"][0]
+    assert zeroed["keep"]["name"] == "i.jpg"
+    assert [(r["name"], r["damaged"]) for r in zeroed["remove"]] == [("i (1).jpg", True)]
     damaged = dirs["s5"]["groups"][0]
     assert damaged["keep"]["name"] == "h (1).jpg" and damaged["rename_to"] == "h.jpg"
     assert [(r["name"], r["damaged"]) for r in damaged["remove"]] == [("h.jpg", True)]
@@ -143,6 +149,7 @@ def test_plan_and_apply(library: Path, tmp_path: Path) -> None:
         "b (2).JPG",
         "e (1).jpg",
         "h.jpg",
+        "i (1).jpg",
     ]
     info = (trash / "info/a (1).jpg.trashinfo").read_text(encoding="utf-8")
     assert info.startswith("[Trash Info]\nPath=/")
@@ -299,7 +306,9 @@ def test_dir_duplicates(tmp_path: Path) -> None:
     fill("X", {"01 (1).jpg": pages["01.jpg"]})
     lily = {f"{i}.jpg": f"lily{i}".encode() for i in range(3)}
     fill("[P] Lily", lily)
-    fill("[P (皮)] Lily", lily)  # 名字不同、内容相同：留目录名更长的
+    fill("[P (皮)] Lily", lily)  # 目录名不同、内容与文件名相同：留目录名更长的
+    fill("Ren", {"a.jpg": b"ren-a", "b.jpg": b"ren-b"})
+    fill("Ren copy", {"x1.jpg": b"ren-a", "x2.jpg": b"ren-b"})  # 内容相同但文件名不同：交模型判断
     part = {f"{i:03d}.jpg": f"part{i}".encode() for i in range(4)}
     fill("full/[L] Part 1", part)
     fill("full/[L] Part 1 more", {**part, "100.jpg": b"extra"})  # 更大的超集
@@ -327,6 +336,7 @@ def test_dir_duplicates(tmp_path: Path) -> None:
     }
     review = {r["dir"]: r["reason"] for r in plan["dir_review"]}
     assert review == {
+        "Ren copy": "内容相同但文件名不同",
         "Ch2": "文件名不同的子集",
         "NoteB": "非图片文件不一致",
         "Small/ch1": "会拆散所在合集",
@@ -351,3 +361,66 @@ def test_dir_duplicates(tmp_path: Path) -> None:
         "X (2)",
         "[L] Part 1",
     ]
+
+
+def test_cases_and_decisions(tmp_path: Path) -> None:
+    root = tmp_path / "lib"
+    for ch in (1, 3, 4):
+        write(root / f"Big/ch{ch}/p.jpg", f"chapter{ch}".encode())
+    write(root / "Small/ch1/p.jpg", b"chapter1")
+    write(root / "Small/ch2/p.jpg", b"chapter2")  # Big 没有的一话
+    write(root / "Omni/0001.jpg", b"o1")
+    write(root / "Omni/0002.jpg", b"o2")
+    write(root / "Ch/1.jpg", b"o2")  # 改名子集
+    write(root / "Lone/q.jpg", b"only-here")
+    write(root / "s/c.jpg", b"CC")
+    write(root / "s/c (1).jpg", b"DD")  # 同名同体积内容不同：文件案例
+    xdg = tmp_path / "xdg"
+    plan_path = tmp_path / "plan.json"
+    assert run("plan", str(root), "--out", str(plan_path), xdg=xdg).returncode == 0
+    plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    cases = {c["id"]: c for c in plan["cases"]}
+    kinds = sorted(
+        (c["kind"], [p["dir"] for p in c.get("pairs", [])] or [c["dir"]]) for c in cases.values()
+    )
+    assert kinds == [("dir", ["Ch"]), ("dir", ["Small/ch1"]), ("file", ["s"])]
+    small = next(i for i, c in cases.items() if c.get("pairs", [{}])[0].get("dir") == "Small/ch1")
+
+    shown = run("show", str(plan_path), small, xdg=xdg)
+    assert shown.returncode == 0, shown.stderr
+    assert "左侧父目录：Small/" in shown.stdout and "ch1/ = ch1/（会拆散所在合集" in shown.stdout
+    assert "无对应的子目录 1 个：ch2" in shown.stdout
+    all_cases = run("show", str(plan_path), xdg=xdg).stdout
+    assert "c (1).jpg" in all_cases and "不同字节 2 个" in all_cases
+    assert run("show", str(plan_path), "--sample", "2", xdg=xdg).returncode == 0
+
+    decisions = {
+        "root": str(root),
+        "actions": [
+            # 合并：把 Small 独有的一话移进 Big，再整体移走 Small
+            {"case": "merge", "op": "move", "src": "Small/ch2", "dest": "Big"},
+            {"case": "merge", "op": "trash", "path": "Small", "keep": ["Big"]},
+            # Lone 的内容在 Omni 里没有：整个案例拒绝，连移动也不做
+            {"case": "bad", "op": "move", "src": "Ch", "dest": "Omni"},
+            {"case": "bad", "op": "trash", "path": "Lone", "keep": ["Omni"]},
+            {"case": "inside", "op": "trash", "path": "Big", "keep": ["Big/ch1"]},
+            {"case": "noop", "op": "keep"},
+        ],
+    }
+    decisions_path = tmp_path / "decisions.json"
+    decisions_path.write_text(json.dumps(decisions), encoding="utf-8")
+    applied = run("apply-decisions", str(decisions_path), xdg=xdg)
+    assert applied.returncode == 0, applied.stdout + applied.stderr
+    assert sorted(p.name for p in (root / "Big").iterdir()) == ["ch1", "ch2", "ch3", "ch4"]
+    assert not (root / "Small").exists()
+    assert (root / "Ch/1.jpg").exists() and (root / "Lone/q.jpg").exists()
+    assert "Lone/q.jpg 在保留路径下没有相同内容的文件" in applied.stdout
+    assert "保留路径 Big/ch1 在被移走的路径里" in applied.stdout
+    assert sorted(p.name for p in (xdg / "Trash/files").iterdir()) == ["Small"]
+
+
+def test_number_gaps() -> None:
+    assert dedupe.number_gaps([1, 2, 4, 7]) == (3, [3, 5, 6])
+    assert dedupe.number_gaps([1, 2, 3]) == (0, [])
+    # 文件名里的作品 ID 不是页码：不展开区间（曾因此占满内存）
+    assert dedupe.number_gaps([91133980, 2601441943]) is None
