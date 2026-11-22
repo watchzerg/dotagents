@@ -404,6 +404,17 @@ def report_justfile(project: Path) -> None:
         missing = missing_recipes(justfile_path)
         if missing:
             print("提示：justfile 缺少契约 recipe：" + "、".join(missing) + "；建议补齐。")
+        check_docs = project / "scripts/check_docs.py"
+        if (
+            "docs-affected" in missing
+            and check_docs.is_file()
+            and "--affected" not in check_docs.read_text(encoding="utf-8")
+        ):
+            # 旧模板或项目改写的 check_docs.py 缺失才复制，不会被升级；给出可直接照做的写法，免得 agent 另行设计。
+            print(
+                "提示：项目已有的 scripts/check_docs.py 不支持 --affected；docs-affected 写成非零退出并说明原因，"
+                f"报告列为票据候选，实现可从 {TOOLCHAIN / 'common/scripts/check_docs.py'} 移植。"
+            )
     else:
         print(
             "提示：项目已有工具链但没有 justfile；可参考 toolchain/stacks/*/recipes.just 建立命令契约。"

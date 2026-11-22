@@ -362,6 +362,10 @@ def test_existing_project_keeps_user_check_docs(project: Path, bin_dir: Path) ->
     (project / "uv.lock").write_text("")
     (project / "scripts").mkdir()
     (project / "scripts/check_docs.py").write_text("# mine\n")
+    (project / "justfile").write_text("default:\n    @just --list\n")
+    detected = run_script(project, bin_dir, "--detect-only")
+    assert "不支持 --affected" in detected.stdout
+    assert "toolchain/common/scripts/check_docs.py" in detected.stdout
     result = run_script(project, bin_dir)
     assert result.returncode == 0, result.stderr
     assert (project / "scripts/check_docs.py").read_text() == "# mine\n"
