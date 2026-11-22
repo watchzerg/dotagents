@@ -22,7 +22,7 @@ description: 按个人模板初始化新项目的 Beads、标准化文档结构�
    python3 "<skill目录>/scripts/init_beads.py"
    ```
 
-   已有 `.beads` 则跳过。首次 `bd init` 的自动 Git commit 属于已确认行为。
+   已有 `.beads` 时改为 `bd bootstrap`，补齐新 clone 缺少的本地数据库，数据库已在时只校验。首次 `bd init` 的自动 Git commit 属于已确认行为。
 
 2. **文档结构**（结构定义见 [references/docs-structure.md](references/docs-structure.md)，模板在 `templates/`）：
 

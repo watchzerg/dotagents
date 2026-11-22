@@ -26,27 +26,31 @@ def main() -> int:
     if bd is None:
         print("错误：PATH 中未找到 bd，请先安装 Beads。", file=sys.stderr)
         return 1
-    if (project / ".beads").exists():
-        print("已有 .beads，跳过初始化。")
-        return 0
+    beads = project / ".beads"
+    if beads.exists():
+        # 新 clone 只有 .beads 配置、没有本地数据库；bootstrap 只补缺，数据库已在时仅校验。
+        print("已有 .beads，执行 bd bootstrap 补齐本地数据库。")
+        command = [bd, "bootstrap", "--yes"]
+    else:
+        command = [
+            bd,
+            "init",
+            "--non-interactive",
+            "--init-if-missing",
+            "--role",
+            "maintainer",
+            "--skip-agents",
+            "--skip-hooks",
+        ]
     try:
-        return subprocess.run(
-            [
-                bd,
-                "init",
-                "--non-interactive",
-                "--init-if-missing",
-                "--role",
-                "maintainer",
-                "--skip-agents",
-                "--skip-hooks",
-            ],
-            cwd=project,
-            check=False,
-        ).returncode
+        returncode = subprocess.run(command, cwd=project, check=False).returncode
     except OSError as exc:
         print(f"错误：无法执行 bd：{exc}", file=sys.stderr)
         return 1
+    if returncode == 0 and beads.is_dir():
+        # bd 每次调用都提示 .beads 宜为 0700，提示会混进 agent 读到的输出。
+        beads.chmod(0o700)
+    return returncode
 
 
 if __name__ == "__main__":

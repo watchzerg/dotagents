@@ -23,6 +23,7 @@
 - **Matt setup 是前置而非内置**：`docs/agents/` 的三个文件由 Matt 的 setup 交互产生，本 skill 不复制也不模板化，只检查存在。原因是 tracker 选择和标签映射需要用户回答，且 Matt 的 skill 会自行更新这些文件。
 - **根目录四个硬约束路径**：`GLOSSARY.md`、`docs/adr/`、`docs/agents/` 是 Matt skills 直接按路径读写的位置，`CODING_STANDARDS.md` 是 code-review 按名查找的；其余目录可按项目调整。
 - **`## Agent skills` 块压缩进触发表**：Matt 的 setup 是本 skill 的前置，之后不再重跑，其三个指针并入触发表后该块被脚本移除。若有人重跑 Matt setup 追加了新块，再跑本 skill 会再次移除。
+- **已有 `.beads` 时执行 `bd bootstrap`**（2026-11-22）：数据库是 embedded Dolt、不进 git，新 clone 只有 `.beads/` 配置，`bd` 一律报 `no beads database found`。原先脚本见到 `.beads` 就跳过，重跑本 skill 修不好，问题拖到某个 skill 建票时才暴露；grok-media-saver 的 `/prune-tests` 留痕票因此没建成，而 bd 自带提示只指向 `bd init`，会在本地另起一个与远端分叉的空库。`bd bootstrap` 按 `sync.remote` 等来源恢复，数据库已在时只校验，符合只补缺。顺带把 `.beads` 设为 0700，消掉 bd 每次调用都打印的权限提示。模板 AGENTS.md 的票据行同步写恢复命令，随项目进 git，以后的新 clone 也能看到；已初始化项目的该行不会被按节合并更新，靠重跑本 skill 的 bootstrap 覆盖。
 - **AGENTS.md 按节合并而非整文件跳过**：它与 Matt setup、用户共用，所以以二级标题为单位，缺的节追加、已有的节不动、标题外内容保留，重复运行无变更。其他模板文件只属于本 skill，整文件缺失才创建即可。
 - **不设 `archive/`、`plans/`**：参考项目里的归档层来自 Beads 之前的遗留文档；新项目用 tracker 承载增量，git 承载历史。ADR 索引原先也不设，2026-11-11 改为初始化即建，见下文“三个项目重构后的回收”。
 - **`<待填 时机：说明>` 协议**：初始化不编造项目内容，留显式标记并注明可填时机（初始化、阶段3、首个模块、按需；`阶段3` 沿用为"工具链落地后"的标记名，不随 SKILL.md 的阶段编号变动）；AGENTS.md 常驻约束要求每次交付前搜索并按时机填写，全部消失后该条自删。不另建待填清单文件：grep 即清单，独立文件会漂移。这是空项目里让文档"逐步长出来"的机制，也是因为用户在初始化时同样答不出架构类问题，所以不向用户询问。
@@ -142,6 +143,7 @@
 - 功能地图（2026-11-11）只改了模板与规则文本，未跑 e2e：existing 模式下补写文档的子 agent 与主 agent 是否按代码填出功能地图、真实开发会话里新增功能时是否登记，都没有数据；并入上一条的真实项目回看。
 - 合同独占页（2026-11-11）：`just gate-full` 通过；e2e 跑了 `empty`、`none-empty`、`uv-existing` 三个用例（未加 `--review`、`--rerun`），硬检查全部通过，含两张新页的存在与入链。`uv-existing` 前两次只失败 `description:GLOSSARY.md`，原因在 harness：fixture 的 `AGENTS.md` 已有描述，流程不提问，GLOSSARY 由那句描述展开，而检查拿预置答案的四字片段去比，命中与否取决于措辞。`Case` 加 `existing_description`，这类用例改用 fixture 里的描述取片段，第三次运行通过。其余用例未跑；真实项目上的 `/acceptance` 与 `/prune-tests` 未在新路径下运行过。
 - 三个项目重构后的回收（2026-11-11）：`just gate-full` 通过，其中新增用例验证 none、uv、node、swift 与三 stack 组合渲染出的文档都通过新检查器。e2e 跑了 `empty`、`none-empty`（sonnet）与 `uv-existing`（opus），未加 `--review`、`--rerun`，硬检查全部通过：`uv-existing` 里迁出的 ADR 登记进了索引并填了状态与何时读，模块页六节齐全，新检查器对 21 篇文档通过。`empty` 首轮在 `gate-core` 的 lint 失败：`check_docs.py` 有一行超过 100 列，本仓库的 Ruff 忽略 E501 而 uv 模板不忽略；已拆行，并加测试用 uv 模板的 Ruff 配置检查 `toolchain/common/scripts/`。`uv-existing` 在该修复前运行，existing 模式不跑项目 lint，未重跑。未验收：fixture 太小，没有触发超预算拆页与骨架不符的旧页重排这两类新候选；400 字符的行预算在真实项目里是否过紧，真实开发会话里超预算时是否按规则拆页而不是删内容，都没有数据。已由旧模板初始化的项目不受影响，`check_docs.py` 缺失才复制。
+- `bd bootstrap`（2026-11-22）：只有替身 CLI 测试，未在真实新 clone 上跑过重跑 `/setup-project`，sync.remote 为 git 时的克隆耗时与需要的凭据未知；未跑 e2e。
 - Linux 适配（2026-11-19）：只在 Ubuntu 上跑过 `just gate-full`，未跑 e2e；改过的 SKILL.md 提问措辞、references 与 overlay 文本未经真实 agent 验证，swift 平台检查未在 macOS 上实测。
 
 ## 演进记录
@@ -181,3 +183,4 @@
 | 2026-11-19 | 适配 Linux：模板、报错与 references 去掉 Homebrew 专属措辞；新项目选 swift 而缺少 `xcodebuild` 时脚本拒绝落地，SKILL.md 提问时非 macOS 不提供 swift | 本文关键决策 |
 | 2026-11-20 | `test-layers.md` 模板与 toolchain.md 的 full 层说明补一句：浏览器测试以开发依赖引入 Playwright，用自带 Chromium、headless、独立 context；未跑 e2e | `global/AGENTS.md` 浏览器测试节 |
 | 2026-11-22 | kototoki 重跑复盘：`init_toolchain.py` 对不支持 `--affected` 的已有 `check_docs.py` 打印做法提示；SKILL.md 报告规则加一句，项目约定与标准结构冲突时列为裁决项；未跑 e2e | 本文关键决策 |
+| 2026-11-22 | grok-media-saver `/prune-tests` 复盘：`init_beads.py` 已有 `.beads` 时改为 `bd bootstrap --yes` 并设 0700；模板 AGENTS.md 票据行加 `no beads database found` 的恢复命令；未跑 e2e | 本文关键决策 |

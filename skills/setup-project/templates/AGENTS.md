@@ -23,7 +23,7 @@
 | 新增、移动、删除文档，或讨论形成明确结论 | [文档维护规则](docs/agents/documentation.md) |
 | 涉及领域术语或数据模型 | [GLOSSARY.md](GLOSSARY.md)，写法见[领域文档规则](docs/agents/domain.md) |
 | 改变已有取舍、与 ADR 冲突或新增 ADR | [ADR 索引](docs/adr/INDEX.md)，写法见[领域文档规则](docs/agents/domain.md) |
-| 读取、创建或更新票据 | [tracker 约定](docs/agents/issue-tracker.md) |
+| 读取、创建或更新票据 | [tracker 约定](docs/agents/issue-tracker.md)；`bd` 报 `no beads database found` 时先运行 `bd bootstrap` 从远端恢复，不用 `bd init` |
 | 分类票据或调整分诊标签 | [标签映射](docs/agents/triage-labels.md) |
 | 调研、实验或复用已有结论 | [调研索引](docs/research/INDEX.md)，按状态与“何时读”挑选；新产出放 `docs/research/` 并在索引登记 |
 | review diff 的代码质量 | [CODING_STANDARDS.md](CODING_STANDARDS.md) |

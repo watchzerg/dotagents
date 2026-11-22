@@ -45,15 +45,16 @@ def fake_bd(bin_dir: Path, body: str) -> None:
     executable.chmod(0o755)
 
 
-def test_existing_beads_is_untouched(project: Path, bin_dir: Path) -> None:
+def test_existing_beads_bootstraps_without_init(project: Path, bin_dir: Path) -> None:
     beads = project / ".beads"
-    beads.mkdir()
+    beads.mkdir(mode=0o775)
     (beads / "config.yaml").write_text("existing configuration\n")
-    fake_bd(bin_dir, "echo unexpected > invoked\nexit 42\n")
+    fake_bd(bin_dir, 'printf "%s\\n" "$@" > invoked\n')
     result = run_script(project, bin_dir)
     assert result.returncode == 0
-    assert not (project / "invoked").exists()
+    assert (project / "invoked").read_text().splitlines() == ["bootstrap", "--yes"]
     assert (beads / "config.yaml").read_text() == "existing configuration\n"
+    assert beads.stat().st_mode & 0o777 == 0o700
 
 
 def test_init_runs_in_current_directory(project: Path, bin_dir: Path) -> None:

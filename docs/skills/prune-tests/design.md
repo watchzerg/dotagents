@@ -22,6 +22,9 @@
 - **按内容定位编辑，门禁由发起者运行**：同一次运行里 integration 子 agent 用行号范围 `sed -i` 删断言被 auto 模式权限分类器拒绝，`just test-full` 也被拒；主 agent 与 core 子 agent 用 Edit 工具或匹配内容的脚本编辑则全部顺利。行号范围删除在多 agent 并发编辑时本就脆弱，所以 skill 要求按内容定位，门禁与 full 测试由发起 skill 的 agent 运行。
 - **只跑 `gate-full`**：模板与真实项目的 `gate-full` 都依赖 `gate-core`，原先基线和收尾都要求两者并跑，core 层每次重复一遍。改为只跑 `gate-full`，gate-core 耗时从输出或单独计时取。
 - **结束时留一张已关闭的票**（2026-11-13）：`/optimize` 的三个主题都经 spec 与票据留痕，精简测试原先只在报告和 `test-layers.md` 里留下结果，查不到哪天删了多少。执行步骤末尾加一步，按项目 tracker 建一张票并立即关闭，记录各层前后的文件数、用例数与保留范围。由某张票据发起时（如 `/optimize arch` 拆出的测试精简票）记入那张票，不另建；没有 tracker 约定的项目跳过并在报告注明，保持“不强依赖 setup-project”。
+- **报告给出删后耗时分布**（2026-11-22）：用例删光后，剩下的固定开销最显眼。grok-media-saver 删后 `gate-full` 仍要 105s，报告只写了前后总数；用户追问后逐文件计时才发现约 70s 花在每个文件各启动一次 PostgreSQL 容器上，改为整轮共用一个容器后降到 46s。报告因此要求按文件拆分耗时并点出大头的固定开销，只列为后续项，不在本次改，守住不扩大范围的边界。
+- **删除后的清理交给 typecheck 与 lint 定位、人工删声明**（2026-11-22）：同一次运行为删测试写了八个一次性脚本，接连出错：扫描器没处理模板字符串的 `${}`；删 `for (...)` 包裹的测试只删了循环头，留下孤立块；只剩一个参数的 `test.each` 残留 `stage ===` 比较；Biome `lint --write --unsafe` 的 noUnusedVariables 把未使用函数改名为 `_name` 而不删除；补写的去下划线脚本又截断了多行签名。执行步骤因此写明：由 typecheck 与 lint 报出失去引用的声明后逐个删除，单参数矩阵改写为普通测试。具体坑只记在本文，不进 SKILL.md。
+- **留痕票先拿编号再关闭**（2026-11-22）：同次运行把 `bd create`、解析 ID 与 `bd close` 串在一条命令里，create 失败后 close 拿到空 ID，又多出两段无关报错，掩盖了真正的 `no beads database found`。该报错的恢复方法（`bd bootstrap`）写在 setup-project 模板的 AGENTS.md 票据行，并由 `init_beads.py` 在重跑时自动执行，本 skill 不重复。
 
 ## 与 setup-project 的耦合
 
@@ -34,10 +37,13 @@
 
 2026-10-17 在 x-media-saver 首次运行分层版本：既有的保留范围节被识别并改写，ledger 事务合同、真子进程 smoke、生产产物、执行锁 busy、临时 Git remote 发布等 full 测试按第二类保留且报告逐条给了理由；core 后端 417 → 109、Web 100 → 38、扩展 5 → 4、integration 49 → 35，无筛选 `gate-full` 通过，耗时 61s → 42s。agent 未经指令自发采用的执行形状：按层拆三个只读分析子 agent 并行出方案，主 agent 批准后由同一批子 agent 在各自目录内编辑，文档同步与门禁由主 agent 收口；该形状有效，不写进 SKILL.md，仅供下次对照。暴露的问题已记入关键决策的后四条。
 
+2026-11-22 在 grok-media-saver（Bun + TypeScript，有 core/full 分层，无 `docs/behaviors/` 与 `test-layers.md`）运行：core 36 → 10、full 388 → 33，`gate-full` 409.9s → 105s，新建 `test-layers.md`；留痕票因本机缺少 Beads 数据库未建。暴露的问题已记入关键决策的后三条。
+
 2026-11-22 在本仓库（无 `docs/agents/testing.md`、`test-layers.md`、`docs/behaviors/`，无 core/full 分层与 tracker 约定）走通用标准：主流程按各 skill 的 SKILL.md 与脚本推断，7 个测试文件 120 → 40 个用例，无筛选 `gate-full` 通过；本仓库明确不套用 setup-project 模板结构，因此没有新建 `docs/development/test-layers.md`，保留范围写进根 `AGENTS.md` 的测试节，留痕票跳过。说明“文件不存在就新建”对刻意不用模板结构的仓库不适用，需由项目约定判断落点。
 
 ## 待验收
 
+- 2026-11-22 加的耗时分布、清理方式与分步建票三条措辞未经真实运行验证。
 - 修订后的执行步骤（引用断言的去留结论、按内容定位编辑、只跑 `gate-full`）尚未在真实项目上重跑验证。
 - 留痕票这一步（2026-11-13 加）未经真实运行：建票后立即关闭在 Beads 上是否顺畅、由票据发起时是否正确改为记入原票，待下次运行确认。
 - 没有 behaviors/ 与 testing.md 的项目走通用标准：2026-11-22 在本仓库走通；`test-layers.md` 不存在时一律新建的规则与项目自身结构约定冲突，SKILL.md 是否改为“项目另有落点时从其约定”待决定。
@@ -51,3 +57,4 @@
 | 2026-10-17 | x-media-saver 首次真实运行后的 retro：约定来源节明示项目约定管结构、保留标准归 skill；执行步骤新增“逐个读正文、结论引用断言”并作为委派交付标准，替换原禁令句；编辑按内容定位，门禁由发起者运行；基线与收尾只跑 `gate-full`；文档同步节改为模块页“代码与验证入口”内的说明项、full 目录不再写死 `tests/full/`、覆盖要求类表述一并同步 | 真实运行记录 |
 | 2026-11-11 | 分层合同与保留范围由 `workflow.md` 的两节改为独占 `docs/development/test-layers.md`，只认该路径、不设回退，文件不存在时新建并接入索引；模板同步，四个存量项目随同迁移 | 本文关键决策 |
 | 2026-11-13 | 执行步骤末尾加留痕：建一张已关闭的票记录前后文件数、用例数与保留范围；由票据发起时记入原票，无 tracker 约定时跳过；完成报告加票据编号 | [optimize 设计说明](../optimize/design.md)的衔接约定 |
+| 2026-11-22 | grok-media-saver 运行复盘：执行步骤第 4 步加删除后由 typecheck 与 lint 定位清理、单参数矩阵改写；第 8 步建票拿到编号后再关闭；完成报告加删后 `gate-full` 耗时分布 | 真实运行记录 |
