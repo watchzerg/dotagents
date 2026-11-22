@@ -101,7 +101,8 @@ def test_new_uv_project(project: Path, bin_dir: Path) -> None:
         assert (project / path).is_file(), path
     assert 'name = "my-project"' in (project / "pyproject.toml").read_text()
     assert ".venv/" in (project / ".gitignore").read_text()
-    assert not (project / "mise.toml").exists()
+    mise = (project / "mise.toml").read_text()
+    assert '[tools]\nuv = "0.13"\n' in mise and "node" not in mise
     justfile = project / "justfile"
     names = recipe_names(justfile)
     assert {"check-toolchain", "install", "fmt", "lint", "typecheck", "test", "docs-check"} <= names
@@ -116,7 +117,8 @@ def test_new_uv_project(project: Path, bin_dir: Path) -> None:
     assert stage3_markers(project) == {}
     workflow = (project / "docs/development/workflow.md").read_text()
     assert "## 命令与门禁" in workflow and "`just gate-core`" in workflow
-    assert "宿主工具：`uv`、`just`，" in workflow and "Homebrew）" not in workflow
+    assert "宿主工具：`mise`、`just`。" in workflow and "钉住对版本敏感的 `uv`" in workflow
+    assert "mise trust\njust install" in (project / "README.md").read_text()
     assert "Python 解释器由 uv" in workflow and "### " not in workflow
     assert "<待填 按需：有发布流程时" in workflow
     assert "测试分层与资源边界" not in workflow and "local-acceptance.md" in workflow
@@ -133,7 +135,8 @@ def test_new_uv_project(project: Path, bin_dir: Path) -> None:
     stack = (project / "docs/development/technology-stack.md").read_text()
     assert "typer" in stack and "beautifulsoup4" in stack
     calls = invocations(project)
-    assert len(calls) == 1 and calls[0].startswith("uv sync |")
+    commands = [call.split(" | ")[0] for call in calls]
+    assert commands == ["mise trust", "mise install", "mise lock", "mise exec -- uv sync"]
     assert "门禁由初始化流程末尾统一运行" in result.stdout
 
 
@@ -153,7 +156,7 @@ def test_new_uv_node_project_layout_commands_and_scopes(project: Path, bin_dir: 
     result = run_script(project, bin_dir, "--stacks", "node", "uv")
     assert result.returncode == 0, result.stderr
     assert "stacks：uv、node；模式：new" in result.stdout
-    assert (project / "mise.toml").is_file()
+    assert '[tools]\nuv = "0.13"\nnode = "26"\npnpm = "12"\n' in (project / "mise.toml").read_text()
     assert (project / "frontend/package.json").is_file()
     assert "../mise.toml" in (project / "frontend/scripts/check-node.ts").read_text()
     assert "../mise.toml" in (project / "frontend/tests/core/toolchain.test.ts").read_text()
@@ -181,10 +184,10 @@ def test_new_uv_node_project_layout_commands_and_scopes(project: Path, bin_dir: 
     calls = invocations(project)
     commands = [call.split(" | ")[0] for call in calls]
     assert commands == [
-        "uv sync",
         "mise trust",
         "mise install",
         "mise lock",
+        "mise exec -- uv sync",
         "mise exec -- pnpm install",
     ]
     assert calls[4].endswith("/frontend")

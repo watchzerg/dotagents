@@ -1,9 +1,9 @@
 ## 开始使用
 
-安装宿主工具：{{HOST_TOOLS}}（Homebrew、系统包管理器或官方安装方式均可）。然后：
+安装宿主工具：{{HOST_TOOLS}}。mise 用系统包管理器安装（macOS：`brew install mise`；Ubuntu：添加 mise 官方 apt 源后 `sudo apt install mise`），just 用全局 mise 配置安装（`mise use -g just@1`）。然后：
 
 ```bash
-just install
+{{MISE_TRUST}}just install
 just gate-core
 ```
 

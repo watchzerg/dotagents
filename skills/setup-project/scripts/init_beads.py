@@ -24,7 +24,10 @@ def main() -> int:
         return 1
     bd = shutil.which("bd")
     if bd is None:
-        print("错误：PATH 中未找到 bd，请先安装 Beads。", file=sys.stderr)
+        print(
+            "错误：PATH 中未找到 bd，请先用全局 mise 配置安装 Beads（mise use -g github:gastownhall/beads）。",
+            file=sys.stderr,
+        )
         return 1
     beads = project / ".beads"
     if beads.exists():

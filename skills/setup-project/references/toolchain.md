@@ -8,7 +8,7 @@
 
 | 文件 | 作用 |
 | --- | --- |
-| `stack.json` | 标签、与其他 stack 同在时的子目录（`home_when_shared`）、宿主工具说明、安装命令（在根或 home 执行）、文档表格单元 |
+| `stack.json` | 标签、与其他 stack 同在时的子目录（`home_when_shared`）、宿主工具说明、`mise`（钉进根 `mise.toml` 的工具及版本 line）、安装命令（在根或 home 执行）、文档表格单元 |
 | `recipes.just` | 该 stack 的私有 recipe：`<name>-check-toolchain`、`-install`、`-fmt`、`-lint`、`-typecheck`、`-test`、`-test-core`、`-test-full` |
 | `home/`、`root/` | 复制到 stack 目录与仓库根的文件；路径与内容都做占位符替换 |
 | `gitignore` | 追加到根 `.gitignore` 的缺失行 |
@@ -36,12 +36,12 @@
 
 | stack | 布局 | 工具链文件 | 安装命令 |
 | --- | --- | --- | --- |
-| uv | 根目录 | `.python-version`（minor line）、`pyproject.toml`（Ruff、ty、pytest，`package = false`）、`tests/core/test_toolchain.py` | `uv sync` |
-| node | 单独时根目录，与其他 stack 同在时 `frontend/`；`mise.toml` 始终在根 | `mise.toml`（Node 与 pnpm 的版本 line）、`package.json`（Biome、TypeScript、Vitest）、`biome.json`、`tsconfig.json`、`scripts/check-node.ts`、`tests/core/toolchain.test.ts` | `mise trust`、`mise install`、`mise lock`、`pnpm install`（在 home） |
+| uv | 根目录 | `mise.toml` 的 `uv = "0.13"`、`.python-version`（minor line）、`pyproject.toml`（Ruff、ty、pytest，`package = false`）、`tests/core/test_toolchain.py` | `mise exec -- uv sync` |
+| node | 单独时根目录，与其他 stack 同在时 `frontend/`；`mise.toml` 始终在根 | `mise.toml` 的 `node = "26"`、`pnpm = "12"`、`package.json`（Biome、TypeScript、Vitest）、`biome.json`、`tsconfig.json`、`scripts/check-node.ts`、`tests/core/toolchain.test.ts` | `mise exec -- pnpm install`（在 home） |
 | swift | 根目录 | `.xcode-version`（major line）、`.swift-format`、`Package.swift`（library target + `CoreTests` target 指向 `tests/core`，按实际文件排除测试目录中的非 Swift 文件）、`Sources/<Module>/<Module>.swift`、`tests/core/ToolchainTests.swift` | `swift package resolve` |
 | 无预置 | 不落工具链文件 | `toolchain/none/justfile`、`scripts/check_docs.py` 与 `scripts/with_lock.py` | 无 |
 
-工具链走宿主 uv → Python、宿主 mise → Node 与 pnpm、Xcode 自带 Swift 工具链；宿主 uv、mise、just 可来自 Homebrew、系统包管理器或官方安装器，模板不假设来源。swift stack 依赖 Xcode，仅支持 macOS：新项目选了 swift 而 PATH 上没有 `xcodebuild` 时，脚本不写文件并以退出码 1 结束；existing 模式不检查，因为不碰工具链文件。Ruff/ty/pytest、Biome/`tsc --noEmit`/Vitest、swift-format/`swift build`/Swift Testing 是各自的检查器与 runner。`scripts/check_docs.py` 与 `scripts/with_lock.py` 对所有新项目复制，只依赖 Python 3.14+ 标准库，recipe 用 `python3` 调用。所有文件缺失才创建。
+工具链走系统包管理器（Homebrew、APT）→ mise → uv → Python、mise → Node 与 pnpm、Xcode 自带 Swift 工具链；just 由全局 mise 配置提供，项目不锁定。对版本敏感的工具由脚本按各 stack 的 `mise` 字段合并生成根 `mise.toml`（顺序 uv、node），安装时先在根目录依次运行 `mise trust`、`mise install`、`mise lock` 生成 `mise.lock`，再运行各 stack 的安装命令；recipe 直接调用 `uv`，由 mise 按目录切换，`check-toolchain` 以 `MISE_AUTO_INSTALL=0` 核对 PATH 上的 uv 属于 `mise.toml` 的 line，node 与 pnpm 同理；只有 `install` 紧跟 `mise install` 时经 `mise exec --` 调用。只选 swift 时不生成 `mise.toml`。swift stack 依赖 Xcode，仅支持 macOS：新项目选了 swift 而 PATH 上没有 `xcodebuild` 时，脚本不写文件并以退出码 1 结束；existing 模式不检查，因为不碰工具链文件。Ruff/ty/pytest、Biome/`tsc --noEmit`/Vitest、swift-format/`swift build`/Swift Testing 是各自的检查器与 runner。`scripts/check_docs.py` 与 `scripts/with_lock.py` 对所有新项目复制，只依赖 Python 3.14+ 标准库，recipe 用 `python3` 调用。所有文件缺失才创建。
 
 node stack 只落工具链，不落应用骨架：React、Vite、Tailwind CSS、shadcn/ui 与 React Testing Library 是固定选型，写在该 stack 的文档片段里，由项目在写第一个页面时加入。
 

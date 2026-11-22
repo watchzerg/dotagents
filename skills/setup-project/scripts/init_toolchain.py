@@ -2,10 +2,10 @@
 """使用 Python 3.14+ 标准库初始化项目工具链、justfile 与开发文档。
 
 项目由零到多个 stack 组成（uv、node、swift），每个 stack 是 `toolchain/stacks/<name>/` 下的自包含模块：
-`stack.json`（标签、布局、安装命令、文档表格单元）、`recipes.just`（私有 recipe）、`home/` 与 `root/`
-（要复制的文件）、`gitignore`、`overlay/`（镜像项目根的文档正文片段）。脚本按文件证据判定 stack 集合；已有工具链的
+`stack.json`（标签、布局、mise 钉住的工具版本 line、安装命令、文档表格单元）、`recipes.just`（私有 recipe）、
+`home/` 与 `root/`（要复制的文件）、`gitignore`、`overlay/`（镜像项目根的文档正文片段）。脚本按文件证据判定 stack 集合；已有工具链的
 项目不改动工具链与 justfile，只补缺 `scripts/check_docs.py`、`scripts/with_lock.py` 并把各 stack 的依赖偏好补进文档；新项目复制 stack 文件、拼出根
-justfile、运行安装命令，并用拼合后的正文替换 init_docs.py 留下的 `<待填 阶段3：…>` 标记。所有文件缺失才创建。
+justfile 与根 `mise.toml`、运行安装命令，并用拼合后的正文替换 init_docs.py 留下的 `<待填 阶段3：…>` 标记。所有文件缺失才创建。
 `--detect-only` 只打印判定结果，供初始化流程在落地前一次性收集需要用户回答的问题；门禁不在本脚本内运行。
 """
 
@@ -70,6 +70,13 @@ default:
     @just --list
 """
 
+MISE_HEADER = """\
+# 对版本敏感的工具钉到兼容版本 line，精确版本由 mise.lock 记录；just 等通用工具由全局 mise 配置提供。
+[tools]
+"""
+# 有 mise 钉住的工具时，在各 stack 安装之前于根目录执行。
+MISE_STEPS: tuple[list[str], ...] = (["mise", "trust"], ["mise", "install"], ["mise", "lock"])
+
 Section = tuple[str, str]
 
 
@@ -80,6 +87,7 @@ class Stack:
         manifest = json.loads((self.dir / "stack.json").read_text(encoding="utf-8"))
         self.label: str = manifest["label"]
         self.host_tools: str = manifest["host_tools"]
+        self.mise: dict[str, str] = manifest.get("mise", {})
         self.install: list[dict] = manifest["install"]
         self.cells: dict[str, str] = manifest["cells"]
         self.home: str = manifest.get("home_when_shared", ".") if shared else "."
@@ -192,6 +200,10 @@ def section_bodies(path: Path) -> dict[str, str]:
     return {title: body.partition("\n")[2].strip("\n") for title, body in sections}
 
 
+def mise_tools(stacks: list[Stack]) -> dict[str, str]:
+    return {tool: line for stack in stacks for tool, line in stack.mise.items()}
+
+
 def doc_placeholders(stacks: list[Stack]) -> dict[str, str]:
     multi = len(stacks) > 1
 
@@ -207,8 +219,13 @@ def doc_placeholders(stacks: list[Stack]) -> dict[str, str]:
         )
         layout = f"布局：{places}。"
     names = "、".join(f"`{s.name}`" for s in stacks)
+    pinned = "、".join(f"`{tool}`" for tool in mise_tools(stacks))
     return {
-        "{{HOST_TOOLS}}": "、".join([s.host_tools for s in stacks] + ["`just`"]),
+        "{{HOST_TOOLS}}": "、".join(dict.fromkeys([s.host_tools for s in stacks] + ["`just`"])),
+        "{{PIN_NOTE}}": f"项目根 `mise.toml` 钉住对版本敏感的 {pinned} 的版本 line，`mise.lock` 锁定精确版本。"
+        if pinned
+        else "",
+        "{{MISE_TRUST}}": "mise trust\n" if pinned else "",
         "{{LAYOUT}}": layout,
         "{{ARGS}}": "[scope] [参数]" if multi else "[参数]",
         "{{SCOPE_NOTE}}": f"定向参数先写 scope（{names}），再写各自 runner 的参数。"
@@ -545,6 +562,10 @@ def main() -> int:
         else:
             justfile = (TOOLCHAIN / "none/justfile").read_text(encoding="utf-8")
         write_generated(project / "justfile", justfile, report)
+        tools = mise_tools(stacks)
+        if tools:
+            pins = "".join(f'{tool} = "{line}"\n' for tool, line in tools.items())
+            write_generated(project / "mise.toml", MISE_HEADER + pins, report)
     else:
         # 已有工具链的项目不碰工具链文件，唯一例外是 common 下的两个脚本：只用标准库、与 stack 无关，
         # 缺失才补。check_docs.py 供 agent 写出可用的 docs-check recipe；with_lock.py 供 agent 把已有的
@@ -584,18 +605,21 @@ def main() -> int:
     if args.skip_install:
         print("已跳过安装。")
         return 0
+    steps = [(command, project) for command in MISE_STEPS] if mise_tools(stacks) else []
     for stack in stacks:
         for step in stack.install:
             cwd = project if step["cwd"] == "root" else project / stack.home
-            code = run(step["args"], cwd)
-            if code != 0:
-                print(
-                    f"错误：{' '.join(step['args'])} 退出码 {code}。修复宿主工具后在项目根目录运行"
-                    " just install；重跑本脚本会判定为 existing 并跳过安装。",
-                    file=sys.stderr,
-                )
-                return 1
-    if any(stack.install for stack in stacks):
+            steps.append((step["args"], cwd))
+    for command, cwd in steps:
+        code = run(command, cwd)
+        if code != 0:
+            print(
+                f"错误：{' '.join(command)} 退出码 {code}。修复宿主工具后在项目根目录运行"
+                " just install；重跑本脚本会判定为 existing 并跳过安装。",
+                file=sys.stderr,
+            )
+            return 1
+    if steps:
         print("安装完成；门禁由初始化流程末尾统一运行。")
     else:
         print("无安装命令；门禁由初始化流程末尾统一运行。")

@@ -1,12 +1,23 @@
 # ---- {{LABEL}}：{{HOME_DIR}} ----
 
-# 工具链检查：uv 存在，解释器符合 .python-version 的版本 line；不安装依赖，也不下载解释器。
+# 工具链检查：mise 存在，mise.lock 存在，PATH 上的 uv（由 mise 按目录切换）符合根 mise.toml 的版本 line，
+# 解释器符合 .python-version 的版本 line。不安装依赖，也不下载解释器；MISE_AUTO_INSTALL=0 关掉 shim 的自动安装。
 [private]
 uv-check-toolchain:
     #!/usr/bin/env bash
     set -euo pipefail
+    command -v mise >/dev/null || { echo '错误：缺少 mise；用系统包管理器安装（macOS 运行 brew install mise，Ubuntu 添加 mise 官方 apt 源后运行 sudo apt install mise）。' >&2; exit 1; }
+    [ -f mise.lock ] || { echo '错误：缺少 mise.lock，请运行 mise lock。' >&2; exit 1; }
+    export MISE_AUTO_INSTALL=0
+    line="$(sed -n 's/^uv *= *"\(.*\)".*/\1/p' mise.toml)"
+    command -v uv >/dev/null || { echo "错误：PATH 上没有 uv；请运行 just install，并确认 shell 已启用 mise activate 或 mise shims。" >&2; exit 1; }
+    actual="$(uv --version)"
+    actual="$(echo "$actual" | cut -d' ' -f2)"
+    case "$actual" in
+      "$line"|"$line".*) echo "uv=${actual}" ;;
+      *) echo "错误：uv 版本 ${actual} 不属于 line ${line}；请运行 just install，并确认 shell 已启用 mise activate 或 mise shims。" >&2; exit 1 ;;
+    esac
     cd {{HOME_DIR}}
-    command -v uv >/dev/null || { echo '错误：缺少 uv；macOS 可运行 brew install uv，Linux 可用官方安装脚本 curl -LsSf https://astral.sh/uv/install.sh | sh。' >&2; exit 1; }
     uv run --no-project --no-env-file --no-python-downloads --python "$(cat .python-version)" python -B - <<'PY'
     import pathlib
     import sys
@@ -18,10 +29,11 @@ uv-check-toolchain:
     print(f"Python={actual}；工具链检查通过")
     PY
 
-# 按 lock 同步开发依赖；不升级宿主工具。
+# 按 lock 安装 uv 与开发依赖；不升级全局工具。刚安装的 uv 可能还不在当前 PATH 上，sync 经 mise exec 调用。
 [private]
 uv-install:
-    cd {{HOME_DIR}} && uv sync --locked
+    mise install
+    cd {{HOME_DIR}} && mise exec -- uv sync --locked
 
 [private]
 uv-fmt *paths=".":

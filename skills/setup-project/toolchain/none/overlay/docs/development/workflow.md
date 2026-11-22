@@ -1,6 +1,6 @@
 ## 环境
 
-宿主工具：`just` 与 Python 3.14+ 的 `python3`（用 Homebrew、系统包管理器或官方安装方式安装）（运行 `scripts/check_docs.py` 与 `scripts/with_lock.py`）。项目运行时与依赖管理尚未接入。
+宿主工具：`just` 与 Python 3.14+ 的 `python3`（运行 `scripts/check_docs.py` 与 `scripts/with_lock.py`）。mise 由系统包管理器（Homebrew、APT）维护，just 与 uv 由全局 mise 配置提供，`python3` 由 uv 安装（`uv python install 3.14 --default`）；接入工具链时，对版本敏感的工具在项目根 `mise.toml` 钉版本 line 并提交 `mise.lock`。项目运行时与依赖管理尚未接入。
 
 <待填 按需：接入工具链后记录宿主工具、运行时版本声明与安装方式>
 

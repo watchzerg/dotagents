@@ -5,7 +5,7 @@
 ## clone 后怎么用
 
 1. 将本仓库 clone 到准备长期保留的位置，进入仓库目录。
-2. 确保 `python3` 为 3.14+；setup 仅使用标准库。系统自带版本通常不满足，可先安装 uv（macOS：`brew install uv`；Linux：`curl -LsSf https://astral.sh/uv/install.sh | sh`），再运行 `uv python install 3.14 --default`。
+2. 确保 `python3` 为 3.14+；setup 仅使用标准库。系统自带版本通常不满足：用系统包管理器安装 mise（macOS：`brew install mise`；Ubuntu：添加 mise 官方 apt 源后 `sudo apt install mise`），由 mise 提供 uv（`mise use -g uv@0.13`），再运行 `uv python install 3.14 --default`。
 3. 在本仓库中打开 Claude Code，调用：
 
    ```text
@@ -77,7 +77,8 @@ dotagents/
 ├── docs/skills/<name>/             # 各 skill 的设计说明与调研，维护者阅读
 ├── tests/                          # 安装器测试与各 skill 脚本测试（tests/<name>/）
 ├── justfile                        # 安装、检查和测试入口
-├── .python-version                 # uv 管理的开发 Python 补丁版本
+├── mise.toml / mise.lock           # mise 钉住的 uv 版本 line 与精确版本
+├── .python-version                 # uv 管理的开发 Python 版本 line
 ├── pyproject.toml                  # 开发依赖与检查配置
 └── uv.lock                         # 开发依赖锁文件
 ```
@@ -89,22 +90,20 @@ dotagents/
 仅在维护脚本或运行检查时准备开发环境：
 
 ```sh
-# macOS
-brew install uv just
-# Linux（Ubuntu 等）：uv 用官方安装脚本，just 用系统包管理器
-curl -LsSf https://astral.sh/uv/install.sh | sh
-sudo apt install just
+# 系统包管理器安装 mise：macOS 用 brew install mise；Ubuntu 添加 mise 官方 apt 源后 sudo apt install mise
+mise use -g just@1     # just 由全局 mise 配置提供，项目不锁定
+mise trust             # 首次信任本仓库的 mise.toml
 
 just install
 just gate-full
 ```
 
-支持 macOS 与 Linux。宿主 uv/just 由 Homebrew、系统包管理器或官方安装器管理，项目 Python 补丁版本由 `.python-version` 固定，开发依赖由 `uv.lock` 锁定。`just install` 安装开发环境；应用个人配置直接运行 setup skill 的 Python 脚本。
+支持 macOS 与 Linux。mise 由系统包管理器维护；uv 与 just 由 mise 提供，其中 uv 对版本敏感，由本仓库 `mise.toml` 钉到 0.13 line、`mise.lock` 锁定精确版本，just 用全局 mise 配置。Python 版本 line 由 `.python-version` 固定为 3.14，开发依赖由 `uv.lock` 锁定。uv 由 mise 按目录切换（shell 需启用 `mise activate` 或 mise shims），`just check-toolchain` 核对实际解析到的版本。`just install` 安装开发环境；应用个人配置直接运行 setup skill 的 Python 脚本。
 
 | 命令 | 用途 |
 | --- | --- |
 | `just` | 列出可用命令 |
-| `just check-toolchain` | 检查宿主工具和项目 Python 版本 |
+| `just check-toolchain` | 检查 mise、uv 版本 line 和项目 Python 版本 line，不安装 |
 | `just lint` / `just typecheck` | 检查 Python 格式、lint 和类型 |
 | `just fmt` | 格式化并修复可自动修复的 lint |
 | `just test` | 运行全部 pytest 测试 |

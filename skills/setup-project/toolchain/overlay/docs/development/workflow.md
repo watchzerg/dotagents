@@ -1,6 +1,6 @@
 ## 环境
 
-宿主工具：{{HOST_TOOLS}}，用 Homebrew、系统包管理器或官方安装方式安装，项目不锁定其版本。新环境先 `just install`，再 `just check-toolchain`。{{LAYOUT}}
+宿主工具：{{HOST_TOOLS}}。mise 由系统包管理器（Homebrew、APT）维护；just 等通用命令行工具由全局 mise 配置提供，项目不锁定。{{PIN_NOTE}}新环境先 `just install`，再 `just check-toolchain`。{{LAYOUT}}
 
 ## 命令与门禁
 
@@ -9,7 +9,7 @@
 | 命令 | 作用 |
 | --- | --- |
 | `just check-toolchain` | 核对运行时与版本声明，不安装 |
-| `just install` | 按 lock 安装，不升级宿主工具：{{INSTALL}} |
+| `just install` | 按 lock 安装，不升级全局工具：{{INSTALL}} |
 | `just fmt {{ARGS}}` | {{FMT}} |
 | `just lint` | {{LINT}} |
 | `just typecheck` | {{TYPECHECK}} |

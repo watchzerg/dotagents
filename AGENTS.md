@@ -33,8 +33,8 @@
 
 ## 开发环境
 
-- 工具链为宿主 uv/just → uv 管理的项目 Python → `.venv` 与依赖；支持 macOS 与 Linux，宿主 uv/just 可来自 Homebrew、系统包管理器或官方安装器，仓库不假设来源。本仓库不引入 mise（`setup-project` 模板中的 mise 配置只作用于目标项目），不在项目内安装或锁定 uv/just，不擅自升级宿主工具或修改相邻项目。
-- `.python-version` 固定开发 Python 补丁版本，`uv.lock` 固定依赖。新环境先安装宿主工具，再运行 `just install` 和 `just check-toolchain`。
+- 工具链为系统包管理器（Homebrew/APT）→ mise → uv、just → uv 管理的项目 Python → `.venv` 与依赖；支持 macOS 与 Linux。根 `mise.toml` 只钉对版本敏感的 uv（0.13 line），`mise.lock` 锁定精确版本，uv 按目录由 mise 切换（activate 或 shims），recipe 直接调用 `uv`，`check-toolchain` 核对实际版本；just 由全局 mise 配置提供，项目不锁定。不擅自升级全局工具或修改相邻项目。
+- `.python-version` 固定开发 Python 版本 line（3.14），`uv.lock` 固定依赖。新环境先用系统包管理器装 mise、用全局 mise 配置装 just，再运行 `mise trust`、`just install` 和 `just check-toolchain`。
 - 本仓库是开发环境，不发布为 Python 包。pytest、Ruff、ty 属于开发依赖，不自动成为 skill 运行时依赖；skill 的运行代码和专属资源放在各自目录内。
 
 ## 测试与验证
