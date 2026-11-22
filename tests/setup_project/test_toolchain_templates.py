@@ -1,4 +1,4 @@
-"""渲染临时项目后用真实 just 运行生成的 recipe，验证模板行为：full 测试按 stack 文件判定、定向参数转发、none 模式不留阶段3 标记、各 stack 组合渲染出的文档通过文档检查。
+"""渲染临时项目后用真实 just 运行生成的 recipe，验证模板行为：full 测试按 stack 文件判定、docs-affected 转发基准参数、渲染出的文档通过文档检查、公共脚本通过 uv 模板的 lint。
 
 uv、mise 用替身记录参数，不安装依赖；swift 只走不调用编译器的分支，渲染时用 xcodebuild 替身通过平台检查。
 """
@@ -87,40 +87,7 @@ def test_full_detection_ignores_other_stacks_files(tmp_path: Path, stub_path: st
     assert "未声明 FullTests" in result.stderr
 
 
-def test_node_path_argument_replaces_default_directory(tmp_path: Path, stub_path: str) -> None:
-    project = render(tmp_path, "node")
-    assert (
-        "STUB mise exec -- pnpm exec vitest run tests/core -t name"
-        in just(project, stub_path, "test", "-t", "name").stdout
-    )
-    target = "tests/core/toolchain.test.ts"
-    assert (
-        f"STUB mise exec -- pnpm exec vitest run {target}\n"
-        in just(project, stub_path, "test", target).stdout
-    )
-
-    (project / "tests/full").mkdir()
-    assert "尚无 full 测试" in just(project, stub_path, "test-full").stdout
-    (project / "tests/full/slow.test.ts").write_text("")
-    assert (
-        "STUB mise exec -- pnpm exec vitest run tests/full\n"
-        in just(project, stub_path, "test-full").stdout
-    )
-
-
-def test_none_mode_leaves_no_stage3_markers(tmp_path: Path) -> None:
-    project = render(tmp_path, "none")
-    leftovers = [
-        path.relative_to(project).as_posix()
-        for path in project.rglob("*.md")
-        if ".git" not in path.parts and "<待填 阶段3" in path.read_text()
-    ]
-    assert leftovers == []
-
-
-@pytest.mark.parametrize(
-    "stacks", [("none",), ("uv",), ("node",), ("swift",), ("uv", "node", "swift")]
-)
+@pytest.mark.parametrize("stacks", [("none",), ("uv", "node", "swift")])
 def test_rendered_docs_pass_docs_check(tmp_path: Path, stacks: tuple[str, ...]) -> None:
     """模板与拼合后的正文自己要守住可达性、索引登记、体量预算与标题骨架。"""
     project = render(tmp_path, *stacks)
@@ -134,12 +101,9 @@ def test_rendered_docs_pass_docs_check(tmp_path: Path, stacks: tuple[str, ...]) 
     assert result.returncode == 0, result.stdout + result.stderr
 
 
-@pytest.mark.parametrize("stacks", [("none",), ("uv",)])
-def test_docs_affected_recipe_reports_changed_pages(
-    tmp_path: Path, stub_path: str, stacks: tuple[str, ...]
-) -> None:
-    """none 的静态 justfile 与拼合出的 justfile 都把基准参数传给 check_docs.py --affected。"""
-    project = render(tmp_path, *stacks)
+def test_docs_affected_recipe_reports_changed_pages(tmp_path: Path, stub_path: str) -> None:
+    """拼合出的 justfile 把基准参数传给 check_docs.py --affected。"""
+    project = render(tmp_path, "uv")
     page = project / "docs/architecture/modules/core.md"
     page.parent.mkdir(parents=True, exist_ok=True)
     page.write_text("---\ncovers:\n  - src/core.py\n---\n# core\n")

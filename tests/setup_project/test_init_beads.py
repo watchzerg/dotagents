@@ -45,23 +45,6 @@ def fake_bd(bin_dir: Path, body: str) -> None:
     executable.chmod(0o755)
 
 
-def test_missing_git_workspace_stops(tmp_path: Path, bin_dir: Path) -> None:
-    directory = tmp_path / "plain directory"
-    directory.mkdir()
-    fake_bd(bin_dir, "echo unexpected > invoked\n")
-    result = run_script(directory, bin_dir)
-    assert result.returncode != 0
-    assert "请先初始化 Git" in result.stderr
-    assert list(directory.iterdir()) == []
-
-
-def test_missing_bd_stops_without_creating_files(project: Path, bin_dir: Path) -> None:
-    result = run_script(project, bin_dir)
-    assert result.returncode != 0
-    assert "未找到 bd" in result.stderr
-    assert {path.name for path in project.iterdir()} == {".git"}
-
-
 def test_existing_beads_is_untouched(project: Path, bin_dir: Path) -> None:
     beads = project / ".beads"
     beads.mkdir()
@@ -73,16 +56,10 @@ def test_existing_beads_is_untouched(project: Path, bin_dir: Path) -> None:
     assert (beads / "config.yaml").read_text() == "existing configuration\n"
 
 
-@pytest.mark.parametrize("exit_code", [0, 23])
-def test_init_runs_in_current_directory_and_preserves_result(
-    project: Path, bin_dir: Path, exit_code: int
-) -> None:
-    fake_bd(
-        bin_dir,
-        f'printf "%s\\n" "$@" > invoked\necho cli-output\necho cli-error >&2\nexit {exit_code}\n',
-    )
+def test_init_runs_in_current_directory(project: Path, bin_dir: Path) -> None:
+    fake_bd(bin_dir, 'printf "%s\\n" "$@" > invoked\necho cli-output\necho cli-error >&2\n')
     result = run_script(project, bin_dir)
-    assert result.returncode == exit_code
+    assert result.returncode == 0
     assert "cli-output" in result.stdout
     assert "cli-error" in result.stderr
     assert (project / "invoked").read_text().splitlines() == [

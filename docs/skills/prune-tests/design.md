@@ -34,11 +34,13 @@
 
 2026-10-17 在 x-media-saver 首次运行分层版本：既有的保留范围节被识别并改写，ledger 事务合同、真子进程 smoke、生产产物、执行锁 busy、临时 Git remote 发布等 full 测试按第二类保留且报告逐条给了理由；core 后端 417 → 109、Web 100 → 38、扩展 5 → 4、integration 49 → 35，无筛选 `gate-full` 通过，耗时 61s → 42s。agent 未经指令自发采用的执行形状：按层拆三个只读分析子 agent 并行出方案，主 agent 批准后由同一批子 agent 在各自目录内编辑，文档同步与门禁由主 agent 收口；该形状有效，不写进 SKILL.md，仅供下次对照。暴露的问题已记入关键决策的后四条。
 
+2026-11-22 在本仓库（无 `docs/agents/testing.md`、`test-layers.md`、`docs/behaviors/`，无 core/full 分层与 tracker 约定）走通用标准：主流程按各 skill 的 SKILL.md 与脚本推断，7 个测试文件 120 → 40 个用例，无筛选 `gate-full` 通过；本仓库明确不套用 setup-project 模板结构，因此没有新建 `docs/development/test-layers.md`，保留范围写进根 `AGENTS.md` 的测试节，留痕票跳过。说明“文件不存在就新建”对刻意不用模板结构的仓库不适用，需由项目约定判断落点。
+
 ## 待验收
 
 - 修订后的执行步骤（引用断言的去留结论、按内容定位编辑、只跑 `gate-full`）尚未在真实项目上重跑验证。
 - 留痕票这一步（2026-11-13 加）未经真实运行：建票后立即关闭在 Beads 上是否顺畅、由票据发起时是否正确改为记入原票，待下次运行确认。
-- 没有 behaviors/ 与 testing.md 的项目是否仍能顺畅走通用标准，需要一个非 setup-project 项目验证。
+- 没有 behaviors/ 与 testing.md 的项目走通用标准：2026-11-22 在本仓库走通；`test-layers.md` 不存在时一律新建的规则与项目自身结构约定冲突，SKILL.md 是否改为“项目另有落点时从其约定”待决定。
 - node 与 swift 的收集验证命令在 skill 里只给了示例，真实 stack 上以什么命令确认“仍被标准入口发现”待确认。
 
 ## 演进记录

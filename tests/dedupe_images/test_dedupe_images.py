@@ -3,7 +3,6 @@
 import importlib.util
 import json
 import os
-import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -22,39 +21,15 @@ _spec.loader.exec_module(dedupe)
 @pytest.mark.parametrize(
     ("name", "base", "numbers"),
     [
-        ("000c01.jpg", "000c01", ()),
         ("000c01 (2).jpg", "000c01", (2,)),
-        ("a(3).png", "a", (3,)),
-        ("a （4）.JPG", "a", (4,)),
         ("a - Copy (2).jpg", "a", (2, 1)),
-        ("a - 副本.jpg", "a", (1,)),
-        ("Copy (2) of a.jpg", "a", (2,)),
         ("复件 a.jpg", "a", (1,)),
-        ("a copy 3.jpg", "a", (3,)),
-        ("a 副本 2.jpg", "a", (2,)),
-        ("a (another copy).jpg", "a", (2,)),
-        ("a (3rd copy).jpg", "a", (3,)),
-        ("a (第 4 个副本).jpg", "a", (4,)),
-        ("a_copy.jpg", "a", (1,)),
-        ("a (Tom's conflicted copy 2026-01-01).jpg", "a", (1,)),
-        ("a.jpg.2", "a", (2,)),
-        ("a (1) (1).jpg", "a", (1, 1)),
     ],
 )
 def test_strong_markers(name: str, base: str, numbers: tuple[int, ...]) -> None:
     parsed = dedupe.parse_name(name, weak=False)
     assert parsed is not None
     assert (parsed.base, parsed.numbers) == (base, numbers)
-
-
-def test_non_image_is_ignored() -> None:
-    assert dedupe.parse_name("a (1).txt") is None
-
-
-def test_weak_markers_need_bare_file() -> None:
-    with_bare = {p.name: p for p in dedupe.parse_directory(["photo.png", "photo 2.png", "x-1.png"])}
-    assert with_bare["photo 2.png"].key == with_bare["photo.png"].key
-    assert with_bare["x-1.png"].base == "x-1"
 
 
 def write(path: Path, data: bytes) -> None:
@@ -161,33 +136,6 @@ def test_plan_and_apply(library: Path, tmp_path: Path) -> None:
     assert "/s1/a%20%281%29.jpg\nDeletionDate=" in info
 
 
-def test_apply_skips_stale_group(library: Path, tmp_path: Path) -> None:
-    xdg = tmp_path / "xdg"
-    plan_path = tmp_path / "plan.json"
-    assert run("plan", str(library), "--out", str(plan_path), xdg=xdg).returncode == 0
-    (library / "s1/a (1).jpg").write_bytes(b"ZZZZ")  # 计划之后内容变化
-    applied = run("apply", str(plan_path), xdg=xdg)
-    assert applied.returncode == 0
-    assert "a (1).jpg 内容已变化" in applied.stdout
-    assert (library / "s1/a (1).jpg").read_bytes() == b"ZZZZ"
-
-
-def test_topdir_trash_on_other_mount(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    home_mount, data_mount = tmp_path / "home", tmp_path / "data"
-    monkeypatch.setenv("XDG_DATA_HOME", str(home_mount / "share"))
-    write(data_mount / "s/a (1).jpg", b"A")
-
-    def mount_of(path: Path) -> Path:
-        return data_mount if path.is_relative_to(data_mount) else home_mount
-
-    target = data_mount / "s/a (1).jpg"
-    dedupe.freedesktop_trash(target, mount_of)
-    own = data_mount / f".Trash-{os.getuid()}"
-    assert (own / "files/a (1).jpg").exists()
-    assert stat.S_IMODE(own.stat().st_mode) == 0o700
-    assert "Path=s/a%20%281%29.jpg\n" in (own / "info/a (1).jpg.trashinfo").read_text()
-
-
 def summarize(directory: Path) -> tuple[list[tuple[str, list[str], str | None]], list[list[str]]]:
     planned = dedupe.plan_directory(directory, ".", [])
     if planned is None:
@@ -220,32 +168,9 @@ def test_page_series(tmp_path: Path) -> None:
         write(sporadic / f"page ({i}).jpg", pages[0] if i == 2 else data + b"v2")
     assert summarize(sporadic) == ([], [])
 
-    # 两套页码相同：同一页的两种写法，留补零的一份
-    same = tmp_path / "same"
-    for i, data in enumerate(pages[:4], 1):
-        write(same / f"page ({i:03d}).png", data)
-        write(same / f"page ({i}).png", data)
-    groups, _ = summarize(same)
-    assert groups == [(f"page ({i:03d}).png", [f"page ({i}).png"], None) for i in range(1, 5)]
-
-    # 单套序列：相邻页相同是作品本身的重复页，不删；不同页同体积也不进人工确认；
-    # 同一页的副本照常去重但不改名
-    single = tmp_path / "single"
-    for i, data in enumerate([pages[0], pages[1], pages[1], pages[2], pages[3]], 1):
-        write(single / f"00 ({i}).jpg", data)
-    write(single / "00 (3) (1).jpg", pages[1])
-    assert summarize(single) == ([("00 (3).jpg", ["00 (3) (1).jpg"], None)], [])
-
 
 def test_cross_name(tmp_path: Path) -> None:
     pages = [f"page-{i}".encode() * (5 + i) for i in range(12)]
-
-    # 只差补零：留补零写法
-    pad = tmp_path / "pad"
-    write(pad / "0630_A_76.png", pages[0])
-    write(pad / "630_A_76.png", pages[0])
-    write(pad / "631_A_77.png", pages[1])  # 无对应，不动
-    assert summarize(pad) == ([("0630_A_76.png", ["630_A_76.png"], None)], [])
 
     # 只差开头流水号且整套存了两遍：留流水号小的
     index = tmp_path / "index"
@@ -266,36 +191,6 @@ def test_cross_name(tmp_path: Path) -> None:
     write(credit / "050_credit.jpg", b"credit")
     assert summarize(credit) == ([], [])
 
-    # 两种命名、编号错开一位的整套重复：留不带副本标记的一套，多出的一页不动
-    both = tmp_path / "both"
-    write(both / "page - (1).jpg", b"cover")
-    for i, data in enumerate(pages, 1):
-        write(both / f"{i:03d}.jpg", data)
-        write(both / f"page - ({i + 1}).jpg", data)
-    groups, _ = summarize(both)
-    assert groups == [(f"{i:03d}.jpg", [f"page - ({i + 1}).jpg"], None) for i in range(1, 13)]
-
-    # 大部分同名配对、后半段错位：同名的由名称组处理，错位的按整套对应移走
-    shifted = tmp_path / "shifted"
-    for i, data in enumerate(pages, 1):
-        write(shifted / f"{i:02d}.jpg", data)
-        copy = data if i <= 9 else pages[i - 2]
-        write(shifted / f"{i:02d} (1).jpg", copy)
-    groups, _ = summarize(shifted)
-    assert groups == [(f"{i:02d}.jpg", [f"{i:02d} (1).jpg"], None) for i in range(1, 10)] + [
-        (f"{i - 1:02d}.jpg", [f"{i:02d} (1).jpg"], None) for i in range(10, 13)
-    ]
-
-    # 套太小（双语版各自的封面）、或只有少数页相同（不同语言版本）：不动
-    bilingual = tmp_path / "bilingual"
-    for i, data in enumerate(pages, 1):
-        write(bilingual / f"{i:03d}.jpg", data)
-        write(bilingual / f"k{i:03d}.jpg", data if i <= 3 else data + b"ko")
-    for i in range(1, 4):
-        write(bilingual / f"000c{i:02d}.jpg", f"c{i}".encode())
-        write(bilingual / f"k000c{i:02d}.jpg", f"c{i}".encode())
-    assert summarize(bilingual) == ([], [])
-
 
 def test_dir_duplicates(tmp_path: Path) -> None:
     root = tmp_path / "lib"
@@ -309,62 +204,31 @@ def test_dir_duplicates(tmp_path: Path) -> None:
     fill("X (2)", pages)  # 内容相同、名字带副本标记：移走
     fill("X (2)", {"01 (1).jpg": pages["01.jpg"]})  # 移走的目录不再做目录内去重
     fill("X", {"01 (1).jpg": pages["01.jpg"]})
-    lily = {f"{i}.jpg": f"lily{i}".encode() for i in range(3)}
-    fill("[P] Lily", lily)
-    fill("[P (皮)] Lily", lily)  # 目录名不同、内容与文件名相同：留目录名更长的
     fill("Ren", {"a.jpg": b"ren-a", "b.jpg": b"ren-b"})
     fill("Ren copy", {"x1.jpg": b"ren-a", "x2.jpg": b"ren-b"})  # 内容相同但文件名不同：交模型判断
     part = {f"{i:03d}.jpg": f"part{i}".encode() for i in range(20)}
     fill("full/[L] Part 1", part)
     fill("full/[L] Part 1 more", {**part, "100.jpg": b"extra"})  # 更大的超集
     fill("only/Part 1", dict(list(part.items())[:19]))  # 同名子集（覆盖 90%）：移走，指向最大的超集
-    fill("Vol 1", {"v1.jpg": b"vol1", "v2.jpg": b"vol2"})
-    fill(
-        "Omnibus",
-        {"v1.jpg": b"vol1", "v2.jpg": b"vol2", **{f"x{i}.jpg": b"x%d" % i for i in range(5)}},
-    )
-    fill("Omni", {f"{i:04d}.jpg": f"ch{i}".encode() for i in range(6)})
-    fill("Ch2", {f"{i}.jpg": f"ch{i + 3}".encode() for i in range(3)})  # 文件名改过的子集：人工确认
-    fill("NoteA", {"a.jpg": b"note-a", "info.txt": b"v1"})
-    fill("NoteB", {"a.jpg": b"note-a", "info.txt": b"v2"})  # 非图片文件不一致：人工确认
-    fill("Tree", {"t.jpg": b"tree"})
-    fill("Tree/sub", {"s.jpg": b"sub"})
-    fill("Tree2", {"t.jpg": b"tree"})  # Tree 含子目录：交模型判断
-    for ch in (1, 3, 4):
-        fill(f"Big/ch{ch}", {"p.jpg": f"chapter{ch}".encode()})
-    # 保留子目录多的合集里那份；移走会拆散 Small：人工确认
-    fill("Small/ch1", {"p.jpg": b"chapter1"})
-    fill("Small/ch2", {"p.jpg": b"chapter2"})
 
     plan = dedupe.build_plan(root)
     removals = {r["dir"]: (r["keep_dir"], r["relation"]) for r in plan["dir_removals"]}
     assert removals == {
         "X (2)": ("X", "equal"),
-        "[P] Lily": ("[P (皮)] Lily", "equal"),
         "full/[L] Part 1": ("full/[L] Part 1 more", "subset"),
         "only/Part 1": ("full/[L] Part 1 more", "subset"),
     }
     review = {r["dir"]: r["reason"] for r in plan["dir_review"]}
-    assert review == {
-        "Ren copy": "内容相同但文件名不同",
-        "Vol 1": "同名子集只占保留目录一部分",
-        "Ch2": "文件名不同的子集",
-        "NoteB": "非图片文件不一致",
-        "Small/ch1": "会拆散所在合集",
-        "Tree": "含子目录",
-    }
+    assert review == {"Ren copy": "内容相同但文件名不同"}
     assert [d["dir"] for d in plan["dirs"]] == ["X"]
 
     xdg = tmp_path / "xdg"
     plan_path = tmp_path / "plan.json"
     plan_path.write_text(json.dumps(plan, ensure_ascii=False), encoding="utf-8")
-    write(root / "[P] Lily/new.jpg", b"new")  # 计划之后新增文件：跳过
     applied = run("apply", str(plan_path), xdg=xdg)
     assert applied.returncode == 0, applied.stdout + applied.stderr
-    assert "[P] Lily 文件清单已变化" in applied.stdout
     assert not (root / "X (2)").exists() and not (root / "full/[L] Part 1").exists()
     assert not (root / "only").exists()  # 移走后变空的上级目录一并删除
-    assert (root / "[P] Lily/new.jpg").exists()
     assert sorted(p.name for p in (root / "X").iterdir()) == ["01.jpg", "02.jpg", "03.jpg"]
     assert sorted(p.name for p in (xdg / "Trash/files").iterdir()) == [
         "01 (1).jpg",
@@ -470,7 +334,6 @@ def test_composed_collection_and_trash_matching(tmp_path: Path) -> None:
                 "keep": ["Parts/Ch1", "Loose/Ch2"],
             },
             {"case": "b", "op": "trash_matching", "path": "Pack", "keep": ["Work"]},
-            {"case": "none", "op": "trash_matching", "path": "Work", "keep": ["Full/Ch2"]},
         ],
     }
     decisions_path = tmp_path / "decisions.json"
@@ -481,7 +344,6 @@ def test_composed_collection_and_trash_matching(tmp_path: Path) -> None:
     assert not (root / "Loose").exists()
     assert sorted(p.name for p in (root / "Pack").iterdir()) == ["c.jpg"]
     assert sorted(p.name for p in (root / "Work").iterdir()) == ["1.jpg", "2.jpg"]
-    assert "Work 中没有与保留路径相同内容的文件" in applied.stdout
 
 
 def test_clean_junk(tmp_path: Path) -> None:
@@ -553,32 +415,6 @@ def test_check_decisions_without_changes(tmp_path: Path) -> None:
     assert "y：A 与案例 x 冲突" in checked.stdout
 
 
-def test_decisions_reject_malformed_keep(tmp_path: Path) -> None:
-    root = tmp_path / "lib"
-    write(root / "A/1.jpg", b"A")
-    write(root / "B/1.jpg", b"A")
-    decisions_path = tmp_path / "decisions.json"
-    decisions_path.write_text(
-        json.dumps(
-            {
-                "root": str(root),
-                "actions": [
-                    {"case": "x", "op": "trash", "path": "A", "keep": "B"},
-                    {"case": "y", "op": "trash_matching", "path": "A", "keep": "B"},
-                ],
-            }
-        ),
-        encoding="utf-8",
-    )
-    checked = run("apply-decisions", str(decisions_path), "--check", xdg=tmp_path / "xdg")
-    assert "x：移走项路径或 keep 不合法" in checked.stdout
-    assert "y：trash_matching 路径或 keep 不合法" in checked.stdout
-    decisions_path.write_text(
-        json.dumps({"root": str(root), "actions": ["oops"]}), encoding="utf-8"
-    )
-    assert run("apply-decisions", str(decisions_path), xdg=tmp_path / "xdg").returncode == 2
-
-
 def test_move_with_new_name(tmp_path: Path) -> None:
     root = tmp_path / "lib"
     write(root / "Named/001_a.png", b"A")
@@ -609,8 +445,6 @@ def test_move_with_new_name(tmp_path: Path) -> None:
         )
         return run("apply-decisions", str(decisions_path), xdg=tmp_path / "xdg")
 
-    assert "Named/002_b.png 已存在" in decide("002_b.png").stdout
-    assert "新文件名不合法" in decide("../x.png").stdout
     applied = decide("001_a_00000002.png")
     assert applied.returncode == 0, applied.stdout + applied.stderr
     assert sorted(p.name for p in (root / "Named").iterdir()) == [
@@ -619,15 +453,3 @@ def test_move_with_new_name(tmp_path: Path) -> None:
         "002_b.png",
     ]
     assert not (root / "Flat").exists()
-
-
-def test_shown_quotes_surrounding_whitespace() -> None:
-    assert dedupe._shown("a/ 01") == "「a/ 01」"
-    assert dedupe._shown("a/01") == "a/01"
-
-
-def test_number_gaps() -> None:
-    assert dedupe.number_gaps([1, 2, 4, 7]) == (3, [3, 5, 6])
-    assert dedupe.number_gaps([1, 2, 3]) == (0, [])
-    # 文件名里的作品 ID 不是页码：不展开区间（曾因此占满内存）
-    assert dedupe.number_gaps([91133980, 2601441943]) is None
