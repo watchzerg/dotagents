@@ -1,6 +1,6 @@
 ## 环境
 
-宿主工具：`mise` 与 Python 3.14+ 的 `python3`（运行 `scripts/check_docs.py` 与 `scripts/with_lock.py`）。mise 由系统包管理器（Homebrew、APT）维护，并按项目根 `mise.toml` 提供工具、环境变量与 task；`python3` 可由 uv 安装（`uv python install 3.14 --default`）。接入工具链时，对版本敏感的工具写进 `mise.toml` 的 `[tools]` 钉版本 line 并提交 `mise.lock`；项目环境变量写 `[env]`，本机私有值写不提交的 `mise.local.toml`。新环境先 `mise trust`。项目运行时与依赖管理尚未接入。
+宿主工具：`mise` 与 Python 3.14+ 的 `python3`（运行 `scripts/check_docs.py` 与 `scripts/with_lock.py`）。mise 由系统包管理器（Homebrew、APT）维护，并按项目根 `mise.toml` 提供工具、环境变量与 task；`python3` 可由 uv 安装（`uv python install 3.14 --default`）。接入工具链时，对版本敏感的工具写进 `mise.toml` 的 `[tools]` 钉版本 line 并提交 `mise.lock`；项目环境变量写 `[env]`，本机私有值写不提交的 `mise.local.toml`。项目运行时与依赖管理尚未接入。
 
 <待填 按需：接入工具链后记录宿主工具、运行时版本声明与安装方式>
 

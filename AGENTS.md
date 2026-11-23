@@ -34,7 +34,7 @@
 ## 开发环境
 
 - 工具链为系统包管理器（Homebrew/APT）→ mise → uv → uv 管理的项目 Python → `.venv` 与依赖；支持 macOS 与 Linux。根 `mise.toml` 钉对版本敏感的 uv（0.13 line）并定义开发任务，`mise.lock` 锁定精确版本；需要向多条命令传参的任务放 `mise-tasks/` 文件任务。`mise run` 会按需自动安装 uv 并放上 PATH，任务内直接调用 `uv`。不擅自升级全局工具或修改相邻项目。
-- `.python-version` 固定开发 Python 版本 line（3.14），`uv.lock` 固定依赖。新环境先用系统包管理器装 mise，再运行 `mise trust`、`mise run install` 和 `mise run check-toolchain`。
+- `.python-version` 固定开发 Python 版本 line（3.14），`uv.lock` 固定依赖。新环境先用系统包管理器装 mise，再运行 `mise run install` 和 `mise run check-toolchain`；`mise run` 会自动 trust 本仓库的配置。
 - 本仓库是开发环境，不发布为 Python 包。pytest、Ruff、ty 属于开发依赖，不自动成为 skill 运行时依赖；skill 的运行代码和专属资源放在各自目录内。
 
 ## 测试与验证

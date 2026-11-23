@@ -2,7 +2,7 @@
 
 宿主工具：{{HOST_TOOLS}}。mise 由系统包管理器（Homebrew、APT）维护，并按项目根 `mise.toml` 提供工具、环境变量与 task；`mise run` 会自动安装缺失的工具，不需要 shell 启用 `mise activate`。{{PIN_NOTE}}
 
-项目环境变量写在 `mise.toml` 的 `[env]`，本机私有值写不提交的 `mise.local.toml`。新环境先 `mise trust`，再 `mise run install`、`mise run check-toolchain`。{{LAYOUT}}
+项目环境变量写在 `mise.toml` 的 `[env]`，本机私有值写不提交的 `mise.local.toml`。新环境先 `mise run install`，再、`mise run check-toolchain`。{{LAYOUT}}
 
 ## 命令与门禁
 

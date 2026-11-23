@@ -1,6 +1,6 @@
 """渲染临时项目后用真实 mise 运行生成的 task，验证模板行为：full 测试按 stack 文件判定且持主机锁运行、docs-affected 转发基准参数、渲染出的文档通过 docs-check、公共脚本通过 uv 模板的 lint。
 
-不执行 mise trust（会写用户的全局 trust 记录）：用 MISE_TRUSTED_CONFIG_PATHS 信任临时项目，MISE_STATE_DIR 指向临时目录；
+MISE_STATE_DIR 指向临时目录，mise run 自动 trust 临时项目时不写用户的全局 trust 记录；
 MISE_DISABLE_TOOLS 让 mise 不安装、不提供项目钉住的工具，uv 用 PATH 上的替身记录参数；swift 只走不调用编译器的分支，
 渲染时用 xcodebuild 替身通过平台检查。
 """
@@ -47,7 +47,6 @@ def task_env(project: Path, stub_dir: Path) -> dict[str, str]:
     return {
         **base,
         "PATH": f"{stub_dir}{os.pathsep}{os.environ['PATH']}",
-        "MISE_TRUSTED_CONFIG_PATHS": str(project),
         "MISE_STATE_DIR": str(tmp / "mise-state"),
         "MISE_DISABLE_TOOLS": "uv,node,pnpm",
         "MISE_YES": "1",

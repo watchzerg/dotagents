@@ -40,7 +40,7 @@ def sh(args: list[str], cwd: Path, timeout: int = 600) -> subprocess.CompletedPr
 
 
 def mise(args: list[str], project: Path, timeout: int = 600) -> subprocess.CompletedProcess[str]:
-    """在临时项目里运行 mise：用环境变量信任其配置而不执行 mise trust（会写用户的全局 trust 记录）；
+    """在临时项目里运行 mise：用环境变量把它列为受信任路径，mise run 就不会把它自动写进用户的全局 trust 记录；
     外层 `mise run e2e-setup-project` 注入的 MISE_CONFIG_ROOT、MISE_TASK_* 等不带进去。"""
     env = {
         k: v

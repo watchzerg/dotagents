@@ -91,8 +91,6 @@ dotagents/
 
 ```sh
 # 系统包管理器安装 mise：macOS 用 brew install mise；Ubuntu 添加 mise 官方 apt 源后 sudo apt install mise
-mise trust             # 首次信任本仓库的 mise.toml
-
 mise run install
 mise run gate-full
 ```

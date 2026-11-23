@@ -136,7 +136,7 @@ def test_new_uv_project(project: Path, bin_dir: Path) -> None:
     assert "## 命令与门禁" in workflow and "`mise run gate-core`" in workflow
     assert "宿主工具：`mise`。" in workflow and "钉住对版本敏感的 `uv`" in workflow
     assert "`mise run uv:test [参数]`" in workflow and "<stack>" in workflow
-    assert "mise trust\nmise run install\nmise run gate-core" in (project / "README.md").read_text()
+    assert "mise run install\nmise run gate-core" in (project / "README.md").read_text()
     assert "Python 解释器由 uv" in workflow and "### " not in workflow
     assert "<待填 按需：有发布流程时" in workflow
     assert "测试分层与资源边界" not in workflow and "local-acceptance.md" in workflow
@@ -153,7 +153,7 @@ def test_new_uv_project(project: Path, bin_dir: Path) -> None:
     assert "typer" in stack and "beautifulsoup4" in stack
     calls = invocations(project)
     commands = [call.split(" | ")[0] for call in calls]
-    assert commands == ["mise trust", "mise install", "mise lock", "mise exec -- uv sync"]
+    assert commands == ["mise install", "mise lock", "mise exec -- uv sync"]
     assert "门禁由初始化流程末尾统一运行" in result.stdout
 
 
@@ -205,13 +205,12 @@ def test_new_uv_node_project_layout_commands_and_scopes(project: Path, bin_dir: 
     calls = invocations(project)
     commands = [call.split(" | ")[0] for call in calls]
     assert commands == [
-        "mise trust",
         "mise install",
         "mise lock",
         "mise exec -- uv sync",
         "mise exec -- pnpm install",
     ]
-    assert calls[4].endswith("/frontend")
+    assert calls[3].endswith("/frontend")
 
 
 def test_new_swift_project(project: Path, bin_dir: Path) -> None:
@@ -237,7 +236,7 @@ def test_new_swift_project(project: Path, bin_dir: Path) -> None:
     assert "`CoreTests` target" in (project / "docs/development/test-layers.md").read_text()
     assert "Package.resolved" in (project / "docs/development/technology-stack.md").read_text()
     commands = [call.split(" | ")[0] for call in invocations(project)]
-    assert commands == ["mise trust", "swift package resolve"]
+    assert commands == ["swift package resolve"]
 
 
 def test_none_new_project_installs_contract_mise_toml(project: Path, bin_dir: Path) -> None:
@@ -250,7 +249,7 @@ def test_none_new_project_installs_contract_mise_toml(project: Path, bin_dir: Pa
     assert "mise.local.toml" in (project / ".gitignore").read_text()
     assert (project / "scripts/check_docs.py").is_file()
     commands = [call.split(" | ")[0] for call in invocations(project)]
-    assert commands == ["mise trust"]
+    assert commands == []
     workflow = (project / "docs/development/workflow.md").read_text()
     assert "`mise run gate-core`" in workflow and "<待填 按需：接入工具链后" in workflow
     assert "<待填 按需：本项目各层的位置" in (project / "docs/agents/testing.md").read_text()

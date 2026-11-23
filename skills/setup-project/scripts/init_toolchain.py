@@ -69,8 +69,8 @@ MISE_ENV = """\
 [env]
 # 项目环境变量写在这里；本机私有值写 mise.local.toml（不提交）。
 """
-# 新项目落地后在根目录执行：trust 让 mise 读取生成的 mise.toml；有钉住的工具时再安装并生成 mise.lock。
-MISE_TRUST = ["mise", "trust"]
+# 有钉住的工具时，在各 stack 安装之前于根目录执行。生成的 mise.toml 只有普通 [tools] 与 [tasks]，
+# 不需要 trust；mise install/exec/run 也会自动 trust 当前配置，所以不单独运行 mise trust。
 MISE_PIN_STEPS: tuple[list[str], ...] = (["mise", "install"], ["mise", "lock"])
 
 Section = tuple[str, str]
@@ -386,7 +386,7 @@ def report_tasks(project: Path) -> None:
 def mise_task_names(project: Path) -> set[str] | None:
     """按文件读取 mise task 名：配置文件的 [tasks] 表与 file task 目录；都没有时返回 None。
 
-    不调用 mise，因为未 trust 的配置会被拒绝读取；include 等间接来源看不到，由 agent 用 `mise tasks` 复核。
+    不调用 mise：只读文件即可，也不会触发项目配置里需要 trust 才能执行的代码（模板、`_.source`、hooks）；include 等间接来源看不到，由 agent 用 `mise tasks` 复核。
     """
     names: set[str] = set()
     found = False
@@ -568,9 +568,7 @@ def main() -> int:
     if args.skip_install:
         print("已跳过安装。")
         return 0
-    steps = [(MISE_TRUST, project)]
-    if mise_tools(stacks):
-        steps.extend((command, project) for command in MISE_PIN_STEPS)
+    steps = [(command, project) for command in MISE_PIN_STEPS] if mise_tools(stacks) else []
     for stack in stacks:
         for step in stack.install:
             cwd = project if step["cwd"] == "root" else project / stack.home
@@ -584,7 +582,10 @@ def main() -> int:
                 file=sys.stderr,
             )
             return 1
-    print("安装完成；门禁由初始化流程末尾统一运行。")
+    if steps:
+        print("安装完成；门禁由初始化流程末尾统一运行。")
+    else:
+        print("无安装命令；门禁由初始化流程末尾统一运行。")
     return 0
 
 

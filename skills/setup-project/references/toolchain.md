@@ -30,7 +30,7 @@
 
 **模式**：任一强证据（lockfile、工程文件、`mise.toml` 等 mise 配置文件）存在即为已有工具链，脚本不创建工具链文件、不运行安装、不碰 mise 配置与 task，只填 `technology-stack.md` 的"依赖政策"节（各 stack 片段拼合），并补缺 `scripts/check_docs.py` 与 `scripts/with_lock.py`：两者只用标准库、与 stack 无关，前者让 `docs-check` 有实现，后者让已有的 full 测试入口能包进主机锁，是"不碰工具链文件"的仅有例外。因此会被 existing 模式复制的"依赖政策"节只能写对任何项目都成立的偏好，模板已设置的配置事实（如 uv 的 `prerelease`、node 的 `preinstall`）写在"运行时与工具链"节。否则为新项目。
 
-`--detect-only` 只做判定并打印 stack、模式、证据与 existing 模式下 mise 配置缺少的契约 task（按文件读取 `mise.toml` 等配置的 `[tasks]` 与 `mise-tasks/` 等 file task 目录，不调用 mise，因为未 trust 的配置会被拒绝），不写文件，退出码与正式运行一致。初始化流程先用它收集需要用户回答的问题，与项目描述一起只问一次，再正式落地。
+`--detect-only` 只做判定并打印 stack、模式、证据与 existing 模式下 mise 配置缺少的契约 task（按文件读取 `mise.toml` 等配置的 `[tasks]` 与 `mise-tasks/` 等 file task 目录，不调用 mise，免得触发项目配置里需要 trust 才能执行的代码），不写文件，退出码与正式运行一致。初始化流程先用它收集需要用户回答的问题，与项目描述一起只问一次，再正式落地。
 
 ## 各 stack 落地
 
@@ -41,7 +41,7 @@
 | swift | 根目录 | `mise-tasks/swift/`、`.xcode-version`（major line）、`.swift-format`、`Package.swift`（library target + `CoreTests` target 指向 `tests/core`，按实际文件排除测试目录中的非 Swift 文件）、`Sources/<Module>/<Module>.swift`、`tests/core/ToolchainTests.swift` | `swift package resolve` |
 | 无预置 | 不落工具链文件 | `toolchain/none/mise.toml`、`scripts/check_docs.py` 与 `scripts/with_lock.py` | 无 |
 
-工具链走系统包管理器（Homebrew、APT）→ mise → uv → Python、mise → Node 与 pnpm、Xcode 自带 Swift 工具链。mise 同时承担工具、环境变量（`[env]`，本机私有值写 gitignore 的 `mise.local.toml`）与 task，任何新项目都生成根 `mise.toml`。对版本敏感的工具由脚本按各 stack 的 `mise` 字段合并进 `[tools]`（顺序 uv、node）；落地后在根目录运行 `mise trust`，有钉住的工具时再运行 `mise install`、`mise lock` 生成多平台的 `mise.lock`，然后运行各 stack 的安装命令（脚本不在 mise task 里，所以经 `mise exec --` 调用）。task 内直接调用 `uv`、`pnpm`：`mise run` 会自动安装缺失工具并把它们放进 PATH，不依赖 shell 的 `mise activate`，`check-toolchain` 因此不再核对 mise 管理的工具版本，只核对 mise 之外的版本声明（`.python-version`、`.xcode-version`），node 的只打印版本。swift stack 依赖 Xcode，仅支持 macOS：新项目选了 swift 而 PATH 上没有 `xcodebuild` 时，脚本不写文件并以退出码 1 结束；existing 模式不检查，因为不碰工具链文件。Ruff/ty/pytest、Biome/`tsc --noEmit`/Vitest、swift-format/`swift build`/Swift Testing 是各自的检查器与 runner。`scripts/check_docs.py` 与 `scripts/with_lock.py` 对所有新项目复制，只依赖 Python 3.14+ 标准库，task 用 `python3` 调用。所有文件缺失才创建。
+工具链走系统包管理器（Homebrew、APT）→ mise → uv → Python、mise → Node 与 pnpm、Xcode 自带 Swift 工具链。mise 同时承担工具、环境变量（`[env]`，本机私有值写 gitignore 的 `mise.local.toml`）与 task，任何新项目都生成根 `mise.toml`。对版本敏感的工具由脚本按各 stack 的 `mise` 字段合并进 `[tools]`（顺序 uv、node）；有钉住的工具时在根目录运行 `mise install`、`mise lock` 生成多平台的 `mise.lock`，然后运行各 stack 的安装命令。生成的 `mise.toml` 只有普通 `[tools]`、`[tasks]` 与无模板的 `[env]`，按 mise 默认（非 paranoid）不需要 trust，`mise run`、`mise install`、`mise exec` 也会自动 trust 当前配置，所以流程与文档都不出现 `mise trust`（脚本不在 mise task 里，所以经 `mise exec --` 调用）。task 内直接调用 `uv`、`pnpm`：`mise run` 会自动安装缺失工具并把它们放进 PATH，不依赖 shell 的 `mise activate`，`check-toolchain` 因此不再核对 mise 管理的工具版本，只核对 mise 之外的版本声明（`.python-version`、`.xcode-version`），node 的只打印版本。swift stack 依赖 Xcode，仅支持 macOS：新项目选了 swift 而 PATH 上没有 `xcodebuild` 时，脚本不写文件并以退出码 1 结束；existing 模式不检查，因为不碰工具链文件。Ruff/ty/pytest、Biome/`tsc --noEmit`/Vitest、swift-format/`swift build`/Swift Testing 是各自的检查器与 runner。`scripts/check_docs.py` 与 `scripts/with_lock.py` 对所有新项目复制，只依赖 Python 3.14+ 标准库，task 用 `python3` 调用。所有文件缺失才创建。
 
 node stack 只落工具链，不落应用骨架：React、Vite、Tailwind CSS、shadcn/ui 与 React Testing Library 是固定选型，写在该 stack 的文档片段里，由项目在写第一个页面时加入。
 

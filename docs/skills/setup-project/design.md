@@ -47,8 +47,9 @@
   - 公开 task 只用 `depends` 聚合，`depends` 默认并行执行，用户接受门禁子任务并行（core 本就要求可并行；full 由主机锁排队）。只有 `depends` 的 task 静默忽略参数，所以定向一律调用 stack task（`mise run uv:test -k 名称`），公开 task 不承担定向。
   - `check-toolchain` 不再核对 mise 管理的工具版本：`mise run` 会按 `mise.toml` 与 `mise.lock` 自动安装缺失工具并放进 PATH，用户接受这种自动安装；只核对 mise 之外的声明（`.python-version`、`.xcode-version`）。
   - `<stack>:test-full` 确认有 full 测试后经 `with_lock.py` 重新执行自身，以环境变量 `GATE_LOCK_HELD` 防重入；锁落在 stack task 而不是公开 task，因为公开 task 只有 `depends`、没有命令可包，这样公开 `test-full`、`gate-full` 与定向运行都持锁。
-  - 任何新项目都生成根 `mise.toml`，包括 swift 单 stack 与 none（`[tools]` 可为空），落地后总是运行 `mise trust`：契约入口在所有项目一致，不因没有要钉的工具而缺 task。
-  - existing 模式用 `tomllib` 读 mise 配置的 `[tasks]` 与 file task 目录判断缺少的契约 task，不调用 mise：未 trust 的配置会被 mise 拒绝，脚本也不应替用户做 trust 这个安全决定；读不到的引入方式由阶段 2 第 5 步用 `mise tasks` 复核；配置未 trust 时 agent 也不替用户 trust，以脚本结果为准并在报告注明，免得在一次性提问之外再打断用户。
+  - 任何新项目都生成根 `mise.toml`，包括 swift 单 stack 与 none（`[tools]` 可为空），契约入口在所有项目一致，不因没有要钉的工具而缺 task。
+  - existing 模式用 `tomllib` 读 mise 配置的 `[tasks]` 与 file task 目录判断缺少的契约 task，不调用 mise：只读文件即可，也不会触发项目配置里需要 trust 才能执行的代码；读不到的引入方式由阶段 2 第 5 步用 `mise tasks` 复核，配置因模板、`_.source` 或 hooks 需要 trust 时 agent 不替用户 trust，以脚本结果为准并在报告注明。
+  - 不运行也不要求 `mise trust`（2026-11-23 同日更正）：mise 2026.11.12 默认（非 paranoid）下只含普通 `[tools]`、`[tasks]` 的配置不需要 trust，`mise run`、`mise install`、`mise exec` 还会自动 trust 当前配置；需要 trust 的只有模板、`_.source`、hooks 等会执行代码的写法。最初迁移版本在落地后总是运行 `mise trust` 并在文档写“新环境先 `mise trust`”，是多余步骤，已删；“修改 `mise.toml` 后需重新 trust”只在 paranoid 模式成立。
 - **full 目录出现即收录**：`tests/full/` 不存在时 gate-full 打印提示而非失败，存在而无测试则失败。避免新项目的 gate-full 因零收集长期红灯，同时不给 skip 留口子。
 - **模板目录从本仓库的 pytest 与 Ruff 中排除**：`toolchain/` 下的 `pyproject.toml` 与测试文件是复制到目标项目的模板，不是本仓库的配置与测试。
 - **implement-spec 门禁靠触发词、审查项与主机锁，不加常驻约束**：目标是并行 worktree 的 ticket 只跑 `gate-core`，最终集成跑 `gate-full`，新测试持续遵守分层。规则正文在 testing.md，由触发表“执行 `implement-spec`”命中；分层归属的把关写进 CODING_STANDARDS，让 implement-spec 末尾的 code-review 检查。不复制 x-media-saver 的 6 条长版（通用流程常识）与收录表（和分层表重复）。x-media-saver 的做法是 full 测试在 ticket 阶段只写不跑，代价是 red → green 对 full 缺失、问题堆到最后才发现、implementer 有动机绕过规则；本 skill 改为给 `test-full` 与 `gate-full` 加主机级 `flock`，implementer 可定向跑自己的 full 测试并自动排队。选主机级而非仓库级，因为桌面与端口是主机资源，且各 worktree 的编译产物都在自己目录内。
