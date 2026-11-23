@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+#MISE description="{{LABEL}}：按 Package.resolved 解析依赖，不升级已锁定的版本"
+set -euo pipefail
+cd {{HOME_DIR}}
+swift package --force-resolved-versions resolve

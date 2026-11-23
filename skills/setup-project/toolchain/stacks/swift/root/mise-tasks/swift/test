@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+#MISE description="{{LABEL}}：运行 CoreTests；可传 swift test 参数定向，未给 --filter 时补 --filter CoreTests"
+# 始终跳过 FullTests，full 测试只经 test-full 在主机锁内运行。swift test 零匹配只告警，这里判为失败。
+set -euo pipefail
+cd {{HOME_DIR}}
+case " $* " in
+  *" --filter "*|*" --filter="*) ;;
+  *) set -- --filter '^CoreTests\.' "$@" ;;
+esac
+log="$(mktemp)"
+trap 'rm -f "$log"' EXIT
+swift test --manifest-cache none "$@" --skip '^FullTests\.' 2>&1 | tee "$log"
+if grep -q 'No matching test cases were run' "$log"; then
+  echo '错误：没有匹配的测试；零匹配不是通过。' >&2
+  exit 1
+fi

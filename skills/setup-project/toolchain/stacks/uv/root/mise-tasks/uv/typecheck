@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+#MISE description="{{LABEL}}：ty 类型检查"
+set -euo pipefail
+cd {{HOME_DIR}}
+uv run --locked ty check .

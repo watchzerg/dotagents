@@ -21,7 +21,7 @@
 4. 完成后开启新的 Claude Code 会话，验证个人规则和 skills 已加载。
 5. 切换到目标项目，先执行 `/setup-matt-pocock-skills`，再调用 `/setup-project` 初始化该项目；之后在各项目中按需使用 `/commit`、`/prune-tests`、`/acceptance`、`/docs-audit`、`/optimize`、`/dedupe-images` 等。有 web 界面的项目要用 `/acceptance` 验收时，需要 Chrome 已打开且 Claude in Chrome 扩展已连接，验收复用你自己的登录态。
 
-调用链为 `/setup-dotagents` → Python 链接脚本。脚本根据自身位置定位 checkout，也可从其他目录通过脚本绝对路径调用。日常应用配置不依赖 just、uv、第三方 Python 包或项目 `.venv`。
+调用链为 `/setup-dotagents` → Python 链接脚本。脚本根据自身位置定位 checkout，也可从其他目录通过脚本绝对路径调用。日常应用配置不依赖 mise、uv、第三方 Python 包或项目 `.venv`。
 
 setup 会自动定位当前 checkout，建立并核验软链接。已有正确链接会跳过，可以重复执行；遇到已有文件、目录或指向其他位置的链接时，会在创建前报告冲突，不自动覆盖。创建过程中若发生权限或 I/O 错误，可能保留已创建的链接，解决问题后重新执行即可。
 
@@ -76,8 +76,8 @@ dotagents/
 │   └── setup-project/              # 项目初始化（Beads、文档结构模板、工具链模板）
 ├── docs/skills/<name>/             # 各 skill 的设计说明与调研，维护者阅读
 ├── tests/                          # 安装器测试与各 skill 脚本测试（tests/<name>/）
-├── justfile                        # 安装、检查和测试入口
-├── mise.toml / mise.lock           # mise 钉住的 uv 版本 line 与精确版本
+├── mise.toml / mise.lock           # uv 版本 line 与精确版本，以及安装、检查和测试任务
+├── mise-tasks/                     # 需要转发多段参数的 mise 文件任务（fmt）
 ├── .python-version                 # uv 管理的开发 Python 版本 line
 ├── pyproject.toml                  # 开发依赖与检查配置
 └── uv.lock                         # 开发依赖锁文件
@@ -91,23 +91,22 @@ dotagents/
 
 ```sh
 # 系统包管理器安装 mise：macOS 用 brew install mise；Ubuntu 添加 mise 官方 apt 源后 sudo apt install mise
-mise use -g just@1     # just 由全局 mise 配置提供，项目不锁定
 mise trust             # 首次信任本仓库的 mise.toml
 
-just install
-just gate-full
+mise run install
+mise run gate-full
 ```
 
-支持 macOS 与 Linux。mise 由系统包管理器维护；uv 与 just 由 mise 提供，其中 uv 对版本敏感，由本仓库 `mise.toml` 钉到 0.13 line、`mise.lock` 锁定精确版本，just 用全局 mise 配置。Python 版本 line 由 `.python-version` 固定为 3.14，开发依赖由 `uv.lock` 锁定。uv 由 mise 按目录切换（shell 需启用 `mise activate` 或 mise shims），`just check-toolchain` 核对实际解析到的版本。`just install` 安装开发环境；应用个人配置直接运行 setup skill 的 Python 脚本。
+支持 macOS 与 Linux。mise 由系统包管理器维护；uv 对版本敏感，由本仓库 `mise.toml` 钉到 0.13 line、`mise.lock` 锁定精确版本，`mise run` 会按需自动安装并放上 PATH。Python 版本 line 由 `.python-version` 固定为 3.14，开发依赖由 `uv.lock` 锁定。`mise run install` 安装开发环境；应用个人配置直接运行 setup skill 的 Python 脚本。
 
 | 命令 | 用途 |
 | --- | --- |
-| `just` | 列出可用命令 |
-| `just check-toolchain` | 检查 mise、uv 版本 line 和项目 Python 版本 line，不安装 |
-| `just lint` / `just typecheck` | 检查 Python 格式、lint 和类型 |
-| `just fmt` | 格式化并修复可自动修复的 lint |
-| `just test` | 运行全部 pytest 测试 |
-| `just gate-full` | 顺序执行工具链、diff 格式、lint、类型检查及全部测试 |
-| `just e2e-setup-project` | 在临时项目上用 headless Claude Code 真实执行 `/setup-project` 并检查产物；不属于门禁，见 [docs/skills/setup-project/e2e.md](docs/skills/setup-project/e2e.md) |
+| `mise tasks` | 列出可用任务 |
+| `mise run check-toolchain` | 核对项目 Python 版本 line，不下载或安装 |
+| `mise run lint` / `mise run typecheck` | 检查 Python 格式、lint 和类型 |
+| `mise run fmt` | 格式化并修复可自动修复的 lint；默认作用于整个仓库，可传路径 |
+| `mise run test` | 运行全部 pytest 测试；追加参数传给 pytest，如 `mise run test -k name` |
+| `mise run gate-full` | 并行执行工具链、diff 格式、lint、类型检查及全部测试，忽略筛选参数 |
+| `mise run e2e-setup-project` | 在临时项目上用 headless Claude Code 真实执行 `/setup-project` 并检查产物；不属于门禁，见 [docs/skills/setup-project/e2e.md](docs/skills/setup-project/e2e.md) |
 
 测试自动发现 `tests/` 中的 `test_*.py`、`*_test.py`；`skills/` 只含运行时内容，不放测试。自动检查不代表真实 agent 工作流已完成验收。

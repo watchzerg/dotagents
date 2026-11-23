@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+#MISE description="{{LABEL}}：运行 tests/core（pytest testpaths）；可传 pytest 参数定向，给出路径时只运行该路径"
+# 无参数即 gate-core 的全量 core 运行，此时清除外部 PYTEST_ADDOPTS，避免筛选从环境混入门禁。
+set -euo pipefail
+cd {{HOME_DIR}}
+if [ "$#" -eq 0 ]; then unset PYTEST_ADDOPTS; fi
+exec uv run --locked python -m pytest "$@"

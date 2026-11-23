@@ -67,7 +67,7 @@
   - `improve-codebase-architecture` 是架构主题调研的基础。用户此前手工执行时因它要生成 HTML 报告、过重而没有用；内化后不生成 HTML，产出改为按客观规则判定的待优化清单，随后不经干预一次修完。用户 2026-11-13 确认。
   - 改写的参考文件注明出处；内化的版本与升级后的吸收步骤见“上游基线”。
   - `tdd` 与 `code-review` 可被模型调用，继续引用。
-- **前提不满足直接终止**：目标项目没有 Beads 或没有 just 契约（`gate-core`、`gate-full`）时，第一步就报告缺什么并终止，不提供退路。三个来源项目都是 `setup-project` 初始化的，退路没有使用场景。用户 2026-11-13 确认。
+- **前提不满足直接终止**：目标项目没有 Beads 或没有 mise task 契约（`gate-core`、`gate-full`）时，第一步就报告缺什么并终止，不提供退路。三个来源项目都是 `setup-project` 初始化的，退路没有使用场景。用户 2026-11-13 确认。
 - **票据自审交给没看过拆票过程的子 agent**：自审每轮都改票，必须保留。原先由同一会话自己审自己；改为新子 agent 只拿 spec 与票据草稿，按大票、自闭环、票间依赖三项审。
 - **各主题的验证方式分开写**：
   - 架构：每票用 `tdd`，集成分支跑一次无筛选的 `gate-full`。
@@ -232,7 +232,7 @@ skills/optimize/
 
 ## 与其他 skill 和项目约定的耦合
 
-- 读取：目标项目的 `docs/agents/issue-tracker.md`（由 `/setup-matt-pocock-skills` 生成）、`GLOSSARY.md`、ADR、`justfile` 的 `gate-core`、`gate-full`、`docs-check`、`docs-affected` 契约。
+- 读取：目标项目的 `docs/agents/issue-tracker.md`（由 `/setup-matt-pocock-skills` 生成）、`GLOSSARY.md`、ADR、`mise.toml` 与 `mise-tasks/` 的 `gate-core`、`gate-full`、`docs-check`、`docs-affected` 契约。
 - 调用：`mattpocock-skills:tdd`、`mattpocock-skills:code-review`、`docs-audit`；票据中引用 `prune-tests` 的规则。
 - 子 agent 的模型每次显式指定，遵循用户级规则。
 
@@ -288,3 +288,4 @@ skills/optimize/
 | 2026-11-13 | 加“上游基线”：记录内化的插件版本与提交、升级后的吸收步骤；`improve-codebase-architecture` 的调研部分内化为架构主题的基础，不生成 HTML | 用户当日要求 |
 | 2026-11-13 | 加“入选规则”：绝对、幂等、封闭的判定框架，架构、文档、日志三张规则表，共用规则与修复约束；表外观察在报告里列建议清单；“75 个提交”改为查得到的票数与文件数 | 三个项目会话的再次调研；用户当日确认，并指出不能以自己当时是否否决作为标准 |
 | 2026-11-13 | 实现 `skills/optimize/`：`SKILL.md` 与六个参考文件；`prune-tests` 加留痕票；README 同步。本文开头与待验收改为“已实现、未真实运行”，新增“实现与设计的出入” | 本文设计；出入各条待用户确认 |
+| 2026-11-23 | 项目命令契约由 just 迁到 mise task，skill 中的调用改为 `mise run`，定向参数经 `<stack>:<task>` | 用户当日确认 |

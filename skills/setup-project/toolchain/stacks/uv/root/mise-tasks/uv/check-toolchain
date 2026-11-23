@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+#MISE description="{{LABEL}}：核对 uv 管理的解释器符合 .python-version 的版本 line；不同步依赖、不下载解释器"
+set -euo pipefail
+cd {{HOME_DIR}}
+uv --version
+uv run --no-project --no-env-file --no-python-downloads --python "$(cat .python-version)" python -B - <<'PY'
+import pathlib
+import sys
+
+pin = pathlib.Path(".python-version").read_text().strip()
+actual = ".".join(map(str, sys.version_info[:3]))
+if actual != pin and not actual.startswith(pin + "."):
+    sys.exit(f"错误：预期 Python {pin}，实际 {actual}；请运行 mise run install")
+print(f"Python={actual}；工具链检查通过")
+PY

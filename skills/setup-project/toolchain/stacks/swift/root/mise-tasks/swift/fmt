@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+#MISE description="{{LABEL}}：swift-format 格式化；默认处理 Sources、tests 与 Package.swift，可传路径"
+set -euo pipefail
+cd {{HOME_DIR}}
+if [ "$#" -eq 0 ]; then set -- Sources tests Package.swift; fi
+xcrun swift format format --in-place --recursive --configuration .swift-format "$@"

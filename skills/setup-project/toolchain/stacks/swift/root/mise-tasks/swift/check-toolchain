@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+#MISE description="{{LABEL}}：核对 Xcode 版本符合 .xcode-version 的版本 line；不安装或切换 Xcode"
+set -euo pipefail
+cd {{HOME_DIR}}
+command -v xcodebuild >/dev/null || { echo '错误：缺少 Xcode；请安装 Xcode 并用 xcode-select 指向它。' >&2; exit 1; }
+line="$(tr -d '[:space:]' < .xcode-version)"
+actual="$(xcodebuild -version | sed -n '1s/^Xcode //p')"
+case "$actual" in
+  "$line"|"$line".*) echo "Xcode=${actual}；工具链检查通过" ;;
+  *) echo "错误：Xcode 版本 ${actual} 不属于 line ${line}；请安装对应 Xcode 或更新 .xcode-version。" >&2; exit 1 ;;
+esac

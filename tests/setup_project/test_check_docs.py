@@ -13,9 +13,9 @@ TARGET = """# 目标
 
 ## 中文标题
 
-## 使用 `just test`
+## 使用 `mise run test`
 
-## `just gate-core`
+## `mise run gate-core`
 
 ## 重复
 

@@ -10,15 +10,15 @@
 
 | 层 | 内容 | 运行位置 | 作用 |
 | --- | --- | --- | --- |
-| 仓库维护 | 根目录 `AGENTS.md`、`docs/`、`tests/`、`justfile`、`pyproject.toml` | 仅本 checkout，需要开发环境 | 约束并验证本仓库自身的开发 |
+| 仓库维护 | 根目录 `AGENTS.md`、`docs/`、`tests/`、`mise.toml`、`mise-tasks/`、`pyproject.toml` | 仅本 checkout，需要开发环境 | 约束并验证本仓库自身的开发 |
 | 安装器 | `.claude/skills/setup-dotagents/` | 仅本 checkout，只需 Python 3.14+ 标准库 | 把用户级内容软链接到当前用户环境 |
 | 用户级内容 | `global/AGENTS.md`、`skills/` | 安装后，在目标机器的任意项目中 | 跨项目生效的个人规则与 skills |
 
-用户级 skills 再分两类：`setup-project` 是可重复运行的项目初始化器，脚本部分只补缺不覆盖，agent 部分会把目标项目的旧文档合并进标准结构并补齐 justfile 契约；自带模板与 overlay，向调用时所在的目标项目写入文件；`commit`、`prune-tests` 等是日常反复调用的常规 skill，不产出项目结构。
+用户级 skills 再分两类：`setup-project` 是可重复运行的项目初始化器，脚本部分只补缺不覆盖，agent 部分会把目标项目的旧文档合并进标准结构并补齐 mise task 契约；自带模板与 overlay，向调用时所在的目标项目写入文件；`commit`、`prune-tests` 等是日常反复调用的常规 skill，不产出项目结构。
 
 使用顺序为：clone 本仓库并长期保留 → 在本仓库执行 `/setup-dotagents` → 在目标项目先执行 `/setup-matt-pocock-skills` 再执行 `/setup-project` → 日常按需调用常规 skills。完整步骤与链接映射见 `README.md`。由此产生的维护约束：
 
-- 用户级内容在本仓库之外运行：脚本以 skill 自身目录定位资源，运行时只假设 Python 3.14+ 标准库，不引用本仓库的 `justfile`、`.venv`、`tests/` 或开发依赖，也不假设当前工作目录是本仓库。
+- 用户级内容在本仓库之外运行：脚本以 skill 自身目录定位资源，运行时只假设 Python 3.14+ 标准库，不引用本仓库的 mise 任务、`.venv`、`tests/` 或开发依赖，也不假设当前工作目录是本仓库。
 - 本仓库不是 `setup-project` 的产物：不套用其模板结构，不向本仓库写入模板文件；修改模板和 overlay 只影响之后初始化的新项目，不回灌本仓库。
 - 仓库中有三个用途不同的 `AGENTS.md`：根目录的约束本仓库维护；`global/AGENTS.md` 安装为用户级 `CLAUDE.md`；`skills/setup-project/templates/AGENTS.md` 是写入目标项目的模板。改动前先确认目标文件。
 - 新增跨项目使用的 skill 放入 `skills/<name>/`，并重新执行 setup 建立链接；仅本仓库使用的 skill 放入 `.claude/skills/`，不安装到用户目录。
@@ -33,17 +33,17 @@
 
 ## 开发环境
 
-- 工具链为系统包管理器（Homebrew/APT）→ mise → uv、just → uv 管理的项目 Python → `.venv` 与依赖；支持 macOS 与 Linux。根 `mise.toml` 只钉对版本敏感的 uv（0.13 line），`mise.lock` 锁定精确版本，uv 按目录由 mise 切换（activate 或 shims），recipe 直接调用 `uv`，`check-toolchain` 核对实际版本；just 由全局 mise 配置提供，项目不锁定。不擅自升级全局工具或修改相邻项目。
-- `.python-version` 固定开发 Python 版本 line（3.14），`uv.lock` 固定依赖。新环境先用系统包管理器装 mise、用全局 mise 配置装 just，再运行 `mise trust`、`just install` 和 `just check-toolchain`。
+- 工具链为系统包管理器（Homebrew/APT）→ mise → uv → uv 管理的项目 Python → `.venv` 与依赖；支持 macOS 与 Linux。根 `mise.toml` 钉对版本敏感的 uv（0.13 line）并定义开发任务，`mise.lock` 锁定精确版本；需要向多条命令传参的任务放 `mise-tasks/` 文件任务。`mise run` 会按需自动安装 uv 并放上 PATH，任务内直接调用 `uv`。不擅自升级全局工具或修改相邻项目。
+- `.python-version` 固定开发 Python 版本 line（3.14），`uv.lock` 固定依赖。新环境先用系统包管理器装 mise，再运行 `mise trust`、`mise run install` 和 `mise run check-toolchain`。
 - 本仓库是开发环境，不发布为 Python 包。pytest、Ruff、ty 属于开发依赖，不自动成为 skill 运行时依赖；skill 的运行代码和专属资源放在各自目录内。
 
 ## 测试与验证
 
-- `just test` 使用 pytest 自动发现 `tests/` 下的测试，`skills/` 不被收集：其中 `toolchain/` 下的测试文件是复制到目标项目的模板。测试文件使用 `test_*.py` 或 `*_test.py`；按 skill 分目录组织，测试内以相对本仓库的路径定位被测脚本，避免将各 skill 的脚本目录一起加入全局 `pythonpath`。
-- 新增或迁移的 Python 测试必须被 `just test` 和无筛选的 `just gate-full` 收集并执行。不得通过 skip、吞掉退出码或仅运行单项测试来掩盖失败或未收集。
+- `mise run test` 使用 pytest 自动发现 `tests/` 下的测试，`skills/` 不被收集：其中 `toolchain/` 下的测试文件是复制到目标项目的模板。测试文件使用 `test_*.py` 或 `*_test.py`；按 skill 分目录组织，测试内以相对本仓库的路径定位被测脚本，避免将各 skill 的脚本目录一起加入全局 `pythonpath`。
+- 新增或迁移的 Python 测试必须被 `mise run test` 和无筛选的 `mise run gate-full` 收集并执行。不得通过 skip、吞掉退出码或仅运行单项测试来掩盖失败或未收集。
 - 优先覆盖核心规则与代表性主流程。涉及文件、CLI 或进程边界时使用临时目录，避免修改真实用户配置。当前不引入强制 marker 分层或并行测试框架。
 - 保留范围（2026-11-22 `/prune-tests` 后）：setup-dotagents 的安装、幂等与冲突时零改动；dedupe-images 的 clean、plan/apply、目录去重、案例与 `apply-decisions`（含 `--check`）主流程及命名、页序列、交叉命名的代表用例；setup-project 各脚本的新建、已有文件只补缺不覆盖、AGENTS.md 合并、重跑无改动，各 stack 的新项目渲染与 existing 模式，模板 recipe 的 full 判定与 docs-affected、渲染文档通过 docs-check、门禁锁串行，check_docs 的各项规则各一例。不再维护：错误输入与前置条件缺失、参数化变体矩阵、平台与挂载边界、系统杂项文件过滤、私有函数与回归细节。产品行为合同不随测试删减而改变，完整门禁通过仅证明上述保留范围。
-- 局部 Python 修改先运行相关测试、`just lint` 和 `just typecheck`；工具链、目录结构或跨 skill 约定变化时运行 `just gate-full`。
-- `just gate-full` 顺序执行工具链检查、`git diff --check`、Ruff lint/format check、ty 和全部 pytest，首错停止。`just fmt` 会修改文件，不属于门禁。
+- 局部 Python 修改先运行相关测试、`mise run lint` 和 `mise run typecheck`；工具链、目录结构或跨 skill 约定变化时运行 `mise run gate-full`。
+- `mise run gate-full` 通过 `depends` 并行执行工具链检查、`git diff --check`、Ruff lint/format check、ty 和全部 pytest（忽略筛选参数、清除外部 `PYTEST_ADDOPTS`），任一失败即门禁失败。`mise run fmt` 会修改文件，不属于门禁。
 - 纯文档变更核对说明、路径与实际行为，按需执行 `git diff --check`。格式校验和自动测试不代表真实 agent 已完成 skill 工作流验收，交付时区分验证范围。
-- 真实 agent 验收用 `just e2e-setup-project`：在临时项目上以 headless 会话执行 skill，再做确定性检查与 reviewer 复核。它不属于门禁、不被 pytest 收集；修改 SKILL.md、references 或工具链模板后至少跑受影响的用例，做法见 `docs/skills/setup-project/e2e.md`。
+- 真实 agent 验收用 `mise run e2e-setup-project`：在临时项目上以 headless 会话执行 skill，再做确定性检查与 reviewer 复核。它不属于门禁、不被 pytest 收集；修改 SKILL.md、references 或工具链模板后至少跑受影响的用例，做法见 `docs/skills/setup-project/e2e.md`。

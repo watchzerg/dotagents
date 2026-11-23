@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""使用 Python 3.14+ 标准库初始化项目工具链、justfile 与开发文档。
+"""使用 Python 3.14+ 标准库初始化项目工具链、mise task 与开发文档。
 
 项目由零到多个 stack 组成（uv、node、swift），每个 stack 是 `toolchain/stacks/<name>/` 下的自包含模块：
-`stack.json`（标签、布局、mise 钉住的工具版本 line、安装命令、文档表格单元）、`recipes.just`（私有 recipe）、
-`home/` 与 `root/`（要复制的文件）、`gitignore`、`overlay/`（镜像项目根的文档正文片段）。脚本按文件证据判定 stack 集合；已有工具链的
-项目不改动工具链与 justfile，只补缺 `scripts/check_docs.py`、`scripts/with_lock.py` 并把各 stack 的依赖偏好补进文档；新项目复制 stack 文件、拼出根
-justfile 与根 `mise.toml`、运行安装命令，并用拼合后的正文替换 init_docs.py 留下的 `<待填 阶段3：…>` 标记。所有文件缺失才创建。
-`--detect-only` 只打印判定结果，供初始化流程在落地前一次性收集需要用户回答的问题；门禁不在本脚本内运行。
+`stack.json`（标签、布局、mise 钉住的工具版本 line、安装命令、文档表格单元）、`root/`（复制到仓库根，含
+`mise-tasks/<name>/` 下的 file task）与 `home/`（复制到 stack 目录）、`gitignore`、`overlay/`（镜像项目根的文档正文片段）。
+脚本按文件证据判定 stack 集合；已有工具链的项目不改动工具链与 mise 配置，只补缺 `scripts/check_docs.py`、
+`scripts/with_lock.py` 并把各 stack 的依赖偏好补进文档；新项目复制 stack 文件、生成根 `mise.toml`（钉版本的工具、
+`[env]` 与聚合各 stack task 的公开 task）、运行安装命令，并用拼合后的正文替换 init_docs.py 留下的 `<待填 阶段3：…>`
+标记。所有文件缺失才创建。`--detect-only` 只打印判定结果，供初始化流程在落地前一次性收集需要用户回答的问题；
+门禁不在本脚本内运行。
 """
 
 import argparse
@@ -16,6 +18,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 SKILL = Path(__file__).resolve().parent.parent
@@ -24,26 +27,22 @@ STACKS = ("uv", "node", "swift")
 NONE = "none"
 EXIT_UNDETERMINED = 3
 STAGE3_MARKER = "<待填 阶段3"
-REQUIRED_RECIPES = (
-    "check-toolchain",
-    "install",
-    "fmt",
-    "lint",
-    "typecheck",
-    "test",
-    "test-full",
-    "docs-check",
-    "docs-affected",
-    "gate-core",
-    "gate-full",
-)
-LOCK = "python3 scripts/with_lock.py "
-AGGREGATED = {
-    "check-toolchain": "# 工具链检查：核对各运行时与版本声明，不安装。",
-    "install": "# 按 lock 安装依赖；不升级宿主工具。",
-    "lint": "# 静态检查，不修改源码。",
-    "typecheck": "# 类型检查，不修改源码。",
+# 公开 task 及其 description；前 7 个由各 stack 的同名 file task（`<stack>:<name>`）聚合。
+PUBLIC_TASKS = {
+    "check-toolchain": "核对各运行时与版本声明",
+    "install": "按 lock 安装依赖；不升级宿主工具",
+    "fmt": "格式化并修复可自动修复的 lint；会修改文件，不属于门禁",
+    "lint": "静态检查，不修改源码",
+    "typecheck": "类型检查，不修改源码",
+    "test": "运行全部 core 测试；定向运行用 <stack>:test 加 runner 参数",
+    "test-full": "在主机锁内运行全部 full 测试；定向运行用 <stack>:test-full 加 runner 参数",
+    "docs-check": "检查文档链接、锚点、可达性、索引登记、体量预算、标题骨架与 covers，不联网",
+    "docs-affected": "改动提示：列出相对基准（默认 HEAD，可传参）的改动命中 covers 的文档页；总是成功，不属于门禁",
+    "gate-core": "可跨 worktree 并行：工具链、文档、静态检查与全部 core 测试，彼此并行",
+    "gate-full": "完整门禁：gate-core 通过后在主机锁内运行各 stack 的 tests/full",
 }
+REQUIRED_TASKS = tuple(PUBLIC_TASKS)
+STACK_TASKS = REQUIRED_TASKS[:7]
 OTHER_MARKERS = (
     "Cargo.toml",
     "go.mod",
@@ -56,26 +55,23 @@ OTHER_MARKERS = (
 EXISTING_SECTIONS = {"docs/development/technology-stack.md": {"依赖政策"}}
 # 模板目录里混入的系统或缓存文件，复制时跳过；其余点文件（.python-version 等）照常复制。
 IGNORED_NAMES = {".DS_Store", "Thumbs.db"}
-RECIPE = re.compile(r"^@?([A-Za-z_][\w-]*)[^:\n]*:(?!=)", re.M)
-NOT_RECIPES = {"alias", "export", "set", "import", "mod"}
-JUSTFILE_HEADER = """\
-# 项目命令契约：check-toolchain、install、fmt、lint、typecheck、test、test-full、docs-check、docs-affected、gate-core、gate-full 是必需入口，名称与职责保持稳定。
-# 验证不修改源码；fmt 是修改文件的入口。缺失能力须非零退出，不能用空命令冒充通过。
-# 公开 recipe 聚合各 stack 的私有 recipe（<stack>-*）；full 测试经 scripts/with_lock.py 的主机锁串行。
-# 门禁定义见 docs/development/workflow.md，测试分层见 docs/development/test-layers.md。
-set positional-arguments
-
-# 列出项目命令。
-default:
-    @just --list
-"""
-
+# mise 读取 task 的位置：配置文件的 [tasks] 与 file task 目录（子目录名成为 `:` 分隔的命名空间）。
+MISE_CONFIGS = ("mise.toml", ".mise.toml", ".config/mise.toml", "mise/config.toml")
+MISE_TASK_DIRS = ("mise-tasks", ".mise-tasks", "mise/tasks", ".mise/tasks", ".config/mise/tasks")
 MISE_HEADER = """\
-# 对版本敏感的工具钉到兼容版本 line，精确版本由 mise.lock 记录；just 等通用工具由全局 mise 配置提供。
-[tools]
+# 项目命令契约：check-toolchain、install、fmt、lint、typecheck、test、test-full、docs-check、docs-affected、gate-core、gate-full 是必需的公开 task，名称与职责保持稳定。
+# 公开 task 聚合各 stack 在 mise-tasks/<stack>/ 下的 file task（task 名 <stack>:<name>），depends 中的 task 并行执行；
+# 定向运行直接调用 stack task 并传 runner 参数，如 mise run uv:test -k 名称。验证不修改源码，fmt 是修改文件的入口；
+# 缺失能力须非零退出，不能用空命令冒充通过。门禁定义见 docs/development/workflow.md，测试分层见 docs/development/test-layers.md。
+# [tools] 只钉对版本敏感的工具的兼容版本 line，精确版本由 mise.lock 记录。
 """
-# 有 mise 钉住的工具时，在各 stack 安装之前于根目录执行。
-MISE_STEPS: tuple[list[str], ...] = (["mise", "trust"], ["mise", "install"], ["mise", "lock"])
+MISE_ENV = """\
+[env]
+# 项目环境变量写在这里；本机私有值写 mise.local.toml（不提交）。
+"""
+# 新项目落地后在根目录执行：trust 让 mise 读取生成的 mise.toml；有钉住的工具时再安装并生成 mise.lock。
+MISE_TRUST = ["mise", "trust"]
+MISE_PIN_STEPS: tuple[list[str], ...] = (["mise", "install"], ["mise", "lock"])
 
 Section = tuple[str, str]
 
@@ -174,8 +170,7 @@ def detect(project: Path) -> tuple[list[str], list[str], bool]:
         found.add("swift")
         evidence.extend(swift_files)
     evidence.extend(name for name in OTHER_MARKERS if (project / name).exists())
-    if (project / "justfile").is_file():
-        evidence.append("justfile")
+    evidence.extend(name for name in MISE_CONFIGS if (project / name).is_file())
     existing = any("（无 " not in item for item in evidence)
     return [name for name in STACKS if name in found], evidence, existing
 
@@ -221,16 +216,13 @@ def doc_placeholders(stacks: list[Stack]) -> dict[str, str]:
     names = "、".join(f"`{s.name}`" for s in stacks)
     pinned = "、".join(f"`{tool}`" for tool in mise_tools(stacks))
     return {
-        "{{HOST_TOOLS}}": "、".join(dict.fromkeys([s.host_tools for s in stacks] + ["`just`"])),
+        "{{HOST_TOOLS}}": "、".join(dict.fromkeys(["`mise`"] + [s.host_tools for s in stacks])),
         "{{PIN_NOTE}}": f"项目根 `mise.toml` 钉住对版本敏感的 {pinned} 的版本 line，`mise.lock` 锁定精确版本。"
         if pinned
         else "",
-        "{{MISE_TRUST}}": "mise trust\n" if pinned else "",
         "{{LAYOUT}}": layout,
-        "{{ARGS}}": "[scope] [参数]" if multi else "[参数]",
-        "{{SCOPE_NOTE}}": f"定向参数先写 scope（{names}），再写各自 runner 的参数。"
-        if multi
-        else "",
+        "{{STACK}}": "<stack>" if multi else stacks[0].name,
+        "{{SCOPE_NOTE}}": f"`<stack>` 取 {names}。" if multi else "",
         **{f"{{{{{key.upper()}}}}}": join(key) for key in stacks[0].cells},
     }
 
@@ -258,85 +250,35 @@ def compose_docs(stacks: list[Stack], placeholders: dict[str, str]) -> dict[str,
     }
 
 
-def all_target(name: str, stacks: list[Stack]) -> str:
-    """无参数时要运行的目标：单 stack 是其私有 recipe，多 stack 是私有聚合 recipe `<name>-all`。"""
-    return f"{stacks[0].name}-{name}" if len(stacks) == 1 else f"{name}-all"
+def render_mise_toml(stacks: list[Stack]) -> str:
+    """根 mise.toml：钉版本的 [tools]、[env] 与聚合各 stack file task 的公开 task。"""
+    pins = "".join(f'{tool} = "{line}"\n' for tool, line in mise_tools(stacks).items())
+    parts = [MISE_HEADER, "[tools]\n" + pins, MISE_ENV]
 
+    def task(name: str, description: str, body: str) -> None:
+        parts.append(f'[tasks.{name}]\ndescription = "{description}"\n{body}')
 
-def dispatch_recipe(name: str, stacks: list[Stack], comment: str, prefix: str = "") -> str:
-    """公开 recipe 转发到各 stack 的私有 `<stack>-<name>`；多 stack 时第一个参数是 scope。
+    def deps(names: list[str]) -> str:
+        return "depends = [" + ", ".join(f'"{n}"' for n in names) + "]\n"
 
-    可变参数 recipe 会把命令行上后续的 recipe 名当作参数，所以多 stack 的"全部"路径经依赖式聚合
-    recipe 执行，而不是 `just a-x b-x`。
-    """
-    names = [stack.name for stack in stacks]
-    if len(names) == 1:
-        return f'{comment}\n{name} *args:\n    {prefix}just {names[0]}-{name} "$@"\n'
-    aggregate = f"[private]\n{name}-all: {' '.join(f'{n}-{name}' for n in names)}\n"
-    return (
-        f"{comment}\n"
-        f"{name} *args:\n"
-        "    #!/usr/bin/env bash\n"
-        "    set -euo pipefail\n"
-        '    if [ "$#" -eq 0 ]; then\n'
-        f"      exec {prefix}just {name}-all\n"
-        "    fi\n"
-        '    case "$1" in\n'
-        f'      {"|".join(names)}) scope="$1"; shift; exec {prefix}just "${{scope}}-{name}" "$@" ;;\n'
-        f"      *) echo '错误：scope 必须是 {' 或 '.join(names)}。' >&2; exit 2 ;;\n"
-        "    esac\n\n"
-        f"{aggregate}"
+    for name in STACK_TASKS:
+        task(name, PUBLIC_TASKS[name], deps([f"{s.name}:{name}" for s in stacks]))
+    task("docs-check", PUBLIC_TASKS["docs-check"], 'run = "python3 scripts/check_docs.py"\n')
+    task(
+        "docs-affected",
+        PUBLIC_TASKS["docs-affected"],
+        'run = "python3 scripts/check_docs.py --affected"\n',
     )
-
-
-def render_justfile(stacks: list[Stack], placeholders: dict[str, str]) -> str:
-    def deps(suffix: str) -> str:
-        return " ".join(f"{stack.name}-{suffix}" for stack in stacks)
-
-    parts = [JUSTFILE_HEADER]
-    for recipe in REQUIRED_RECIPES:
-        if recipe in AGGREGATED:
-            parts.append(f"{AGGREGATED[recipe]}\n{recipe}: {deps(recipe)}\n")
-        elif recipe == "fmt":
-            parts.append(
-                dispatch_recipe(
-                    "fmt", stacks, "# 格式化并修复可自动修复的 lint；会修改文件，不属于门禁。"
-                )
-            )
-        elif recipe == "test":
-            parts.append(dispatch_recipe("test", stacks, "# 默认运行全部 core 测试；传参可定向。"))
-        elif recipe == "test-full":
-            parts.append(
-                dispatch_recipe(
-                    "test-full",
-                    stacks,
-                    "# 运行 full 测试，经主机锁串行；默认全部，传参可定向。目录不存在时只打印提示。",
-                    LOCK,
-                )
-            )
-        elif recipe == "docs-check":
-            parts.append(
-                "# 检查文档链接、锚点、可达性、索引登记、体量预算、标题骨架与 covers，不联网。\ndocs-check:\n    python3 scripts/check_docs.py\n"
-            )
-        elif recipe == "docs-affected":
-            parts.append(
-                "# 改动提示：列出相对基准（默认 HEAD）的改动命中 covers 的文档页，标出本次未修改的页；"
-                "只提示，总是成功，不属于门禁。\n"
-                'docs-affected base="HEAD":\n    python3 scripts/check_docs.py --affected "{{base}}"\n'
-            )
-        elif recipe == "gate-core":
-            parts.append(
-                "# 可跨 worktree 并行：工具链、文档、静态检查与全部 core 测试；不接受筛选参数。\n"
-                f"gate-core: check-toolchain docs-check lint typecheck {deps('test-core')}\n"
-            )
-        elif recipe == "gate-full":
-            parts.append(
-                "# 完整门禁：gate-core 后在主机锁内串行运行各 stack 的 tests/full；目录出现即纳入，存在而无测试视为失败。\n"
-                f"gate-full: gate-core\n    {LOCK}just {all_target('test-full', stacks)}\n"
-            )
-    for stack in stacks:
-        recipes = (stack.dir / "recipes.just").read_text(encoding="utf-8")
-        parts.append(expand(recipes, {**placeholders, **stack.placeholders}))
+    task(
+        "gate-core",
+        PUBLIC_TASKS["gate-core"],
+        deps(["check-toolchain", "docs-check", "lint", "typecheck", "test"]),
+    )
+    task(
+        "gate-full",
+        PUBLIC_TASKS["gate-full"],
+        deps(["gate-core"]) + 'run = [{ task = "test-full" }]\n',
+    )
     return "\n".join(parts)
 
 
@@ -384,6 +326,7 @@ def copy_file(source: Path, target: Path, placeholders: dict[str, str], report: 
     content = expand(source.read_text(encoding="utf-8"), placeholders)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(content, encoding="utf-8")
+    shutil.copymode(source, target)  # mise 只把可执行文件当作 file task
     report["created"].append(shown)
 
 
@@ -414,34 +357,57 @@ def append_gitignore(project: Path, fragment: Path, report: dict) -> None:
     report["gitignore"].extend(missing)
 
 
-def report_justfile(project: Path) -> None:
-    """已有工具链时提示 justfile 缺少的契约 recipe，或没有 justfile。"""
-    justfile_path = project / "justfile"
-    if justfile_path.is_file():
-        missing = missing_recipes(justfile_path)
-        if missing:
-            print("提示：justfile 缺少契约 recipe：" + "、".join(missing) + "；建议补齐。")
-        check_docs = project / "scripts/check_docs.py"
-        if (
-            "docs-affected" in missing
-            and check_docs.is_file()
-            and "--affected" not in check_docs.read_text(encoding="utf-8")
-        ):
-            # 旧模板或项目改写的 check_docs.py 缺失才复制，不会被升级；给出可直接照做的写法，免得 agent 另行设计。
-            print(
-                "提示：项目已有的 scripts/check_docs.py 不支持 --affected；docs-affected 写成非零退出并说明原因，"
-                f"报告列为票据候选，实现可从 {TOOLCHAIN / 'common/scripts/check_docs.py'} 移植。"
-            )
-    else:
+def report_tasks(project: Path) -> None:
+    """已有工具链时提示 mise 配置缺少的契约 task，或项目还没有 mise task。"""
+    names = mise_task_names(project)
+    if names is None:
         print(
-            "提示：项目已有工具链但没有 justfile；可参考 toolchain/stacks/*/recipes.just 建立命令契约。"
+            "提示：项目已有工具链但没有 mise task；可参考 toolchain/stacks/*/root/mise-tasks/ 与"
+            " toolchain/none/mise.toml 建立命令契约。"
+        )
+        return
+    missing = [name for name in REQUIRED_TASKS if name not in names]
+    if not missing:
+        return
+    print("提示：mise 配置缺少契约 task：" + "、".join(missing) + "；建议补齐。")
+    check_docs = project / "scripts/check_docs.py"
+    if (
+        "docs-affected" in missing
+        and check_docs.is_file()
+        and "--affected" not in check_docs.read_text(encoding="utf-8")
+    ):
+        # 旧模板或项目改写的 check_docs.py 缺失才复制，不会被升级；给出可直接照做的写法，免得 agent 另行设计。
+        print(
+            "提示：项目已有的 scripts/check_docs.py 不支持 --affected；docs-affected 写成非零退出并说明原因，"
+            f"报告列为票据候选，实现可从 {TOOLCHAIN / 'common/scripts/check_docs.py'} 移植。"
         )
 
 
-def missing_recipes(justfile: Path) -> list[str]:
-    """按行首 `[@]名称 ...:` 识别 recipe；`名称 := 值` 赋值与 alias/export/set/import/mod 行不算。"""
-    names = set(RECIPE.findall(justfile.read_text(encoding="utf-8"))) - NOT_RECIPES
-    return [name for name in REQUIRED_RECIPES if name not in names]
+def mise_task_names(project: Path) -> set[str] | None:
+    """按文件读取 mise task 名：配置文件的 [tasks] 表与 file task 目录；都没有时返回 None。
+
+    不调用 mise，因为未 trust 的配置会被拒绝读取；include 等间接来源看不到，由 agent 用 `mise tasks` 复核。
+    """
+    names: set[str] = set()
+    found = False
+    for config in MISE_CONFIGS:
+        path = project / config
+        if path.is_file():
+            found = True
+            try:
+                names.update(tomllib.loads(path.read_text(encoding="utf-8")).get("tasks", {}))
+            except tomllib.TOMLDecodeError as exc:
+                print(f"提示：{config} 不是合法 TOML（{exc}），无法列出其中的 task。")
+    for directory in MISE_TASK_DIRS:
+        root = project / directory
+        if root.is_dir():
+            found = True
+            names.update(
+                path.relative_to(root).with_suffix("").as_posix().replace("/", ":")
+                for path in root.rglob("*")
+                if path.is_file() and not ignored(path.relative_to(root))
+            )
+    return names if found else None
 
 
 def heading_title(text: str) -> str | None:
@@ -480,7 +446,7 @@ def module_name(name: str) -> str:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="初始化项目工具链、justfile 与开发文档。")
+    parser = argparse.ArgumentParser(description="初始化项目工具链、mise task 与开发文档。")
     parser.add_argument(
         "--stacks",
         nargs="+",
@@ -493,7 +459,7 @@ def main() -> int:
     parser.add_argument(
         "--detect-only",
         action="store_true",
-        help="只打印 stack、模式、证据与 justfile 缺少的契约 recipe，不写任何文件",
+        help="只打印 stack、模式、证据与 mise 配置缺少的契约 task，不写任何文件",
     )
     args = parser.parse_args()
 
@@ -538,7 +504,7 @@ def main() -> int:
     )
     if args.detect_only:
         if mode == "existing":
-            report_justfile(project)
+            report_tasks(project)
         return 0
 
     stacks = [Stack(name, shared=len(names) > 1) for name in names]
@@ -557,18 +523,15 @@ def main() -> int:
             copy_tree(stack.dir / "home", project / stack.home, stack_placeholders, report)
             append_gitignore(project, stack.dir / "gitignore", report)
         copy_tree(TOOLCHAIN / "common", project, placeholders, report)
+        append_gitignore(project, TOOLCHAIN / "gitignore", report)
         if stacks:
-            justfile = render_justfile(stacks, placeholders)
+            mise_toml = render_mise_toml(stacks)
         else:
-            justfile = (TOOLCHAIN / "none/justfile").read_text(encoding="utf-8")
-        write_generated(project / "justfile", justfile, report)
-        tools = mise_tools(stacks)
-        if tools:
-            pins = "".join(f'{tool} = "{line}"\n' for tool, line in tools.items())
-            write_generated(project / "mise.toml", MISE_HEADER + pins, report)
+            mise_toml = (TOOLCHAIN / "none/mise.toml").read_text(encoding="utf-8")
+        write_generated(project / "mise.toml", mise_toml, report)
     else:
         # 已有工具链的项目不碰工具链文件，唯一例外是 common 下的两个脚本：只用标准库、与 stack 无关，
-        # 缺失才补。check_docs.py 供 agent 写出可用的 docs-check recipe；with_lock.py 供 agent 把已有的
+        # 缺失才补。check_docs.py 供 agent 写出可用的 docs-check task；with_lock.py 供 agent 把已有的
         # full 测试入口包进主机锁，否则这类项目的 test-full / gate-full 永远拿不到锁。
         copy_tree(TOOLCHAIN / "common", project, placeholders, report)
 
@@ -599,13 +562,15 @@ def main() -> int:
         print(f"已填写 {item}")
 
     if mode == "existing":
-        report_justfile(project)
+        report_tasks(project)
         return 0
 
     if args.skip_install:
         print("已跳过安装。")
         return 0
-    steps = [(command, project) for command in MISE_STEPS] if mise_tools(stacks) else []
+    steps = [(MISE_TRUST, project)]
+    if mise_tools(stacks):
+        steps.extend((command, project) for command in MISE_PIN_STEPS)
     for stack in stacks:
         for step in stack.install:
             cwd = project if step["cwd"] == "root" else project / stack.home
@@ -615,14 +580,11 @@ def main() -> int:
         if code != 0:
             print(
                 f"错误：{' '.join(command)} 退出码 {code}。修复宿主工具后在项目根目录运行"
-                " just install；重跑本脚本会判定为 existing 并跳过安装。",
+                " mise run install；重跑本脚本会判定为 existing 并跳过安装。",
                 file=sys.stderr,
             )
             return 1
-    if steps:
-        print("安装完成；门禁由初始化流程末尾统一运行。")
-    else:
-        print("无安装命令；门禁由初始化流程末尾统一运行。")
+    print("安装完成；门禁由初始化流程末尾统一运行。")
     return 0
 
 

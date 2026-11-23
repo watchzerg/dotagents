@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+#MISE description="{{LABEL}}：编译全部 target（含测试）即类型检查"
+# --manifest-cache none 让 Package.swift 按当前文件重新计算 exclude。
+set -euo pipefail
+cd {{HOME_DIR}}
+swift build --build-tests --manifest-cache none

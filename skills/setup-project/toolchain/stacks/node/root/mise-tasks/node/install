@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+#MISE description="{{LABEL}}：按 pnpm-lock.yaml 安装依赖；Node 与 pnpm 由 mise 按 mise.lock 提供"
+set -euo pipefail
+cd {{HOME_DIR}}
+pnpm install --frozen-lockfile

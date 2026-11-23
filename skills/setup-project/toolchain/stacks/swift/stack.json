@@ -8,7 +8,7 @@
     "fmt": "swift-format 格式化",
     "lint": "swift-format 严格检查",
     "typecheck": "`swift build --build-tests`，编译即类型检查",
-    "test": "传 `swift test` 参数定向，如 `--filter 正则`；未给 `--filter` 时 `test` 补 `CoreTests`、`test-full` 补 `FullTests`，且两者互相跳过对方的 target",
+    "test": "`mise run swift:test` 传 `swift test` 参数定向，如 `--filter 正则`；未给 `--filter` 时 `swift:test` 补 `CoreTests`、`swift:test-full` 补 `FullTests`，且两者互相跳过对方的 target",
     "core": "`{{HOME}}tests/core/`（`CoreTests` target，`swift test --filter CoreTests`）",
     "full": "`{{HOME}}tests/full/` 下的 `*.swift`（`FullTests` target，放入 Swift 测试文件时同步在 `Package.swift` 声明）"
   }

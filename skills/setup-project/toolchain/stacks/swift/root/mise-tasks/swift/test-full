@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+#MISE description="{{LABEL}}：在主机锁内运行 FullTests；可传 swift test 参数定向，未给 --filter 时补 --filter FullTests"
+# tests/full 下出现 Swift 文件即纳入；此时 Package.swift 未声明 FullTests 或零匹配视为失败。目录不存在或只有
+# 其他 stack 的文件时打印提示并通过。始终跳过 CoreTests。有测试时本脚本经 scripts/with_lock.py 重新执行自身，持锁运行。
+set -euo pipefail
+cd "$MISE_CONFIG_ROOT/{{HOME_DIR}}"
+if [ ! -d tests/full ] || [ -z "$(find tests/full -type f -name '*.swift' -print -quit)" ]; then
+  echo '提示：{{HOME}}tests/full 下没有 Swift 测试文件，{{LABEL}} 尚无 full 测试。'
+  exit 0
+fi
+grep -q 'name: "FullTests"' Package.swift || { echo '错误：{{HOME}}tests/full 已有 Swift 测试文件，但 Package.swift 未声明 FullTests target。' >&2; exit 1; }
+if [ -z "${GATE_LOCK_HELD:-}" ]; then
+  export GATE_LOCK_HELD=1
+  exec python3 "$MISE_CONFIG_ROOT/scripts/with_lock.py" "$0" "$@"
+fi
+case " $* " in
+  *" --filter "*|*" --filter="*) ;;
+  *) set -- --filter '^FullTests\.' "$@" ;;
+esac
+log="$(mktemp)"
+trap 'rm -f "$log"' EXIT
+swift test --manifest-cache none "$@" --skip '^CoreTests\.' 2>&1 | tee "$log"
+if grep -q 'No matching test cases were run' "$log"; then
+  echo '错误：没有匹配的测试；零匹配不是通过。' >&2
+  exit 1
+fi

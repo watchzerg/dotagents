@@ -5,11 +5,11 @@
   "mise": {"uv": "0.13"},
   "install": [{"args": ["mise", "exec", "--", "uv", "sync"], "cwd": "home"}],
   "cells": {
-    "install": "`mise install` 按 `mise.lock` 安装 uv，`uv sync --locked` 按 `uv.lock` 同步开发依赖",
+    "install": "mise 按 `mise.lock` 提供 uv，`uv sync --locked` 按 `uv.lock` 同步开发依赖",
     "fmt": "Ruff 格式化并修复可自动修复的 lint",
     "lint": "Ruff 检查与格式校验",
     "typecheck": "ty 类型检查",
-    "test": "传 pytest 参数定向：`-k 表达式` 在默认目录内筛选；给出路径时只运行该路径",
+    "test": "`mise run uv:test` 传 pytest 参数定向：`-k 表达式` 在默认目录内筛选；给出路径时只运行该路径",
     "core": "`{{HOME}}tests/core/`（pytest `testpaths`）",
     "full": "`{{HOME}}tests/full/` 下的 `test_*.py`、`*_test.py`"
   }

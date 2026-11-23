@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+#MISE description="{{LABEL}}：运行 tests/core；可传 vitest run 参数定向"
+# vitest 的位置参数是并集筛选，所以参数中有已存在的路径时不再追加 tests/core，只运行给出的路径；
+# 只有 -t 等选项时在 tests/core 内筛选。没有匹配的测试文件时 vitest 自身非零退出。
+set -euo pipefail
+cd {{HOME_DIR}}
+for arg in "$@"; do
+  if [ -e "$arg" ]; then exec pnpm exec vitest run "$@"; fi
+done
+exec pnpm exec vitest run tests/core "$@"

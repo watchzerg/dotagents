@@ -63,5 +63,5 @@
 
 - 只在日志的统一出口留少量测试，例如去重、限频、字段不丢、未捕获异常进日志；这几条由实现子 agent 调用 Skill `mattpocock-skills:tdd` 完成。逐个调用点的日志输出不写测试。
 - 其余命中由 review 核对：收尾的 review 之外，修复子 agent 的简报要求逐处对照 spec 的命中清单确认已修，并确认新增与改动的日志过 L5～L8。
-- 每票出口：`just gate-core` 退出码为 0。
-- 集成分支：一次无筛选的 `just gate-full`。
+- 每票出口：`mise run gate-core` 退出码为 0。
+- 集成分支：一次无筛选的 `mise run gate-full`。

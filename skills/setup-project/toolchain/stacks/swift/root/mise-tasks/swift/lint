@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+#MISE description="{{LABEL}}：swift-format 严格检查"
+set -euo pipefail
+cd {{HOME_DIR}}
+xcrun swift format lint --strict --recursive --configuration .swift-format Sources tests Package.swift

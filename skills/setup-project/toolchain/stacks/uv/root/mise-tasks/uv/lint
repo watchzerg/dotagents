@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+#MISE description="{{LABEL}}：Ruff 检查与格式校验"
+set -euo pipefail
+cd {{HOME_DIR}}
+uv run --locked ruff check .
+uv run --locked ruff format --check .

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+#MISE description="{{LABEL}}：按 uv.lock 同步开发依赖；uv 由 mise 按 mise.lock 提供"
+set -euo pipefail
+cd {{HOME_DIR}}
+uv sync --locked

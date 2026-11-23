@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+#MISE description="{{LABEL}}：Biome 格式化并修复可自动修复的 lint；默认处理整个目录，可传路径"
+set -euo pipefail
+cd {{HOME_DIR}}
+if [ "$#" -eq 0 ]; then set -- .; fi
+pnpm exec biome check --write "$@"

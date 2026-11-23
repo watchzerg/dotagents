@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+#MISE description="{{LABEL}}：在主机锁内运行 tests/full；可传 vitest run 参数定向"
+# tests/full 下出现 Vitest 测试文件（*.test.ts、*.spec.ts 及 .tsx/.js/.jsx）即纳入，此时零匹配由 vitest
+# 判为失败；目录不存在或只有其他 stack 的文件时打印提示并通过。路径参数规则同 test。
+# 有测试时本脚本经 scripts/with_lock.py 重新执行自身，持锁运行。
+set -euo pipefail
+cd "$MISE_CONFIG_ROOT/{{HOME_DIR}}"
+if [ ! -d tests/full ] || [ -z "$(find tests/full -type f \( -name '*.test.[jt]s' -o -name '*.test.[jt]sx' -o -name '*.spec.[jt]s' -o -name '*.spec.[jt]sx' \) -print -quit)" ]; then
+  echo '提示：{{HOME}}tests/full 下没有 Vitest 测试文件，{{LABEL}} 尚无 full 测试。'
+  exit 0
+fi
+if [ -z "${GATE_LOCK_HELD:-}" ]; then
+  export GATE_LOCK_HELD=1
+  exec python3 "$MISE_CONFIG_ROOT/scripts/with_lock.py" "$0" "$@"
+fi
+for arg in "$@"; do
+  if [ -e "$arg" ]; then exec pnpm exec vitest run "$@"; fi
+done
+exec pnpm exec vitest run tests/full "$@"

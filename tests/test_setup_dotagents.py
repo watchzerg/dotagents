@@ -32,7 +32,7 @@ def run_setup(
 ) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     env["HOME"] = str(home)
-    # 只提供 Python 解释器绝对路径，验证不调用 just、Bash、uv 等外部命令。
+    # 只提供 Python 解释器绝对路径，验证不调用 mise、Bash、uv 等外部命令。
     env["PATH"] = ""
     env.pop("CLAUDE_CONFIG_DIR", None)
     if claude_dir is not None:

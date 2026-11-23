@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+#MISE description="格式化并修复可自动修复的 lint；会修改文件。默认作用于 .，可传路径"
+set -euo pipefail
+uv run --locked ruff format "${@:-.}"
+uv run --locked ruff check --fix "${@:-.}"

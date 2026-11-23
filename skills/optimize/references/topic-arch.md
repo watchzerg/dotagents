@@ -79,6 +79,6 @@ B 类是结构性摩擦，下次改动时才付出代价：只在近期在变的
 
 - 每张票由实现子 agent 调用 Skill `mattpocock-skills:tdd` 完成，在 spec 写明的 seam 上测试。
 - 结构调整使旧测试失去意义时，测试精简单独成票，按 `/prune-tests` 的保留与删除标准处理受影响的测试。
-- 每票出口：`just gate-core` 退出码为 0。
-- 集成分支：一次无筛选的 `just gate-full`。
+- 每票出口：`mise run gate-core` 退出码为 0。
+- 集成分支：一次无筛选的 `mise run gate-full`。
 - 收尾以集成分支的基准运行 `docs-audit` 的 diff 模式。

@@ -31,7 +31,7 @@ description: 在本机真实环境按项目的行为文档完整验收功能：�
 
 1. 当前目录是 Git 工作区根目录，且工作树干净。有未提交改动时停下：修复会逐个 commit 到当前分支，脏工作树会混入无关改动；让用户先提交或暂存。
 2. 预期来源：`docs/behaviors/*.md`，其次 `docs/architecture/modules/*.md` 的“当前行为规格”章节。两处都没有可用内容时停下说明“没有可验收的预期”，不读代码编预期。给了 `<topic>` 时只取对应文件；找不到就停下列出可选主题。
-3. 环境契约：目标项目的 `docs/development/local-acceptance.md` 整页，只认这一个路径，内容要求见 [references/environment.md](references/environment.md)。文件缺失或仍是 `<待填` 标记时，按该文件从 justfile、README 与配置起草整页，纳入阶段 1 的一次确认；契约声明的命令不存在或运行失败是硬阻塞。
+3. 环境契约：目标项目的 `docs/development/local-acceptance.md` 整页，只认这一个路径，内容要求见 [references/environment.md](references/environment.md)。文件缺失或仍是 `<待填` 标记时，按该文件从 `mise.toml`、`mise-tasks/`、README 与配置起草整页，纳入阶段 1 的一次确认；契约声明的命令不存在或运行失败是硬阻塞。
 4. 观测工具：契约声明 web 界面时先调用 `tabs_context_mcp` 确认 Chrome 扩展已连接，未连接是硬阻塞，提示用户打开 Chrome 并确认 Claude in Chrome 扩展在线（无原生方案的 harness 改为确认 Playwright CLI 可执行）；其他通道按契约声明的命令逐个核对可执行。
 5. 账本：在会话临时目录（有 scratchpad 时用它，否则 `mktemp -d`）建 `ledger.md`，把路径打印到对话；格式见 [references/checklist.md](references/checklist.md#账本)。
 
@@ -62,7 +62,7 @@ description: 在本机真实环境按项目的行为文档完整验收功能：�
 
 - **文档问题**：文档与代码冲突且该改的是文档（规则不合理、已被后续决定替代、自相矛盾）→ DEFERRED，按 `docs/agents/issue-tracker.md` 的约定写票，不改文档、不改代码迁就文档。
 - **就地修复**的条件：改动局部在一个模块内，不改数据 schema，不改公共接口或配置键，不涉及设计取舍。不满足任一条 → DEFERRED 写票，继续下一项。
-- 修复流程：先按项目的测试分层约定（有 `docs/agents/testing.md` 时依其规则归入 core 或 full）补一个重现该缺陷的失败测试，纯界面表现类可免并在账本注明理由；然后修复，运行相关测试与 `just gate-core`（有则跑，失败如实记录），一处修复一个 commit 到当前分支，message 引用验收项编号。需要重启的用契约的停止与启动命令；修复涉及数据写入的先重置再重跑。
+- 修复流程：先按项目的测试分层约定（有 `docs/agents/testing.md` 时依其规则归入 core 或 full）补一个重现该缺陷的失败测试，纯界面表现类可免并在账本注明理由；然后修复，运行相关测试与 `mise run gate-core`（有则跑，失败如实记录），一处修复一个 commit 到当前分支，message 引用验收项编号。需要重启的用契约的停止与启动命令；修复涉及数据写入的先重置再重跑。
 - 重跑范围：该项加上同一来源文件（同一 behaviors 主题或同一模块页）的全部项；通过后状态记 FIXED。
 - **硬阻塞**，停下问用户：服务起不来或就绪超时；缺凭证、Chrome 扩展断开或缺 MCP 工具；浏览器被原生对话框（alert/confirm）阻塞，需要用户手动关闭；需要契约未授权的破坏性操作；文档自相矛盾且影响主流程；修复需要 schema 变更或跨模块重构；同一项修复两次仍失败。提问时附账本路径与当前摘要，用户答复后从账本继续。
 

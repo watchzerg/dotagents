@@ -1,11 +1,11 @@
-"""在临时 Git 项目中验证工具链初始化：判定、缺失才创建、justfile 拼合、文档替换与命令顺序；外部工具用替身。"""
+"""在临时 Git 项目中验证工具链初始化：判定、缺失才创建、mise.toml 与 stack task 生成、文档替换与命令顺序；外部工具用替身。"""
 
 import os
-import re
 import shutil
 import subprocess
 import sys
 import time
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -13,7 +13,9 @@ import pytest
 SKILL = Path(__file__).resolve().parents[2] / "skills/setup-project"
 INIT_DOCS = SKILL / "scripts/init_docs.py"
 SCRIPT = SKILL / "scripts/init_toolchain.py"
-TOOLS = ("uv", "mise", "pnpm", "just", "swift", "xcodebuild")
+TOOLS = ("uv", "mise", "pnpm", "swift", "xcodebuild")
+# 公开 task 中由各 stack 同名 file task 聚合的 7 个。
+STACK_TASKS = ("check-toolchain", "install", "fmt", "lint", "typecheck", "test", "test-full")
 
 
 @pytest.fixture
@@ -73,9 +75,31 @@ def stage3_markers(project: Path) -> dict[str, int]:
     }
 
 
-def recipe_names(justfile: Path) -> set[str]:
-    names = set(re.findall(r"^@?([A-Za-z_][\w-]*)[^:\n]*:(?!=)", justfile.read_text(), re.M))
-    return names - {"alias", "export", "set", "import", "mod"}
+def mise_config(project: Path) -> dict:
+    return tomllib.loads((project / "mise.toml").read_text())
+
+
+def assert_stack_contract(project: Path, stacks: tuple[str, ...]) -> None:
+    """根 mise.toml 的公开 task 聚合各 stack 的 file task，file task 齐全、可执行且无残留占位符。"""
+    tasks = mise_config(project)["tasks"]
+    for name in STACK_TASKS:
+        assert tasks[name]["depends"] == [f"{stack}:{name}" for stack in stacks], name
+        for stack in stacks:
+            task = project / "mise-tasks" / stack / name
+            assert task.is_file() and os.access(task, os.X_OK), task
+            assert "{{" not in task.read_text(), task
+    assert tasks["docs-check"]["run"] == "python3 scripts/check_docs.py"
+    assert tasks["docs-affected"]["run"] == "python3 scripts/check_docs.py --affected"
+    assert tasks["gate-core"]["depends"] == [
+        "check-toolchain",
+        "docs-check",
+        "lint",
+        "typecheck",
+        "test",
+    ]
+    assert tasks["gate-full"]["depends"] == ["gate-core"]
+    assert tasks["gate-full"]["run"] == [{"task": "test-full"}]
+    assert "{{" not in (project / "mise.toml").read_text()
 
 
 def test_empty_project_asks_for_stacks(project: Path, bin_dir: Path) -> None:
@@ -94,44 +118,37 @@ def test_new_uv_project(project: Path, bin_dir: Path) -> None:
     for path in (
         "pyproject.toml",
         ".python-version",
-        "justfile",
+        "mise.toml",
         "scripts/check_docs.py",
         "tests/core/test_toolchain.py",
     ):
         assert (project / path).is_file(), path
     assert 'name = "my-project"' in (project / "pyproject.toml").read_text()
-    assert ".venv/" in (project / ".gitignore").read_text()
-    mise = (project / "mise.toml").read_text()
-    assert '[tools]\nuv = "0.13"\n' in mise and "node" not in mise
-    justfile = project / "justfile"
-    names = recipe_names(justfile)
-    assert {"check-toolchain", "install", "fmt", "lint", "typecheck", "test", "docs-check"} <= names
-    assert {"uv-check-toolchain", "uv-test-core", "uv-test-full"} <= names
-    text = justfile.read_text()
-    assert "gate-core: check-toolchain docs-check lint typecheck uv-test-core" in text
-    assert "gate-full: gate-core\n    python3 scripts/with_lock.py just uv-test-full\n" in text
-    assert 'test *args:\n    just uv-test "$@"' in text
-    assert 'test-full *args:\n    python3 scripts/with_lock.py just uv-test-full "$@"' in text
+    gitignore = (project / ".gitignore").read_text()
+    assert ".venv/" in gitignore and "mise.local.toml" in gitignore
+    assert mise_config(project)["tools"] == {"uv": "0.13"}
+    assert_stack_contract(project, ("uv",))
+    assert "PYTEST_ADDOPTS" in (project / "mise-tasks/uv/test").read_text()
+    assert "with_lock.py" in (project / "mise-tasks/uv/test-full").read_text()
     assert (project / "scripts/with_lock.py").is_file()
-    assert not re.search(r"\{\{[A-Z_]+\}\}", text)
     assert stage3_markers(project) == {}
     workflow = (project / "docs/development/workflow.md").read_text()
-    assert "## 命令与门禁" in workflow and "`just gate-core`" in workflow
-    assert "宿主工具：`mise`、`just`。" in workflow and "钉住对版本敏感的 `uv`" in workflow
-    assert "mise trust\njust install" in (project / "README.md").read_text()
+    assert "## 命令与门禁" in workflow and "`mise run gate-core`" in workflow
+    assert "宿主工具：`mise`。" in workflow and "钉住对版本敏感的 `uv`" in workflow
+    assert "`mise run uv:test [参数]`" in workflow and "<stack>" in workflow
+    assert "mise trust\nmise run install\nmise run gate-core" in (project / "README.md").read_text()
     assert "Python 解释器由 uv" in workflow and "### " not in workflow
     assert "<待填 按需：有发布流程时" in workflow
     assert "测试分层与资源边界" not in workflow and "local-acceptance.md" in workflow
     layers = (project / "docs/development/test-layers.md").read_text()
     assert (
         "## 分层与资源边界" in layers
-        and "`tests/core/`（pytest `testpaths`）；由 `just test`" in layers
+        and "`tests/core/`（pytest `testpaths`）；由 `mise run test`" in layers
     )
     assert "<待填 按需：第一次用 `/prune-tests`" in layers
     testing = (project / "docs/agents/testing.md").read_text()
     assert "core：`tests/core/`" in testing
     assert "../development/test-layers.md#分层与资源边界" in testing
-    assert "just install" in (project / "README.md").read_text()
     stack = (project / "docs/development/technology-stack.md").read_text()
     assert "typer" in stack and "beautifulsoup4" in stack
     calls = invocations(project)
@@ -143,12 +160,16 @@ def test_new_uv_project(project: Path, bin_dir: Path) -> None:
 def test_new_uv_project_rerun_is_noop(project: Path, bin_dir: Path) -> None:
     assert run_script(project, bin_dir, "--stacks", "uv", "--skip-install").returncode == 0
     workflow = (project / "docs/development/workflow.md").read_text()
+    mise = (project / "mise.toml").read_text()
     second = run_script(project, bin_dir, "--stacks", "uv", "--skip-install")
     assert second.returncode == 0, second.stderr
     assert "模式：existing" in second.stdout
     assert "已创建" not in second.stdout
     assert (project / "docs/development/workflow.md").read_text() == workflow
-    assert (project / ".gitignore").read_text().count(".venv/") == 1
+    assert (project / "mise.toml").read_text() == mise
+    gitignore = (project / ".gitignore").read_text()
+    assert gitignore.count(".venv/") == 1 and gitignore.count("mise.local.toml") == 1
+    assert "缺少契约 task" not in second.stdout
     assert invocations(project) == []
 
 
@@ -156,20 +177,17 @@ def test_new_uv_node_project_layout_commands_and_scopes(project: Path, bin_dir: 
     result = run_script(project, bin_dir, "--stacks", "node", "uv")
     assert result.returncode == 0, result.stderr
     assert "stacks：uv、node；模式：new" in result.stdout
-    assert '[tools]\nuv = "0.13"\nnode = "26"\npnpm = "12"\n' in (project / "mise.toml").read_text()
+    assert list(mise_config(project)["tools"].items()) == [
+        ("uv", "0.13"),
+        ("node", "26"),
+        ("pnpm", "12"),
+    ]
+    assert_stack_contract(project, ("uv", "node"))
+    assert 'cd "$MISE_CONFIG_ROOT/frontend"' in (project / "mise-tasks/node/test-full").read_text()
     assert (project / "frontend/package.json").is_file()
     assert "../mise.toml" in (project / "frontend/scripts/check-node.ts").read_text()
     assert "../mise.toml" in (project / "frontend/tests/core/toolchain.test.ts").read_text()
     assert "node_modules/" in (project / ".gitignore").read_text()
-    text = (project / "justfile").read_text()
-    assert "check-toolchain: uv-check-toolchain node-check-toolchain" in text
-    assert "gate-full: gate-core\n    python3 scripts/with_lock.py just test-full-all\n" in text
-    assert "test-full-all: uv-test-full node-test-full" in text
-    assert "fmt-all: uv-fmt node-fmt" in text and "exec just test-all" in text
-    assert 'uv|node) scope="$1"; shift; exec just "${scope}-test" "$@" ;;' in text
-    assert 'exec python3 scripts/with_lock.py just "${scope}-test-full" "$@" ;;' in text
-    assert "cd frontend && mise exec -- pnpm install --frozen-lockfile" in text
-    assert not re.search(r"\{\{[A-Z_]+\}\}", text)
     testing = (project / "docs/agents/testing.md").read_text()
     assert (
         "Node（pnpm）：`frontend/tests/core/`" in testing
@@ -177,7 +195,10 @@ def test_new_uv_node_project_layout_commands_and_scopes(project: Path, bin_dir: 
     )
     workflow = (project / "docs/development/workflow.md").read_text()
     assert "布局：Python（uv） 在仓库根目录、Node（pnpm） 在 `frontend/`。" in workflow
-    assert "scope（`uv`、`node`）" in workflow and "### Node（pnpm）" in workflow
+    assert (
+        "`mise run <stack>:test [参数]`" in workflow and "`<stack>` 取 `uv`、`node`。" in workflow
+    )
+    assert "### Node（pnpm）" in workflow
     stack = (project / "docs/development/technology-stack.md").read_text()
     assert stack.index("### Python（uv）") < stack.index("### Node（pnpm）")
     assert "typer" in stack and "zod" in stack
@@ -202,37 +223,36 @@ def test_new_swift_project(project: Path, bin_dir: Path) -> None:
         ".xcode-version",
         "Sources/MyProject/MyProject.swift",
         "tests/core/ToolchainTests.swift",
-        "justfile",
+        "mise.toml",
     ):
         assert (project / path).is_file(), path
     assert 'name: "MyProject"' in (project / "Package.swift").read_text()
     assert "public enum MyProject" in (project / "Sources/MyProject/MyProject.swift").read_text()
     assert ".build/" in (project / ".gitignore").read_text()
-    text = (project / "justfile").read_text()
-    assert (
-        "swift-run-tests" in text
-        and "gate-core: check-toolchain docs-check lint typecheck swift-test-core" in text
-    )
-    assert not re.search(r"\{\{[A-Z_]+\}\}", text)
+    assert mise_config(project)["tools"] == {}
+    assert_stack_contract(project, ("swift",))
     assert stage3_markers(project) == {}
     workflow = (project / "docs/development/workflow.md").read_text()
     assert "Xcode（仅 macOS" in workflow
     assert "`CoreTests` target" in (project / "docs/development/test-layers.md").read_text()
     assert "Package.resolved" in (project / "docs/development/technology-stack.md").read_text()
     commands = [call.split(" | ")[0] for call in invocations(project)]
-    assert commands == ["swift package resolve"]
+    assert commands == ["mise trust", "swift package resolve"]
 
 
-def test_none_new_project_installs_contract_justfile(project: Path, bin_dir: Path) -> None:
+def test_none_new_project_installs_contract_mise_toml(project: Path, bin_dir: Path) -> None:
     result = run_script(project, bin_dir, "--stacks", "none")
     assert result.returncode == 0, result.stderr
     assert "stacks：无预置；模式：new" in result.stdout
-    assert "无安装命令" in result.stdout and "安装完成" not in result.stdout
-    justfile = (project / "justfile").read_text()
-    assert "尚未接入" in justfile and "gate-full: gate-core" in justfile and "test-full" in justfile
+    template = SKILL / "toolchain/none/mise.toml"
+    assert (project / "mise.toml").read_text() == template.read_text()
+    assert not (project / "mise-tasks").exists()
+    assert "mise.local.toml" in (project / ".gitignore").read_text()
     assert (project / "scripts/check_docs.py").is_file()
+    commands = [call.split(" | ")[0] for call in invocations(project)]
+    assert commands == ["mise trust"]
     workflow = (project / "docs/development/workflow.md").read_text()
-    assert "`just gate-core`" in workflow and "<待填 按需：接入工具链后" in workflow
+    assert "`mise run gate-core`" in workflow and "<待填 按需：接入工具链后" in workflow
     assert "<待填 按需：本项目各层的位置" in (project / "docs/agents/testing.md").read_text()
     layers = (project / "docs/development/test-layers.md").read_text()
     assert "<待填 按需：本项目各层的目录" in layers and "| core |" in layers
@@ -245,20 +265,30 @@ def test_existing_project_gets_dependency_preferences_and_common_scripts(
     project: Path, bin_dir: Path
 ) -> None:
     (project / "uv.lock").write_text("")
-    (project / "justfile").write_text("default:\n    @just --list\n\ntest *args:\n    pytest\n")
+    mise = '[tools]\nuv = "0.12"\n\n[tasks.test]\nrun = "pytest"\n'
+    (project / "mise.toml").write_text(mise)
+    (project / "mise-tasks/uv").mkdir(parents=True)
+    (project / "mise-tasks/lint").write_text("#!/bin/sh\n")
+    (project / "mise-tasks/uv/test").write_text("#!/bin/sh\n")
     before_workflow = (project / "docs/development/workflow.md").read_text()
     result = run_script(project, bin_dir)
     assert result.returncode == 0, result.stderr
+    assert "模式：existing；证据：uv.lock、mise.toml" in result.stdout
     assert not (project / "pyproject.toml").exists()
     assert (project / "scripts/check_docs.py").is_file()
     assert "已创建 scripts/check_docs.py" in result.stdout
     assert (project / "scripts/with_lock.py").is_file()
-    assert (project / "justfile").read_text().startswith("default:\n")
+    assert (project / "mise.toml").read_text() == mise
+    assert sorted(p.name for p in (project / "mise-tasks").rglob("*") if p.is_file()) == [
+        "lint",
+        "test",
+    ]
+    assert not (project / ".gitignore").exists()
     assert (project / "docs/development/workflow.md").read_text() == before_workflow
     stack = (project / "docs/development/technology-stack.md").read_text()
     assert "typer" in stack and "<待填 阶段3：语言版本" in stack
     assert (
-        "缺少契约 recipe：check-toolchain、install、fmt、lint、typecheck、test-full、docs-check、docs-affected、gate-core、gate-full"
+        "mise 配置缺少契约 task：check-toolchain、install、fmt、typecheck、test-full、docs-check、docs-affected、gate-core、gate-full"
         in result.stdout
     )
     assert invocations(project) == []

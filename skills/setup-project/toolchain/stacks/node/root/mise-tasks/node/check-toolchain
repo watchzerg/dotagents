@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+#MISE description="{{LABEL}}：打印 mise 按 mise.toml 提供的 Node 与 pnpm 版本；不安装依赖"
+set -euo pipefail
+echo "node=$(node --version)"
+echo "pnpm=$(pnpm --version)"
+echo '工具链检查通过'

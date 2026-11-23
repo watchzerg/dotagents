@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+#MISE description="{{LABEL}}：Ruff 格式化并修复可自动修复的 lint；默认处理整个目录，可传路径"
+set -euo pipefail
+cd {{HOME_DIR}}
+if [ "$#" -eq 0 ]; then set -- .; fi
+uv run --locked ruff check --fix "$@"
+uv run --locked ruff format "$@"

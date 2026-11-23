@@ -1,3 +1,59 @@
-# 对版本敏感的工具钉到兼容版本 line，精确版本由 mise.lock 记录；just 等通用工具由全局 mise 配置提供。
+# 本仓库的工具版本与开发任务。uv 对版本敏感，钉到兼容版本 line，精确版本由 mise.lock 记录；
+# `mise run <task>` 会按需自动安装 uv，`mise tasks` 列出全部任务。
 [tools]
 uv = "0.13"
+
+[env]
+UV_MANAGED_PYTHON = "1"
+
+[tasks.install]
+description = "安装 .python-version 指定的项目 Python，并按 uv.lock 同步开发依赖"
+run = ["uv python install", "uv sync --locked"]
+
+[tasks.check-toolchain]
+description = "核对项目 Python 版本 line 与 .python-version 一致，不下载或安装"
+run = '''
+uv run --no-project --offline --no-python-downloads --no-env-file --python "$(cat .python-version)" python -B - <<'PY'
+import pathlib
+import sys
+
+pin = pathlib.Path(".python-version").read_text().strip()
+actual = ".".join(map(str, sys.version_info[:3]))
+if actual != pin and not actual.startswith(pin + "."):
+    sys.exit(f"错误：预期 Python {pin}，实际 {actual}；请运行 mise run install")
+print(f"Python={actual}；工具链检查通过")
+PY
+'''
+
+# fmt 是 mise-tasks/fmt 文件任务：参数要同时传给 ruff format 与 ruff check。
+
+[tasks.lint]
+description = "Ruff lint 与格式检查，覆盖仓库内全部 Python 文件"
+run = ["uv run --locked ruff check .", "uv run --locked ruff format --check ."]
+
+[tasks.typecheck]
+description = "用 ty 做类型检查"
+run = "uv run --locked ty check ."
+
+[tasks.test]
+description = "运行 pytest；默认全部测试，追加参数原样传给 pytest（如 mise run test -k name）"
+run = "uv run --locked python -m pytest"
+
+[tasks.gate-full]
+description = "完整门禁：并行执行工具链检查、git diff --check、lint、类型检查与全部测试；忽略筛选参数"
+depends = ["check-toolchain", "diff-check", "lint", "typecheck", "test-all"]
+
+[tasks.diff-check]
+description = "检查未提交改动中的空白错误"
+hide = true
+run = "git diff --check"
+
+[tasks.test-all]
+description = "无筛选运行全部测试，清除外部 PYTEST_ADDOPTS"
+hide = true
+env = { PYTEST_ADDOPTS = false }
+run = "uv run --locked python -m pytest"
+
+[tasks.e2e-setup-project]
+description = "在临时项目上用 headless Claude Code 真实执行 /setup-project 并检查产物；不属于门禁，需要网络与模型额度"
+run = "uv run --locked python -m tests.setup_project.e2e.run"

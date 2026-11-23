@@ -11,7 +11,7 @@ FIXTURES = E2E_DIR / "fixtures"
 REPO_ROOT = E2E_DIR.parents[2]
 SKILL_DIR = REPO_ROOT / "skills" / "setup-project"
 
-CONTRACT_RECIPES = (
+CONTRACT_TASKS = (
     "check-toolchain",
     "install",
     "fmt",
@@ -93,7 +93,7 @@ def build_empty(project: Path) -> None:
 
 
 def build_uv_existing(project: Path) -> None:
-    """已有 uv 工程、旧文档、同义节 AGENTS.md、有内容的 CLAUDE.md、缺 recipe 的 justfile。"""
+    """已有 uv 工程、旧文档、同义节 AGENTS.md、有内容的 CLAUDE.md、缺契约 task 的 mise.toml。"""
     run(["uv", "init", "--package", "--name", "demo_uv", "--no-workspace", "-q", "."], project)
     write(
         project / "src/demo_uv/ledger.py",
@@ -172,14 +172,14 @@ def test_balance() -> None:
 """,
     )
     write(
-        project / "justfile",
-        """# 运行测试
-test:
-    uv run pytest
+        project / "mise.toml",
+        """[tasks.test]
+description = "运行测试"
+run = "uv run pytest"
 
-# 静态检查
-lint:
-    uv run ruff check .
+[tasks.lint]
+description = "静态检查"
+run = "uv run ruff check ."
 """,
     )
     write(
@@ -241,7 +241,7 @@ console.log(counter.increment());
 
 
 def build_swift_existing(project: Path) -> None:
-    """已有 SwiftPM package：existing 模式、没有 justfile。"""
+    """已有 SwiftPM package：existing 模式、没有 mise 配置。"""
     run(["swift", "package", "init", "--type", "library", "--name", "DemoSwift"], project)
 
 
@@ -274,7 +274,8 @@ CASES: dict[str, Case] = {
             "GLOSSARY.md",
             "CODING_STANDARDS.md",
             "docs/INDEX.md",
-            "justfile",
+            "mise.toml",
+            "mise-tasks/uv/test",
             "pyproject.toml",
             "uv.lock",
             "scripts/check_docs.py",
@@ -322,7 +323,7 @@ CASES: dict[str, Case] = {
             ("docs/development/workflow.md", "operations/", True),
         ),
         description_targets=("GLOSSARY.md",),
-        notes="existing 模式：同义节合并、CLAUDE.md 收口、旧文档收敛、从代码补写模块页、补齐 recipe。",
+        notes="existing 模式：同义节合并、CLAUDE.md 收口、旧文档收敛、从代码补写模块页、补齐契约 task。",
     ),
     "node-new-with-code": Case(
         name="node-new-with-code",
@@ -333,7 +334,8 @@ CASES: dict[str, Case] = {
         expect_stacks=("node",),
         present=(
             ".beads",
-            "justfile",
+            "mise.toml",
+            "mise-tasks/node/test",
             "package.json",
             "biome.json",
             "tsconfig.json",
@@ -359,10 +361,10 @@ CASES: dict[str, Case] = {
             "scripts/check_docs.py",
             "scripts/with_lock.py",
         ),
-        absent=("justfile", ".swift-format", "tests/core/ToolchainTests.swift"),
+        absent=("mise.toml", "mise-tasks", ".swift-format", "tests/core/ToolchainTests.swift"),
         untouched=("Package.swift",),
         description_targets=("GLOSSARY.md",),
-        notes="existing 模式且无 justfile：只补依赖偏好与两个公共脚本，报告写明没有 justfile。",
+        notes="existing 模式且无 mise 配置：只补依赖偏好与两个公共脚本，报告写明没有 mise task。",
     ),
     "uv-node-new": Case(
         name="uv-node-new",
@@ -373,7 +375,9 @@ CASES: dict[str, Case] = {
         expect_stacks=("uv", "node"),
         present=(
             ".beads",
-            "justfile",
+            "mise.toml",
+            "mise-tasks/uv/test",
+            "mise-tasks/node/test",
             "pyproject.toml",
             "uv.lock",
             "frontend/package.json",
@@ -381,7 +385,7 @@ CASES: dict[str, Case] = {
             "frontend/tests/core/toolchain.test.ts",
             "tests/core/test_toolchain.py",
         ),
-        notes="多 stack 新项目：justfile 拼合与 scope 化的 fmt/test。",
+        notes="多 stack 新项目：公开 task 聚合两个 stack 的 file task。",
     ),
     "none-empty": Case(
         name="none-empty",
@@ -391,8 +395,8 @@ CASES: dict[str, Case] = {
         expect_mode="new",
         expect_stacks=("none",),
         triage=False,
-        present=(".beads", "justfile", "AGENTS.md", "docs/INDEX.md"),
-        absent=("pyproject.toml", "package.json", "docs/agents/triage-labels.md"),
-        notes="none stack：契约 recipe 非零退出；Matt 产物不含 triage，触发表不应有分诊行。",
+        present=(".beads", "mise.toml", "AGENTS.md", "docs/INDEX.md"),
+        absent=("pyproject.toml", "package.json", "mise-tasks", "docs/agents/triage-labels.md"),
+        notes="none stack：契约 task 非零退出；Matt 产物不含 triage，触发表不应有分诊行。",
     ),
 }

@@ -16,7 +16,7 @@
 - **保留范围写回固定落点**：x-media-saver 在一次精简后自发长出一节保留范围说明，内容正好是 prune 的产物，于是采纳为固定落点，setup-project 模板加 `按需` 待填标记预留位置。落点最初是 `workflow.md` 里的同名节，2026-11-11 改为 `docs/development/test-layers.md` 的保留范围部分，见下一条。
 - **分层合同与保留范围独占一页，只认精确路径**（2026-11-11）：原先读 `workflow.md` 的分层节、写同页的保留范围节，都按节名定位。`workflow.md` 在目标项目里是改代码任务的必读页，这两节对一般任务用不上却每次被读到；节名又是隐性接口，项目把保留范围移到别的页后（bangou 在 `docs/clip/development.md`，x-media-saver 在 `docs/agents/testing.md`），skill 会在 `workflow.md` 里重建一节，内容分叉。改为两者合在 `docs/development/test-layers.md`：读和写是同一份合同的两半，放一页比各占一页少一个路径。skill 不设回退、不依赖节名，文件不存在就新建并接入索引；存量项目与本次改动一起迁移。
 - **工具链自检测试不可删**：每个 stack 的工具链测试是 setup-project 用来避免 gate-core 零收集失败的，prune 若按“非核心规则”删掉会让门禁红灯，所以在 skill 里点名保护。
-- **full 删空要删目录**：uv 与 node 的 `test-full` recipe 以“目录下是否有该 stack 的测试文件”判定收录，目录不存在或只有其他 stack 文件才提示通过。skill 要求删空后删除目录并先跑收集命令，避免残留文件导致零收集失败。
+- **full 删空要删目录**：uv 与 node 的 `test-full` task 以“目录下是否有该 stack 的测试文件”判定收录，目录不存在或只有其他 stack 文件才提示通过。skill 要求删空后删除目录并先跑收集命令，避免残留文件导致零收集失败。
 - **项目约定管结构，保留标准归 skill**：x-media-saver 的 testing.md 与模块边界文档写着 core 层“穷举规则表”，与 skill 压缩参数化矩阵的要求冲突；2026-10-17 的首次真实运行选择 skill 覆盖项目文档并把两处改成“每条规则保留代表行”。原先“命中即以项目约定为准”没有区分这两类，换一次运行可能反过来保留全部用例，因此在约定来源节明示：项目文档决定目录、入口、资源边界与串行约束，保留标准以 skill 为准，项目文档里的穷举要求按文档同步改写。
 - **去留结论必须引用断言**：同一次运行里 Web/扩展层的分析子 agent 只看测试名就给出了方案，并自述未读正文；原规则“不能仅凭名称决定去留”是放在约定来源节末尾的禁令，没有落到执行步骤的完成标准里，委派时也没有传给子 agent。改为执行步骤中的正向标准：每条结论写明该测试断言的可观察结果及对应规则或主流程来源，委派分析时作为子 agent 交付标准，名称判断在产出中直接暴露为缺项。
 - **按内容定位编辑，门禁由发起者运行**：同一次运行里 integration 子 agent 用行号范围 `sed -i` 删断言被 auto 模式权限分类器拒绝，`just test-full` 也被拒；主 agent 与 core 子 agent 用 Edit 工具或匹配内容的脚本编辑则全部顺利。行号范围删除在多 agent 并发编辑时本就脆弱，所以 skill 要求按内容定位，门禁与 full 测试由发起 skill 的 agent 运行。
@@ -28,7 +28,7 @@
 
 ## 与 setup-project 的耦合
 
-- 读取：`docs/agents/testing.md` 分层节、`docs/development/test-layers.md`、`docs/behaviors/`、模块页“当前行为规格”与“代码与验证入口”、justfile 的 `test`/`test-full`/`gate-core`/`gate-full` 契约。
+- 读取：`docs/agents/testing.md` 分层节、`docs/development/test-layers.md`、`docs/behaviors/`、模块页“当前行为规格”与“代码与验证入口”、`mise.toml` 与 `mise-tasks/` 的 `test`/`test-full`/`gate-core`/`gate-full` 契约。
 - 读取（留痕时）：`docs/agents/issue-tracker.md`。
 - 写入：`docs/development/test-layers.md` 的保留范围部分，模块页“代码与验证入口”；tracker 中一张已关闭的留痕票。
 - 模板改动：`templates/docs/development/test-layers.md` 含分层合同与 `按需` 的保留范围节（2026-10-17 起在 `workflow.md`，2026-11-11 移到本页）；`templates/docs/agents/testing.md` 的“编写与变更”有一条，精简或大幅删减测试按 `/prune-tests` 执行并落到该页。
@@ -58,3 +58,4 @@
 | 2026-11-11 | 分层合同与保留范围由 `workflow.md` 的两节改为独占 `docs/development/test-layers.md`，只认该路径、不设回退，文件不存在时新建并接入索引；模板同步，四个存量项目随同迁移 | 本文关键决策 |
 | 2026-11-13 | 执行步骤末尾加留痕：建一张已关闭的票记录前后文件数、用例数与保留范围；由票据发起时记入原票，无 tracker 约定时跳过；完成报告加票据编号 | [optimize 设计说明](../optimize/design.md)的衔接约定 |
 | 2026-11-22 | grok-media-saver 运行复盘：执行步骤第 4 步加删除后由 typecheck 与 lint 定位清理、单参数矩阵改写；第 8 步建票拿到编号后再关闭；完成报告加删后 `gate-full` 耗时分布 | 真实运行记录 |
+| 2026-11-23 | 项目命令契约由 just 迁到 mise task，skill 中的调用改为 `mise run`，定向参数经 `<stack>:<task>` | 用户当日确认 |

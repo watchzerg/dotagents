@@ -21,7 +21,7 @@ description: 项目优化流水线：按封闭的规则表调研，命中项经 
 第一步核对，缺任何一项就报告缺什么并终止：
 
 - Beads：`bd` 可执行、项目有 `.beads/`，且 `docs/agents/issue-tracker.md` 存在。票据操作按该页执行。
-- just 契约：`just --summary` 含 `gate-core` 与 `gate-full`；`docs` 主题另需 `docs-check`。
+- mise task 契约：`mise tasks` 含 `gate-core` 与 `gate-full`；`docs` 主题另需 `docs-check`。
 - 开始新一轮时工作树干净，且当前在默认分支。
 
 ## 判断阶段

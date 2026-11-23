@@ -38,7 +38,7 @@ description: 按个人模板初始化新项目的 Beads、标准化文档结构�
    python3 "<skill目录>/scripts/init_toolchain.py" --detect-only
    ```
 
-   只打印 stack 集合、模式（`new` 或 `existing`）与证据，不写文件；`existing` 模式还会列出 justfile 缺少的契约 recipe，记下来供阶段 2 使用。退出码 3 表示无法判定，需要用户选择，此时模式必然是 `new`。判定规则见 [references/toolchain.md](references/toolchain.md#stack-判定)。
+   只打印 stack 集合、模式（`new` 或 `existing`）与证据，不写文件；`existing` 模式还会列出 mise 配置缺少的契约 task，记下来供阶段 2 使用。退出码 3 表示无法判定，需要用户选择，此时模式必然是 `new`。判定规则见 [references/toolchain.md](references/toolchain.md#stack-判定)。
 
 4. **一次性提问**：用一次结构化提问同时收集下列答案，都不需要时不问：
    - `init_docs.py` 末尾列出的仍含 `<待填 初始化` 标记的文件不为空，且 `AGENTS.md` 一级标题后、第一个二级标题前没有项目描述时，问项目的一句话描述（自由文本）。`AGENTS.md` 已有描述时不问，阶段 2 直接用它展开其余文件的标记。
@@ -52,9 +52,9 @@ description: 按个人模板初始化新项目的 Beads、标准化文档结构�
    python3 "<skill目录>/scripts/init_toolchain.py"
    ```
 
-   第 3 步退出码 3 时直接带 `--stacks <答案>` 运行，如 `--stacks uv node`，不先空跑一次。`new` 模式复制工具链文件与工具链测试、拼出根 `justfile`、复制 `scripts/check_docs.py` 与 `scripts/with_lock.py`、追加 `.gitignore`、替换 `<待填 阶段3：…>` 标记并运行安装命令；`existing` 模式只补缺 `scripts/check_docs.py` 与 `scripts/with_lock.py`、把各 stack 的依赖偏好补进 `docs/development/technology-stack.md`，不碰任何工具链文件。脚本不运行门禁，门禁在阶段 3。
+   第 3 步退出码 3 时直接带 `--stacks <答案>` 运行，如 `--stacks uv node`，不先空跑一次。`new` 模式复制工具链文件与工具链测试、生成根 `mise.toml` 与 `mise-tasks/`、复制 `scripts/check_docs.py` 与 `scripts/with_lock.py`、追加 `.gitignore`、替换 `<待填 阶段3：…>` 标记并运行安装命令；`existing` 模式只补缺 `scripts/check_docs.py` 与 `scripts/with_lock.py`、把各 stack 的依赖偏好补进 `docs/development/technology-stack.md`，不碰任何工具链文件。脚本不运行门禁，门禁在阶段 3。
 
-   安装命令失败是唯一不中止流程的脚本失败：文件已落地，脚本返回 1 并打印恢复提示。告知用户安装缺少的宿主工具后在项目根目录运行 `just install`，不要重跑脚本（会判为 `existing` 而跳过安装）；继续阶段 2，阶段 3 把安装与 `gate-core` 记为未完成。
+   安装命令失败是唯一不中止流程的脚本失败：文件已落地，脚本返回 1 并打印恢复提示。告知用户安装缺少的宿主工具后在项目根目录运行 `mise run install`，不要重跑脚本（会判为 `existing` 而跳过安装）；继续阶段 2，阶段 3 把安装与 `gate-core` 记为未完成。
 
 ## 阶段 2：agent 文档工作
 
@@ -66,17 +66,17 @@ description: 按个人模板初始化新项目的 Beads、标准化文档结构�
 
 3. **收敛已有文档**：按 [references/converge-docs.md](references/converge-docs.md#候选范围) 列出候选：标准结构之外的文档，`AGENTS.md` 里模板节之外的全部二级节、`CLAUDE.md` 里 `## Agent skills` 之外的各节，`docs/research/` 直接子级的验收与交付记录，以及文档检查报出的已有页面（标题骨架不符、超出体量预算、未登记索引、从 `AGENTS.md` 到不了）；没有候选则跳过。有候选时先派只读子 agent 分类，再派可写子 agent 按分类表执行合并与迁移，主 agent 修正链接、登记索引、建票据、填可填标记。不 commit，用户提交前自行审阅工作区。
 
-4. **从代码补写文档**：已有代码指阶段 1 之前就存在的源码，即 `existing` 模式，或 `new` 模式下脚手架之外的源码；只有阶段 1 生成的脚手架（示例模块、工具链测试、`scripts/` 下的检查与锁脚本、各 stack 的配置与锁文件）时视为空项目，跳过。有代码时按 [references/document-code.md](references/document-code.md) 派可写子 agent 读取代码与配置，填写架构总览与模块边界的 `首个模块` 类标记、按模板建模块页；`existing` 模式下同时填写剩余的 `阶段3` 类标记，并为阶段 1 列出的缺少 recipe 返回实现建议；主 agent 随后把脚本写入的"依赖政策"与 `AGENTS.md` 常驻约束对照，与约束冲突的偏好条目（如项目禁止 ORM 而清单推荐 `sqlalchemy`）删去并在报告说明。空项目跳过；第 3 步已把 `首个模块` 与 `阶段3` 标记全部填完、模块页齐全且没有缺少的 recipe 时也跳过，报告写明依据。
+4. **从代码补写文档**：已有代码指阶段 1 之前就存在的源码，即 `existing` 模式，或 `new` 模式下脚手架之外的源码；只有阶段 1 生成的脚手架（示例模块、工具链测试、`scripts/` 下的检查与锁脚本、各 stack 的配置与锁文件）时视为空项目，跳过。有代码时按 [references/document-code.md](references/document-code.md) 派可写子 agent 读取代码与配置，填写架构总览与模块边界的 `首个模块` 类标记、按模板建模块页；`existing` 模式下同时填写剩余的 `阶段3` 类标记，并为阶段 1 列出的缺少 task 返回实现建议；主 agent 随后把脚本写入的"依赖政策"与 `AGENTS.md` 常驻约束对照，与约束冲突的偏好条目（如项目禁止 ORM 而清单推荐 `sqlalchemy`）删去并在报告说明。空项目跳过；第 3 步已把 `首个模块` 与 `阶段3` 标记全部填完、模块页齐全且没有缺少的 task 时也跳过，报告写明依据。
 
-5. **补齐缺少的契约 recipe**（仅 `existing` 模式且项目有 justfile）：先用 `just --summary` 核对脚本列出的 recipe 确实不存在（脚本按文本匹配，`import` 进来的 recipe 看不到），再按 [references/toolchain.md](references/toolchain.md#命令契约) 和上一步的建议写入 justfile，用项目现有命令实现；`docs-check` 用阶段 1 补上的 `python3 scripts/check_docs.py` 实现，`docs-affected` 用 `python3 scripts/check_docs.py --affected "{{base}}"`（参数 `base="HEAD"`）实现；写法参考各 stack 的 `recipes.just`，`check-toolchain` 不得使用会同步环境的命令；`test-full` 把项目现有的 full 测试命令包进 `python3 scripts/with_lock.py`，项目还没有 full 测试时与 `recipes.just` 一致：full 目录不存在时提示并以 0 退出，存在而无测试时失败；项目缺少对应工具（如没有 lint 工具）的 recipe 写成非零退出并说明原因。只追加 recipe，不加 `set` 之类的文件级设置，它会改变已有 recipe 的行为。已有 recipe 只做两种改动：给已有的 `gate-core` 追加 `check-toolchain docs-check` 依赖，给已有的 `gate-full` 或 full 测试入口包上主机锁，包完用收集或干跑（如 pytest 的 `--collect-only`）确认测试集与包锁前一致；其正文与其他已有 recipe 不动。已有的 core 测试命令（`test` 或 `gate-core` 所依赖的）若会收集到 full 测试目录（如不带路径的 `uv run pytest` 会收集整个 `tests/`），正文同样不动，但报告写明“`gate-core` 会不经主机锁运行 full 测试”并列为票据候选，否则有了 full 测试后分层和主机锁都会悄悄失效。脚本提示项目没有 justfile 时不创建，把提示写进报告。最后由主 agent 填写 `docs/development/workflow.md` 的 `## 命令与门禁`：按 `just --summary` 与各 recipe 的实际签名写，不照搬契约；已有 recipe 与契约不一致（如 `test` 不接受参数）时写实际用法，差异列为票据候选。
+5. **补齐缺少的契约 task**（仅 `existing` 模式且项目有 mise 配置）：先用 `mise tasks` 核对脚本列出的 task 确实不存在（脚本只按文件读取默认位置的配置与 task 目录，其他方式引入的 task 看不到）；`mise tasks` 要求项目的 mise 配置已 trust；未 trust 时不替用户 trust，以脚本结果为准，报告注明未经 `mise tasks` 复核。再按 [references/toolchain.md](references/toolchain.md#命令契约) 和上一步的建议写入 `mise.toml` 的 `[tasks]` 或 `mise-tasks/` 下的 file task，跟随项目已有的写法，用项目现有命令实现；`docs-check` 用阶段 1 补上的 `python3 scripts/check_docs.py` 实现，`docs-affected` 用 `run = "python3 scripts/check_docs.py --affected"` 实现（命令行参数追加在末尾作基准）；写法参考各 stack 的 `mise-tasks/<stack>/`，`check-toolchain` 不得使用会同步环境的命令；`test-full` 把项目现有的 full 测试命令包进 `python3 scripts/with_lock.py`，项目还没有 full 测试时与各 stack 的 `test-full` 一致：full 目录不存在时提示并以 0 退出，存在而无测试时失败；项目缺少对应工具（如没有 lint 工具）的 task 写成非零退出并说明原因。只追加 task，不改 `[settings]`、`[env]`、`[tools]` 等会影响已有 task 的配置。已有 task 只做两种改动：给已有的 `gate-core` 的 `depends` 追加 `check-toolchain`、`docs-check`，给已有的 `gate-full` 或 full 测试入口包上主机锁，包完用收集或干跑（如 pytest 的 `--collect-only`）确认测试集与包锁前一致；其命令与其他已有 task 不动。已有的 core 测试命令（`test` 或 `gate-core` 所依赖的）若会收集到 full 测试目录（如不带路径的 `uv run pytest` 会收集整个 `tests/`），命令同样不动，但报告写明“`gate-core` 会不经主机锁运行 full 测试”并列为票据候选，否则有了 full 测试后分层和主机锁都会悄悄失效。脚本提示项目没有 mise task 时不创建，把提示写进报告。最后由主 agent 填写 `docs/development/workflow.md` 的 `## 命令与门禁`：按 `mise tasks` 与各 task 的实际用法写，不照搬契约；已有 task 与契约不一致（如 `test` 不接受参数）时写实际用法，差异列为票据候选。
 
 ## 阶段 3：统一验证与报告
 
-1. **文档检查**：`new` 模式运行 `just docs-check`；`existing` 模式在项目根目录运行 `python3 scripts/check_docs.py`。
+1. **文档检查**：`new` 模式运行 `mise run docs-check`；`existing` 模式在项目根目录运行 `python3 scripts/check_docs.py`。
 
    检查范围是链接与锚点、全量可达、ADR 与调研的索引登记、体量预算、模块页与行为规格页的标题骨架。本次 agent 改动造成的错误修复后重跑；其余错误原样报告。
 
-2. **门禁**：`new` 模式运行 `just gate-core`，失败原样报告，不标记为通过；stack 为 none 时它会在 `check-toolchain` 处按设计失败，报告为"工具链未接入"，以 `docs-check` 的结果为准。`existing` 模式若本次补了 recipe，运行 `just --list` 确认 justfile 可解析，再单独运行新增的 `just check-toolchain` 与 `just docs-check`；不运行项目自己的 lint、构建与测试。
+2. **门禁**：`new` 模式运行 `mise run gate-core`，失败原样报告，不标记为通过；stack 为 none 时它会在 `check-toolchain` 处按设计失败，报告为"工具链未接入"，以 `docs-check` 的结果为准。`existing` 模式若本次补了 task，运行 `mise tasks` 确认 mise 配置可解析，再单独运行新增的 `mise run check-toolchain` 与 `mise run docs-check`；不运行项目自己的 lint、构建与测试。
 
 3. **汇总报告**，一份覆盖全部阶段：
    - stack 与模式；创建、合并与跳过的文件；追加的 `.gitignore` 行。
@@ -84,7 +84,7 @@ description: 按个人模板初始化新项目的 Beads、标准化文档结构�
    - `AGENTS.md` 追加与移除的节、合并的同义节。
    - 收敛结果：每个候选的动作与目标、保留登记清单、删除依据、更新的链接数。
    - 补写的模块页、已知差异、术语候选与 ADR 建议。
-   - 补齐的 recipe。
-   - 安装命令、文档检查、`gate-core` 的实际结果；`existing` 模式写"未运行（existing 模式不运行项目门禁）"，不预测会在哪一步失败；没有安装步骤（stack 为 none 或 `existing` 模式）时写"无安装命令"，不写"成功"。错误来自前置 skill 产物（如 `docs/agents/` 里的链接）时注明来源，交用户处理。
+   - 补齐的 task。
+   - 安装命令、文档检查、`gate-core` 的实际结果；`existing` 模式写"未运行（existing 模式不运行项目门禁）"，不预测会在哪一步失败；`existing` 模式没有安装步骤，写"无安装命令"，不写"成功"；stack 为 none 时安装步骤只有 `mise trust`，如实写明。错误来自前置 skill 产物（如 `docs/agents/` 里的链接）时注明来源，交用户处理。
    - 仍保留的 `<待填>` 标记。
    - 有推荐做法的事项直接按推荐执行，在报告列为已决并写明依据；只有备选各有依据、自己无法推荐的才列为裁决项，逐条写清涉及的文件与备选做法，不用项目外读者看不懂的简称。项目已有约定（如 ADR）与本 skill 的标准结构冲突时一律列为裁决项，两边都不动，标准结构是默认推荐。

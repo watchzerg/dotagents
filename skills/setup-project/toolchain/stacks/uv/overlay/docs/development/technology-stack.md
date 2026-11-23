@@ -1,6 +1,6 @@
 ## 运行时与工具链
 
-mise → uv → Python。uv 由根 `mise.toml` 钉到兼容版本 line、`mise.lock` 锁定精确版本，由 mise 按目录切换（shell 需启用 `mise activate` 或 mise shims）。
+mise → uv → Python。uv 由根 `mise.toml` 钉到兼容版本 line、`mise.lock` 锁定精确版本，`mise run` 时由 mise 自动安装并放进 PATH。
 
 uv 管理解释器版本（`.python-version` 固定 minor line）、虚拟环境、依赖与 lockfile：`uv add` / `uv remove` 是修改依赖的唯一方式，`uv sync --locked` 是标准安装步骤。Ruff 负责格式化、lint（recommended 规则起步）与 import 排序，ty 负责类型检查，pytest 是测试 runner。`pyproject.toml` 的 `[tool.uv]` 设 `prerelease = "disallow"`。优先使用这些工具已有的能力，没有等价能力时再按当前需求引入专门工具。
 

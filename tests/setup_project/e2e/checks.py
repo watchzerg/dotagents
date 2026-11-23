@@ -2,12 +2,13 @@
 
 import hashlib
 import json
+import os
 import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
-from .cases import CONTRACT_RECIPES, Case
+from .cases import CONTRACT_TASKS, Case
 
 # 与模板 docs/agents/documentation.md 里给出的清单命令同一个 pattern，规则正文不会自命中。
 MARKER = re.compile(r"<待填 (初始化|阶段3|首个模块|按需)：")
@@ -36,6 +37,25 @@ def snapshot(project: Path) -> dict[str, str]:
 
 def sh(args: list[str], cwd: Path, timeout: int = 600) -> subprocess.CompletedProcess[str]:
     return subprocess.run(args, cwd=cwd, capture_output=True, text=True, timeout=timeout)
+
+
+def mise(args: list[str], project: Path, timeout: int = 600) -> subprocess.CompletedProcess[str]:
+    """在临时项目里运行 mise：用环境变量信任其配置而不执行 mise trust（会写用户的全局 trust 记录）；
+    外层 `mise run e2e-setup-project` 注入的 MISE_CONFIG_ROOT、MISE_TASK_* 等不带进去。"""
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if not k.startswith("MISE_") or k in ("MISE_DATA_DIR", "MISE_CONFIG_DIR", "MISE_CACHE_DIR")
+    }
+    env |= {"MISE_TRUSTED_CONFIG_PATHS": str(project), "MISE_YES": "1"}
+    return subprocess.run(
+        ["mise", *args], cwd=project, env=env, capture_output=True, text=True, timeout=timeout
+    )
+
+
+def task_names(project: Path) -> tuple[subprocess.CompletedProcess[str], set[str]]:
+    listing = mise(["tasks", "ls", "--no-global", "--name-only"], project)
+    return listing, set(listing.stdout.split())
 
 
 def tail(text: str, lines: int = 15) -> str:
@@ -184,29 +204,39 @@ def _check_description(case: Case, project: Path) -> list[Check]:
 
 def _check_toolchain(case: Case, project: Path) -> list[Check]:
     out: list[Check] = []
-    justfile = project / "justfile"
+    mise_toml = project / "mise.toml"
     if case.expect_mode == "new":
-        if not justfile.exists():
-            return [Check("justfile:exists", False)]
-        summary = sh(["just", "--summary"], project)
-        names = set(summary.stdout.split())
-        missing = sorted(set(CONTRACT_RECIPES) - names)
-        out.append(Check("justfile:contract-recipes", not missing, "缺失：" + " ".join(missing)))
-        docs = sh(["just", "docs-check"], project)
-        out.append(Check("just docs-check", docs.returncode == 0, tail(docs.stdout + docs.stderr)))
-        gate = sh(["just", "gate-core"], project, timeout=1800)
+        if not mise_toml.exists():
+            return [Check("mise.toml:exists", False)]
+        _, names = task_names(project)
+        missing = sorted(set(CONTRACT_TASKS) - names)
+        out.append(Check("mise:contract-tasks", not missing, "缺失：" + " ".join(missing)))
+        for stack in case.expect_stacks:
+            if stack == "none":
+                continue
+            stack_missing = sorted(
+                name for name in CONTRACT_TASKS[:7] if f"{stack}:{name}" not in names
+            )
+            out.append(
+                Check(f"mise:{stack}-tasks", not stack_missing, "缺失：" + " ".join(stack_missing))
+            )
+        docs = mise(["run", "docs-check"], project)
+        out.append(
+            Check("mise run docs-check", docs.returncode == 0, tail(docs.stdout + docs.stderr))
+        )
+        gate = mise(["run", "gate-core"], project, timeout=1800)
         if case.expect_stacks == ("none",):
             expected = gate.returncode != 0 and "check-toolchain" in (gate.stdout + gate.stderr)
             out.append(
                 Check(
-                    "just gate-core (none: 应在 check-toolchain 失败)",
+                    "mise run gate-core (none: 应在 check-toolchain 失败)",
                     expected,
                     tail(gate.stdout + gate.stderr),
                 )
             )
         else:
             out.append(
-                Check("just gate-core", gate.returncode == 0, tail(gate.stdout + gate.stderr))
+                Check("mise run gate-core", gate.returncode == 0, tail(gate.stdout + gate.stderr))
             )
         gitignore = project / ".gitignore"
         out.append(Check(".gitignore:exists", gitignore.exists()))
@@ -219,16 +249,13 @@ def _check_toolchain(case: Case, project: Path) -> list[Check]:
                 tail(docs.stdout + docs.stderr),
             )
         )
-        if justfile.exists():
-            listing = sh(["just", "--summary"], project)
-            out.append(
-                Check("just --summary parses", listing.returncode == 0, tail(listing.stderr))
-            )
-            names = set(listing.stdout.split())
-            missing = sorted(set(CONTRACT_RECIPES) - names)
+        if mise_toml.exists():
+            listing, names = task_names(project)
+            out.append(Check("mise tasks parses", listing.returncode == 0, tail(listing.stderr)))
+            missing = sorted(set(CONTRACT_TASKS) - names)
             out.append(
                 Check(
-                    "justfile:contract-recipes-after-fill",
+                    "mise:contract-tasks-after-fill",
                     not missing,
                     "缺失：" + " ".join(missing),
                 )
@@ -270,7 +297,7 @@ def transcript_metrics(transcript: Path) -> dict[str, object]:
                         "init_docs",
                         "init_toolchain",
                         "check_docs",
-                        "just ",
+                        "mise run ",
                     )
                     if script in command
                 )

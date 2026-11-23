@@ -37,7 +37,7 @@
 
 ## 与 setup-project 的耦合
 
-- 读取：`docs/agents/documentation.md`（随交付同步、体量预算与拆页、页面模板）、`docs/agents/issue-tracker.md`、页首 `covers`、`just docs-affected`、`docs/research/INDEX.md`、`docs/adr/INDEX.md`。
+- 读取：`docs/agents/documentation.md`（随交付同步、体量预算与拆页、页面模板）、`docs/agents/issue-tracker.md`、页首 `covers`、`mise run docs-affected`、`docs/research/INDEX.md`、`docs/adr/INDEX.md`。
 - 写入：当前正文与两个索引的行与元数据。
 - 模板改动：`templates/docs/agents/documentation.md` 自动检查节末句加“或定期运行 `/docs-audit`”的指路，skill 正文不进模板。
 - 退路：没有 `covers` 时按文件名在 `docs/architecture/` 搜归属页；没有 `docs-affected` 时用 git 命令自行匹配。
@@ -48,3 +48,4 @@
 - 首轮运行后的修正（见上节）尚未经真实运行验证，下次抽样时重点看子 agent 简报、正文冲突判定与 ADR 状态复核。
 - 两个项目的旧 skill 清理与 media-glance 的 `sources` → `covers` 字段对齐已在各自 Beads 建票（media-glance-7by、x-media-saver-yzh）。
 - `sort -R` 在 macOS 与 Linux 的 coreutils 都可用；抽页命令 2026-11-19 在 Ubuntu（GNU awk、coreutils）上核对过可用，没有其他平台的验证。
+- 2026-11-23：项目命令契约由 just 迁到 mise task，skill 中的调用改为 `mise run`，定向参数经 `<stack>:<task>`，`docs-affected` 改为 `mise run docs-affected`。
