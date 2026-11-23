@@ -6,7 +6,7 @@
 
 1. 将本仓库 clone 到准备长期保留的位置，进入仓库目录。
 2. 确保 `python3` 为 3.14+；setup 仅使用标准库。系统自带版本通常不满足：用系统包管理器安装 mise（macOS：`brew install mise`；Ubuntu：添加 mise 官方 apt 源后 `sudo apt install mise`），由 mise 提供 uv（`mise use -g uv@0.13`），再运行 `uv python install 3.14 --default`。
-3. 在本仓库中打开 Claude Code，调用：
+3. 在本仓库中打开 Claude Code（安装器目前放在 `.claude/skills/`，其他 harness 不一定能发现它，可直接用下面的脚本），调用：
 
    ```text
    /setup-dotagents
@@ -19,7 +19,7 @@
    ```
 
 4. 完成后开启新的 Claude Code、Antigravity CLI 或 Grok 会话（Antigravity CLI 中也可先执行 `/skills reload`），验证个人规则和 skills 已加载。
-5. 切换到目标项目，先执行 `/setup-matt-pocock-skills`，再调用 `/setup-project` 初始化该项目；之后在各项目中按需使用 `/commit`、`/prune-tests`、`/acceptance`、`/docs-audit`、`/optimize`、`/dedupe-images` 等。有 web 界面的项目要用 `/acceptance` 验收时，需要 Chrome 已打开且 Claude in Chrome 扩展已连接，验收复用你自己的登录态。
+5. 切换到目标项目，先执行 `/setup-matt-pocock-skills`，再调用 `/setup-project` 初始化该项目；之后在各项目中按需使用 `/commit`、`/prune-tests`、`/acceptance`、`/docs-audit`、`/optimize`、`/dedupe-images` 等。有 web 界面的项目要用 `/acceptance` 验收时，需要 Chrome 已打开且当前 harness 的原生浏览器方案已连接（Claude Code 为 Claude in Chrome 扩展），验收复用你自己的登录态。
 
 调用链为 `/setup-dotagents` → Python 链接脚本。脚本根据自身位置定位 checkout，也可从其他目录通过脚本绝对路径调用。日常应用配置不依赖 mise、uv、第三方 Python 包或项目 `.venv`。
 

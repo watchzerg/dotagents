@@ -16,10 +16,11 @@
 ## 浏览器测试
 
 - 自动化测试需要浏览器时，以项目开发依赖引入 Playwright，默认用其自带 Chromium、headless、每个测试独立的临时 context，不复用用户 profile；这类测试属于 E2E 或集成测试，不放进单元测试层或快速门禁。
-- 验收（人或人指派 agent 在真实环境操作）用 harness 原生方案连接用户自己的 Chrome，复用真实登录态；在 Claude Code 中只用 Claude in Chrome，不用桌面版内置浏览器。扩展未连接是硬阻塞，提示用户连接，不回退到其他浏览器方案。只有 harness 本身没有原生浏览器方案时，才用 Playwright 官方 skill + CLI，此时没有用户登录态，登录方式以项目约定为准。
+- 验收（人或人指派 agent 在真实环境操作）用 harness 原生方案连接用户自己的 Chrome，复用真实登录态，不用 harness 自带的独立浏览器（如 Claude Code 中只用 Claude in Chrome 扩展，不用桌面 app 内置浏览器）。原生方案未连接是硬阻塞，提示用户连接，不回退到其他浏览器方案。只有 harness 本身没有原生浏览器方案时，才用 Playwright 官方 skill + CLI，此时没有用户登录态，登录方式以项目约定为准。
 - 任何场景都不用 Playwright MCP：每次调用回传大量页面快照、挤占上下文，能力又与 skill + CLI 重复。
 
 ## 多 agent 协作
 
-- 存在可并行的独立子任务，或需要跨多文件阅读而只要结论时，拆给子 agent；拆分成本高于收益时自己做。子 agent 可用时允许继续委派。
-- 每次调用子 agent 都通过 Agent 工具的 `model`（haiku、sonnet、opus 之一）显式指定，不写进 prompt 文本代替，不依赖默认继承。所有层级的子 agent 均不得使用 Fable 系列模型。
+- 存在可并行的独立子任务，或需要跨多文件阅读而只要结论时，拆给子 agent；拆分成本高于收益时自己做。子 agent 可用时允许继续委派；harness 不支持子 agent 时，由主会话按同样的步骤顺序完成。
+- harness 支持为子 agent 指定模型时，每次调用都通过工具参数显式指定，不写进 prompt 文本代替，不依赖默认继承。各 harness 的取值：
+  - Claude Code：Agent 工具的 `model` 取 haiku、sonnet、opus 之一；所有层级的子 agent 均不得使用 Fable 系列模型。

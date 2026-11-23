@@ -278,6 +278,7 @@ skills/optimize/
 - 热区命令依赖提交信息带票号；`bd list --parent` 是否列出已关闭的子票、子票是否继承 `optimize-<主题>` 标签，首次运行时核对。
 - 实现子 agent 在 worktree 里调用 `mattpocock-skills:tdd` 时是否仍会停下来确认 seam。
 - 是否像 `setup-project` 那样加 headless 的真实 agent 验收用例未定。
+- 没有子 agent 的 harness 上按顺序执行的降级路径未验证，尤其是自审改由主会话重读后能否仍起到独立复核的作用。
 
 ## 演进记录
 
@@ -289,3 +290,4 @@ skills/optimize/
 | 2026-11-13 | 加“入选规则”：绝对、幂等、封闭的判定框架，架构、文档、日志三张规则表，共用规则与修复约束；表外观察在报告里列建议清单；“75 个提交”改为查得到的票数与文件数 | 三个项目会话的再次调研；用户当日确认，并指出不能以自己当时是否否决作为标准 |
 | 2026-11-13 | 实现 `skills/optimize/`：`SKILL.md` 与六个参考文件；`prune-tests` 加留痕票；README 同步。本文开头与待验收改为“已实现、未真实运行”，新增“实现与设计的出入” | 本文设计；出入各条待用户确认 |
 | 2026-11-23 | 项目命令契约由 just 迁到 mise task，skill 中的调用改为 `mise run`，定向参数经 `<stack>:<task>` | 用户当日确认 |
+| 2026-11-23 | harness 中立化：上游 skills 改称 Matt 的 `tdd`、`codebase-design`、`code-review`，SKILL.md 注明 Claude Code 插件名前缀并区分内置 `code-review`；显式指定模型与后台并行限定为 harness 支持时；补无子 agent 时的顺序执行路径 | 用户当日确认 |

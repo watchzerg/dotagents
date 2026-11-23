@@ -1,6 +1,6 @@
 # 拆票
 
-改写自 Matt Pocock 的 `to-tickets`（MIT 许可，<https://github.com/mattpocock/skills>，插件 `mattpocock-skills` 1.3.1）。原 skill 在发布前向用户确认拆分；这里改为独立子 agent 自审。
+改写自 Matt Pocock 的 `to-tickets`（MIT 许可，<https://github.com/mattpocock/skills>，mattpocock/skills 1.3.1）。原 skill 在发布前向用户确认拆分；这里改为独立子 agent 自审。
 
 ## 步骤
 

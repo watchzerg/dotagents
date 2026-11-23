@@ -52,7 +52,11 @@ description: 项目优化流水线：按封闭的规则表调研，命中项经 
 5. **实施与收尾。** 按 [references/implement.md](references/implement.md)：集成分支、每票一个 worktree 子 agent、合并、review、门禁、合入默认分支、关票、清理。
 6. **报告。** 按[报告](#报告)。
 
-主 agent 只编排：调研、实现、合并、修复都交给子 agent，自己只汇总、复核、裁决、运行门禁和操作票据，上下文只留结论。每次派子 agent 都显式指定模型。与子 agent 的往来以指针为主：spec 与票据编号、参考文件路径、提交；不复述指针能取到的内容。
+主 agent 只编排：调研、实现、合并、修复都交给子 agent，自己只汇总、复核、裁决、运行门禁和操作票据，上下文只留结论。harness 支持时，每次派子 agent 都显式指定模型。与子 agent 的往来以指针为主：spec 与票据编号、参考文件路径、提交；不复述指针能取到的内容。
+
+harness 不支持子 agent 时，主会话按同样的步骤与简报顺序执行：分片探查逐片做，每票在各自的 worktree 里逐个实施、合并，并行与后台一律改为顺序；要求“独立子 agent”的自审放到其余工作之后，只凭简报列出的材料重读再判。
+
+本 skill 及其 references 中的 `tdd`、`codebase-design`、`code-review` 指 Matt Pocock 的同名 skills；以 Claude Code 插件安装时名为 `mattpocock-skills:<name>`。`code-review` 只指 Matt 的这一个，不是 harness 内置的同名命令。
 
 ## 停止规则
 

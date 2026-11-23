@@ -8,7 +8,7 @@ Inputs:
 - `transcript.jsonl` — the full headless transcript (stream-json). Tool calls are in `assistant` events as `tool_use` blocks.
 - `report.md` — the summary report the agent wrote at the end.
 - `summary.md` / `checks.json` — deterministic checks already run by the harness. Do not repeat them; focus on what needs judgement.
-- The skill itself: `~/.claude/skills/setup-project/SKILL.md` and its `references/`.
+- The skill itself: `~/.agents/skills/setup-project/SKILL.md` and its `references/`.
 
 Answer each question with a verdict (通过 / 有问题 / 不确定) and one or two sentences of evidence (quote the file and line or the tool call). Write in Simplified Chinese.
 

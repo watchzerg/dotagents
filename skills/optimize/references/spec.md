@@ -1,6 +1,6 @@
 # 建 spec
 
-改写自 Matt Pocock 的 `to-spec`（MIT 许可，<https://github.com/mattpocock/skills>，插件 `mattpocock-skills` 1.3.1）。原 skill 在这一步向用户确认 seam；这里 seam 已在唯一的那次停顿里确认。
+改写自 Matt Pocock 的 `to-spec`（MIT 许可，<https://github.com/mattpocock/skills>，mattpocock/skills 1.3.1）。原 skill 在这一步向用户确认 seam；这里 seam 已在唯一的那次停顿里确认。
 
 输入是调研报告与用户在停顿时的回答。不再追问：没问到的按推荐决定，记进“代用户做出的假设”。
 

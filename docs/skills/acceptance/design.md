@@ -12,12 +12,13 @@
 
 - **预期只来自文档，文档权威**：`docs/behaviors/` 优先，退到模块页“当前行为规格”；两处都没有就不验。代码里有而文档没写的功能列“未覆盖”不验，否则验收退化成“代码与自己一致”。文档与代码冲突时要改文档才能通过的项一律 DEFERRED 写票，agent 不裁决、不改文档迁就代码。
 - **环境契约是硬前提**：验收所需的启动、停止、就绪判定、日志、数据查询与重置、可写目录、禁区都来自目标项目的 `docs/development/local-acceptance.md`，整页就是契约；文件缺失或仍是待填标记时从 `mise.toml`、`mise-tasks/`、README 与配置起草整页，并入唯一一次用户确认后写回项目。契约声明的命令跑不起来是硬阻塞。放弃让 agent 每次从代码猜环境，因为猜错的代价是对真实环境的误操作。
-- **只问一次**：清单推导后用一次 AskUserQuestion 确认清单与（如有）契约草稿，之后只在硬阻塞停下。清单是整次运行的边界，确认成本低、收益高；其余决定（就地修复还是写票、重跑范围）都有规则，不问。
+- **只问一次**：清单推导后集中提问一次（harness 有结构化提问工具时用它，如 Claude Code 的 AskUserQuestion）确认清单与（如有）契约草稿，之后只在硬阻塞停下。清单是整次运行的边界，确认成本低、收益高；其余决定（就地修复还是写票、重跑范围）都有规则，不问。
 - **就地修复的边界与收敛条件**：局部、不改 schema、不改公共接口、不涉设计取舍的才就地修，先补失败测试再修（纯界面表现类可免），一处修复一个 commit 到当前分支；其余 DEFERRED 写票继续。修复后重跑同来源文件的项；全部项结束后若本次有过修复，重置、重启、全量零修复重跑一次才算完成。没有这个收敛条件，“边验边修”会让已通过的项失去意义。
 - **账本在临时目录，报告进项目**：账本是跨轮唯一真相（对话会被压缩），放会话临时目录避免污染仓库；最终报告落 `docs/research/acceptance/<topic>-<date>.md` 并登记索引，因为模板已为验收证据留了这个位置，且下次运行要能对比。
 - **与 `/goal` 的分工**：`/goal` 只能由用户输入（文档无任何模型或 skill 设 goal 的途径；Skill 工具可调的内置命令不含 `/goal`），但 goal 条件可以引用 skill（anthropics/claude-code#58348）。因此 SKILL.md 给出推荐的一行 `/goal /acceptance 直到打印"验收完成"，最多 80 轮`，skill 负责流程与判据，goal 负责“没跑完别停”。评估器只读 transcript，所以每轮结束打印固定格式摘要，`验收完成` 只在报告 commit 后打印。放弃 skill frontmatter 自带 prompt 型 Stop hook 的自包含路线（2026-10-16 用户决定不验证）：goal 可观测、可 `/goal clear`，验收这种一跑一小时的活可观测比省一行输入重要。
 - **服务脱离 harness 启动**：goal 评估在后台任务未结束时会跳过，用 Bash 后台模式起服务等于没设 goal。契约要求启动命令自行后台化（日志落文件、记 pid），修复时按契约反复启停。
 - **浏览器用用户自己的 Chrome（Claude in Chrome 扩展）**：最接近真实使用环境，复用已有登录态，且能读 console 与 network，观测通道比 Playwright MCP 全。代价是操作的是真实浏览器与真实账号，所以 SKILL.md 把范围写死：只访问契约声明的地址、只在自己新建的标签页操作、不登出、不动其他标签页，禁区由契约声明（含不得触发的外部站点与操作）；原生对话框会阻塞扩展，列为硬阻塞。2026-10-16 首版曾选 Playwright MCP headless（独立实例、不占用户浏览器），同日用户改为 Chrome profile，理由是真实环境与登录态复用更不容易出错。目标项目不用装任何浏览器依赖，前提只是 Chrome 打开且扩展连接。2026-11-20 按用户级浏览器测试规范补全：Claude Code 中只用 Claude in Chrome，不用桌面版内置浏览器；扩展断连仍是硬阻塞、不回退，因为悄悄换成没有登录态的独立浏览器会让验收环境偏离真实使用；只有 harness 本身没有原生浏览器方案时才用 Playwright 官方 skill + CLI，登录方式只按契约；任何情况不用 Playwright MCP（页面快照挤占上下文，能力与 CLI 重复）。
+- **harness 中立**（2026-11-23）：用户同时使用 Claude Code、Grok、Antigravity 等 harness，SKILL.md 只写能力要求与操作边界（连接用户 Chrome、专用标签页、读 console 与 network、集中提问一次、前台启动），不写工具名；各 harness 的浏览器做法集中在 `references/browser.md` 的映射表，新增 harness 只改这张表。`/goal` 降为“支持目标驱动多轮循环的 harness”的一个示例，`验收完成`/`验收进行中` 的输出约定对任何循环机制都无害，保留不变。
 - **契约独占一页，只认精确路径**（2026-11-11）：契约原先是 `workflow.md` 里的一节，按节名查找。`workflow.md` 在目标项目里是改代码任务的必读页，契约对这类任务用不上却每次被读到；节名又是 skill 与项目之间的隐性接口，项目把节移走后 skill 找不到。改为独占 `docs/development/local-acceptance.md`，skill 不设回退、不依赖节名：回退等于保留两个落点，项目迁到一半时无法判断哪份有效。代价是未迁移的项目会被当成文件缺失而重新起草，所以存量项目与本次改动一起迁移。新建该页时照同目录页面补页头元数据并接入索引，否则带生成索引的项目文档检查会红，页面也只有 skill 读得到。
 - **与 setup-project 的耦合**：模板提供 `docs/development/local-acceptance.md`（`按需` 标记，列出要回答的问题），由 `workflow.md` 开头的指路句与 `docs/INDEX.md` 入链；`docs/agents/documentation.md` 新增行为规格模板，让 behaviors 与模块页的用户可见部分按“场景与前提 → 操作与可观察结果 → 边界与错误情况”写，验收清单可以逐段映射。模板保持功能描述的通用性，不写测试步骤。已有项目缺这一页时由 setup-project 按模板补缺，或由本 skill 起草。
 - **验收数据与日常数据分开**（2026-11-11）：验收会写入数据、就地修复后重跑，契约有重置命令时还会重置；指向日常库等于让 agent 清空或污染真实数据。契约的数据一栏因此要求指向验收专用的数据目录与库，只能用日常数据时不提供重置命令并列入禁区。只写进契约要求，SKILL.md 流程不变。
@@ -29,6 +30,7 @@
 - `/goal /acceptance 直到打印"验收完成"，最多 80 轮` 这一行是否能让首轮正确触发 skill、评估器是否按 `验收完成` 判定，需要真实运行确认；最短形式 `/goal /acceptance` 未验证。
 - AskUserQuestion 在 goal 激活期间的行为（阶段 1 的一次确认）需要确认不会被评估器判为失败。
 - 契约起草（environment.md）的证据来源是否够用，取决于真实项目的 `mise.toml` 与 README 质量。
+- 除 Claude Code 外，其他 harness 的浏览器做法未填入映射表，也未在其他 harness 上运行过本 skill。
 - Chrome 扩展在几十轮、一小时以上的运行里是否稳定（断连、标签页被用户误关）需要真实运行观察；断连已列为硬阻塞。
 
 ## 演进记录
@@ -41,3 +43,4 @@
 | 2026-11-11 | 环境契约由 `workflow.md` 的一节改为独占 `docs/development/local-acceptance.md`，只认该路径、不设回退；起草改为整页并接入索引；模板同步，media-glance、bangou、kototoki、x-media-saver 四个存量项目随同迁移 | 本文关键决策 |
 | 2026-11-20 | 浏览器规则对齐用户级规范：Claude Code 只用 Claude in Chrome，断连硬阻塞不回退；无原生方案的 harness 才用 Playwright skill + CLI；禁用 Playwright MCP | 本文关键决策、`global/AGENTS.md` 浏览器测试节 |
 | 2026-11-23 | 项目命令契约由 just 迁到 mise task，skill 中的调用改为 `mise run`，定向参数经 `<stack>:<task>` | 用户当日确认 |
+| 2026-11-23 | harness 中立化：SKILL.md 去掉 Claude in Chrome 工具名、AskUserQuestion、Bash 工具后台模式等措辞，`/goal` 一节改为多轮循环的示例；新增 `references/browser.md` 按 harness 映射浏览器做法 | 本文关键决策 |

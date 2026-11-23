@@ -1,10 +1,10 @@
 # 架构主题：框架结构与代码分层
 
-调研做法改写自 Matt Pocock 的 `improve-codebase-architecture`（MIT 许可，<https://github.com/mattpocock/skills>，插件 `mattpocock-skills` 1.3.1）。取其调研动作；候选是否入选改由下面的规则表判定。
+调研做法改写自 Matt Pocock 的 `improve-codebase-architecture`（MIT 许可，<https://github.com/mattpocock/skills>，mattpocock/skills 1.3.1）。取其调研动作；候选是否入选改由下面的规则表判定。
 
 ## 调研
 
-1. **取词汇。** 调用 Skill `mattpocock-skills:codebase-design`，全程使用其中的 module、interface、depth、seam、adapter、leverage、locality；领域概念用项目 `GLOSSARY.md` 的名称。为命中项设计目标结构时读它的 `DEEPENING.md`，按依赖类别决定 seam 与测试方式。
+1. **取词汇。** 调用 Matt 的 `codebase-design` skill，全程使用其中的 module、interface、depth、seam、adapter、leverage、locality；领域概念用项目 `GLOSSARY.md` 的名称。为命中项设计目标结构时读它的 `DEEPENING.md`，按依赖类别决定 seam 与测试方式。
 2. **读约束。** `GLOSSARY.md`、`docs/adr/` 下的 ADR、架构与分层文档。ADR 记下的决定不重新讨论，写明的约束用于判定 A5。
 3. **读上一轮。** 取最近一份带 `optimize-arch` 标签的 spec（含已关闭），读其“未命中的候选”。证据没变的不重提。
 4. **定热区。** B 类只在热区入选。列出近 30 天有 3 次以上提交的文件，不计历轮优化票自己的提交：
@@ -24,7 +24,7 @@
 
 把占位换成实际值后下发：
 
-> 梳理 `<切片路径>` 的框架结构与代码分层，逐条按 `<本文件绝对路径>` 的规则表与“不算命中”判定。只读，不改任何文件。先调用 Skill `mattpocock-skills:codebase-design` 取词汇。
+> 梳理 `<切片路径>` 的框架结构与代码分层，逐条按 `<本文件绝对路径>` 的规则表与“不算命中”判定。只读，不改任何文件。先调用 Matt 的 `codebase-design` skill 取词汇。
 >
 > - 对每条规则回答“命中 n 处”或“未命中”。没有命中也是合格结论；不排序，不凑条数，不标强弱。
 > - B 类只在这些热区文件所在的模块判定：`<热区文件清单>`。
@@ -77,7 +77,7 @@ B 类是结构性摩擦，下次改动时才付出代价：只在近期在变的
 
 ## 验证方式
 
-- 每张票由实现子 agent 调用 Skill `mattpocock-skills:tdd` 完成，在 spec 写明的 seam 上测试。
+- 每张票由实现子 agent 调用 Matt 的 `tdd` skill 完成，在 spec 写明的 seam 上测试。
 - 结构调整使旧测试失去意义时，测试精简单独成票，按 `/prune-tests` 的保留与删除标准处理受影响的测试。
 - 每票出口：`mise run gate-core` 退出码为 0。
 - 集成分支：一次无筛选的 `mise run gate-full`。

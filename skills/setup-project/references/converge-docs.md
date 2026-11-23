@@ -10,7 +10,7 @@
 - 不在标准结构内：标准结构指模板创建的全部路径，`docs/agents/` 下 Matt setup 产出的全部文件，根目录的 `GLOSSARY-MAP.md`、`CLAUDE.md`、`CONTRIBUTING.md`、`LICENSE*`，以及 `docs/` 下按需目录（`adr/`、`architecture/modules/`、`architecture/collaborations.md`、`behaviors/`、`operations/`、`changes/`、`research/`）。
 - 不在测试目录或 fixture 目录内（`tests/`、`fixtures/`）。
 - 受 Git 管理或未被忽略：忽略规则排除的文件（缓存、输出、凭据）不是候选。
-- 不在工具目录内：`.beads`、`.claude`、`.agents`、`.codex`、`.cursor`、`.github`、`.scratch`、`.out-of-scope`。
+- 不在工具目录内：`.beads`、`.claude`、`.agents`、`.agent`、`.codex`、`.cursor`、`.gemini`、`.grok`、`.github`、`.scratch`、`.out-of-scope`。
 - 未在 `docs/INDEX.md` 的"项目特有入口"中登记。
 
 主 agent 用一条命令列出候选，再传给子 agent：
@@ -18,7 +18,7 @@
 ```sh
 git ls-files --cached --others --exclude-standard \
   | grep -E '\.(md|txt|rst|adoc)$' \
-  | grep -vE '^(\.beads|\.claude|\.agents|\.codex|\.cursor|\.github|\.scratch|\.out-of-scope|docs/agents|tests|fixtures)/' \
+  | grep -vE '^(\.beads|\.claude|\.agents|\.agent|\.codex|\.cursor|\.gemini|\.grok|\.github|\.scratch|\.out-of-scope|docs/agents|tests|fixtures)/' \
   | grep -vE '^(GLOSSARY-MAP|CLAUDE|CONTRIBUTING)\.md$|^LICENSE|requirements[^/]*\.txt$|CMakeLists\.txt$' \
   | sort
 ```
@@ -69,7 +69,7 @@ grep -n '^## ' AGENTS.md CLAUDE.md
 
 ## 分类子 agent
 
-派一个只读的通用子 agent，非 Fable 模型；不用 Explore 类，它只读片段，而分类需要通读全文。简报必须包含：候选清单、本文路径、`docs/agents/documentation.md` 路径、已填与未填的 `<待填` 标记清单；只给候选与规则，不附主 agent 对任何候选的分类预判，否则分类不再是独立判断。要求它读完每个候选后返回一张表，不做任何修改：
+派一个只读的通用子 agent；不用只读片段的检索型子 agent（如 Claude Code 的 Explore），分类需要通读全文。简报必须包含：候选清单、本文路径、`docs/agents/documentation.md` 路径、已填与未填的 `<待填` 标记清单；只给候选与规则，不附主 agent 对任何候选的分类预判，否则分类不再是独立判断。要求它读完每个候选后返回一张表，不做任何修改：
 
 | 候选路径 | 分类 | 动作 | 目标路径 | 引用该文件的位置 | 可据此填写的待填标记 |
 | --- | --- | --- | --- | --- | --- |
@@ -78,7 +78,7 @@ grep -n '^## ' AGENTS.md CLAUDE.md
 
 ## 执行子 agent
 
-分类表返回后，派一个可写的通用子 agent，非 Fable 模型，执行下面执行顺序的第 1、2 步。合并需要通读旧文档并以标准正文为骨架改写，经主 agent 转写没有意义，因此由子 agent 直接写文件。简报必须包含：分类表、本文路径、`docs/agents/documentation.md` 路径、模块页模板所在位置、分配给它的 ADR 编号段。分类为 tracker 的源文件不由它删除。
+分类表返回后，派一个可写的通用子 agent，执行下面执行顺序的第 1、2 步。合并需要通读旧文档并以标准正文为骨架改写，经主 agent 转写没有意义，因此由子 agent 直接写文件。简报必须包含：分类表、本文路径、`docs/agents/documentation.md` 路径、模块页模板所在位置、分配给它的 ADR 编号段。分类为 tracker 的源文件不由它删除。
 
 分批时每批一个执行子 agent：主 agent 派发前比对各批的目标路径，目标文件有重叠的批（常见于 `GLOSSARY.md`、`architecture/INDEX.md`）串行，其余并行；为每批预分配互不重叠的 ADR 编号段，避免并行撞号。
 
