@@ -65,29 +65,43 @@ def tree_snapshot(root: Path) -> dict[str, tuple[str, str | bytes]]:
 def test_install_is_idempotent_and_preserves_third_party(checkout: Path, tmp_path: Path) -> None:
     home = tmp_path / "home with spaces"
     claude = home / ".claude"
+    gemini = home / ".gemini"
     third_party = home / ".agents/skills/third-party"
     third_party.mkdir(parents=True)
     (third_party / "SKILL.md").write_text("原有第三方内容\n")
     claude_third_party = claude / "skills/third-party"
     claude_third_party.mkdir(parents=True)
     (claude_third_party / "SKILL.md").write_text("原有 Claude 内容\n")
+    gemini_third_party = gemini / "skills/third-party"
+    gemini_third_party.mkdir(parents=True)
+    (gemini_third_party / "SKILL.md").write_text("原有 Gemini 内容\n")
     result = run_setup(checkout, home)
     assert result.returncode == 0, result.stdout + result.stderr
     links = {
         claude / "CLAUDE.md": checkout / "global/AGENTS.md",
+        gemini / "AGENTS.md": checkout / "global/AGENTS.md",
     }
     for name in ("commit", "prune-tests", "another skill"):
         links[home / ".agents/skills" / name] = checkout / "skills" / name
         links[claude / "skills" / name] = home / ".agents/skills" / name
+        links[gemini / "skills" / name] = home / ".agents/skills" / name
     for target, source in links.items():
         assert target.is_symlink()
         assert os.readlink(target) == str(source)
-    for parent in (home / ".agents", home / ".agents/skills", claude, claude / "skills"):
+    for parent in (
+        home / ".agents",
+        home / ".agents/skills",
+        claude,
+        claude / "skills",
+        gemini,
+        gemini / "skills",
+    ):
         assert parent.is_dir() and not parent.is_symlink()
     assert not (home / ".agents/skills/not-a-skill").exists()
     assert not (home / ".agents/AGENTS.md").exists()
     assert (third_party / "SKILL.md").read_text() == "原有第三方内容\n"
     assert (claude_third_party / "SKILL.md").read_text() == "原有 Claude 内容\n"
+    assert (gemini_third_party / "SKILL.md").read_text() == "原有 Gemini 内容\n"
     before = tree_snapshot(home)
     result = run_setup(checkout, home)
     assert result.returncode == 0, result.stdout + result.stderr

@@ -20,7 +20,7 @@
 
 - 用户级内容在本仓库之外运行：脚本以 skill 自身目录定位资源，运行时只假设 Python 3.14+ 标准库，不引用本仓库的 mise 任务、`.venv`、`tests/` 或开发依赖，也不假设当前工作目录是本仓库。
 - 本仓库不是 `setup-project` 的产物：不套用其模板结构，不向本仓库写入模板文件；修改模板和 overlay 只影响之后初始化的新项目，不回灌本仓库。
-- 仓库中有三个用途不同的 `AGENTS.md`：根目录的约束本仓库维护；`global/AGENTS.md` 安装为用户级 `CLAUDE.md`；`skills/setup-project/templates/AGENTS.md` 是写入目标项目的模板。改动前先确认目标文件。
+- 仓库中有三个用途不同的 `AGENTS.md`：根目录的约束本仓库维护；`global/AGENTS.md` 安装为用户级 `~/.claude/CLAUDE.md` 与 `~/.gemini/AGENTS.md`；`skills/setup-project/templates/AGENTS.md` 是写入目标项目的模板。改动前先确认目标文件。
 - 新增跨项目使用的 skill 放入 `skills/<name>/`，并重新执行 setup 建立链接；仅本仓库使用的 skill 放入 `.claude/skills/`，不安装到用户目录。
 - `skills/<name>/` 整目录软链接到用户环境，因此只放运行时内容：`SKILL.md`、脚本、模板，以及 agent 执行时按需读取的 `references/`。维护材料放仓库维护层：测试在 `tests/<name 下划线形式>/`（如 `tests/setup_project/`），设计说明、调研等维护者文档在 `docs/skills/<name>/`。不在 skill 目录放测试、设计记录或其他只服务本仓库开发的文件，`SKILL.md` 也不写面向维护者的指令。
 

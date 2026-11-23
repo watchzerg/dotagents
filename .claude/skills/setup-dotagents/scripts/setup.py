@@ -13,17 +13,27 @@ def setup(repo_root: Path, user_home: Path, claude_dir: Path) -> None:
         raise ValueError(f"缺少 dotagents 源文件：{repo_root}")
 
     agents_dir = user_home / ".agents"
+    gemini_dir = user_home / ".gemini"
     if claude_dir.resolve() == agents_dir.resolve():
         raise ValueError("CLAUDE_CONFIG_DIR 与 ~/.agents 重合，无法建立 skills 两级链接。")
     links = {
         claude_dir / "CLAUDE.md": repo_root / "global/AGENTS.md",
+        gemini_dir / "AGENTS.md": repo_root / "global/AGENTS.md",
     }
-    parents = (agents_dir, agents_dir / "skills", claude_dir, claude_dir / "skills")
+    parents = (
+        agents_dir,
+        agents_dir / "skills",
+        claude_dir,
+        claude_dir / "skills",
+        gemini_dir,
+        gemini_dir / "skills",
+    )
     for skill in sorted((repo_root / "skills").iterdir()):
         if skill.name.startswith(".") or not skill.is_dir() or not (skill / "SKILL.md").is_file():
             continue
         links[agents_dir / "skills" / skill.name] = skill
         links[claude_dir / "skills" / skill.name] = agents_dir / "skills" / skill.name
+        links[gemini_dir / "skills" / skill.name] = agents_dir / "skills" / skill.name
 
     conflicts = []
     for parent in parents:
@@ -55,7 +65,10 @@ def setup(repo_root: Path, user_home: Path, claude_dir: Path) -> None:
     for target, source in links.items():
         if not target.is_symlink() or os.readlink(target) != str(source) or not target.exists():
             raise ValueError(f"链接核验失败：{target}")
-    print("全部链接核验通过。请开启新的 Claude Code 会话验证规则和 skills 加载。")
+    print(
+        "全部链接核验通过。请开启新的 Claude Code / Antigravity CLI 会话"
+        "（或在 Antigravity CLI 中执行 /skills reload）验证规则和 skills 加载。"
+    )
 
 
 def main() -> int:

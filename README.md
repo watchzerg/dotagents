@@ -18,7 +18,7 @@
    python3 .claude/skills/setup-dotagents/scripts/setup.py
    ```
 
-4. 完成后开启新的 Claude Code 会话，验证个人规则和 skills 已加载。
+4. 完成后开启新的 Claude Code 或 Antigravity CLI 会话（Antigravity CLI 中也可先执行 `/skills reload`），验证个人规则和 skills 已加载。
 5. 切换到目标项目，先执行 `/setup-matt-pocock-skills`，再调用 `/setup-project` 初始化该项目；之后在各项目中按需使用 `/commit`、`/prune-tests`、`/acceptance`、`/docs-audit`、`/optimize`、`/dedupe-images` 等。有 web 界面的项目要用 `/acceptance` 验收时，需要 Chrome 已打开且 Claude in Chrome 扩展已连接，验收复用你自己的登录态。
 
 调用链为 `/setup-dotagents` → Python 链接脚本。脚本根据自身位置定位 checkout，也可从其他目录通过脚本绝对路径调用。日常应用配置不依赖 mise、uv、第三方 Python 包或项目 `.venv`。
@@ -51,10 +51,12 @@ setup 会自动定位当前 checkout，建立并核验软链接。已有正确�
 | 用户目录入口 | 软链接目标 |
 | --- | --- |
 | `~/.claude/CLAUDE.md` | `global/AGENTS.md` |
+| `~/.gemini/AGENTS.md` | `global/AGENTS.md` |
 | `~/.agents/skills/<name>` | `skills/<name>` |
 | `~/.claude/skills/<name>` | `~/.agents/skills/<name>` |
+| `~/.gemini/skills/<name>` | `~/.agents/skills/<name>` |
 
-设置了 `CLAUDE_CONFIG_DIR` 时，表中的 `~/.claude` 改用该绝对路径。`skills/` 下每个含 `SKILL.md` 的目录都按 `<name>` 建立上述两级链接；skills 经 `~/.agents/skills` 中转，与 `npx skills` 等工具的安装位置保持一致。
+设置了 `CLAUDE_CONFIG_DIR` 时，表中的 `~/.claude` 改用该绝对路径。`skills/` 下每个含 `SKILL.md` 的目录都按 `<name>` 建立上述两级链接（经 `~/.agents/skills` 中转后分别链入 `~/.claude/skills` 与 Antigravity CLI 的 `~/.gemini/skills`，与 `npx skills` 等工具的安装位置保持一致）。
 
 skill 逐个链接，用户级 skills 父目录保持为普通目录，已有第三方 skills、系统 skills 和插件缓存保留。项目级 `setup-dotagents` 不安装到用户目录。
 
@@ -64,7 +66,7 @@ skill 逐个链接，用户级 skills 父目录保持为普通目录，已有第
 dotagents/
 ├── AGENTS.md                       # 本仓库的维护规则
 ├── README.md                       # 使用说明、加载入口和链接关系
-├── global/AGENTS.md                # 跨项目生效的个人规则，安装为用户级 CLAUDE.md
+├── global/AGENTS.md                # 跨项目生效的个人规则，安装为用户级 CLAUDE.md 与 ~/.gemini/AGENTS.md
 ├── .claude/skills/setup-dotagents/ # 项目级安装 skill 与链接脚本
 ├── skills/                         # 用户级个人 skills，按目录软链接，只含运行时内容
 │   ├── acceptance/                 # 真实环境验收（清单与账本规则、环境契约规则、报告模板）
