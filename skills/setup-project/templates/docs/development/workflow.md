@@ -1,6 +1,6 @@
 # 开发工作流
 
-本文是开发命令与门禁的权威正文。测试编写规则在[测试设计与门禁](../agents/testing.md)，各层的目录、收录与资源边界在[测试分层合同](test-layers.md)；真实环境验收（`/acceptance`）的环境契约在[本地验收环境](local-acceptance.md)。
+本文是开发命令与门禁的权威正文。测试编写规则在[测试设计与门禁](../agents/testing.md)，各层的目录与资源边界在[测试分层合同](test-layers.md)，真实环境验收的环境契约在[本地验收环境](local-acceptance.md)。
 
 ## 环境
 
@@ -8,7 +8,7 @@
 
 ## 命令与门禁
 
-<待填 阶段3：`mise tasks` 范围；`gate-core` 与 `gate-full` 各包含什么、何时运行；文档链接与锚点检查命令及其所属门禁>
+<待填 阶段3：`mise tasks` 范围；`gate-core` 与 `gate-full` 各包含什么、何时运行；文档检查命令及其所属门禁>
 
 ## 发布
 

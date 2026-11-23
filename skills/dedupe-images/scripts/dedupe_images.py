@@ -9,7 +9,8 @@
   python3 dedupe_images.py apply-decisions <决策.json> [--check]  # --check 只校验不执行
   python3 dedupe_images.py clean <总目录> [--apply]           # 非图片杂项，不加 --apply 只列出
 
-只依赖 Python 3.14+ 标准库。判定规则见 docs/skills/dedupe-images/design.md。
+只依赖 Python 3.14+ 标准库。判定规则以本文件的常量与函数说明为准，取舍依据见 dotagents 仓库的
+docs/skills/dedupe-images/design.md。
 """
 
 import argparse

@@ -1,20 +1,20 @@
 # 建 spec
 
-改写自 Matt Pocock 的 `to-spec`（MIT 许可，<https://github.com/mattpocock/skills>，mattpocock/skills 1.3.1）。原 skill 在这一步向用户确认 seam；这里 seam 已在唯一的那次停顿里确认。
+改写自 Matt Pocock 的 `to-spec`（MIT 许可，<https://github.com/mattpocock/skills>，mattpocock/skills 1.3.1）。
 
-输入是调研报告与用户在停顿时的回答。不再追问：没问到的按推荐决定，记进“代用户做出的假设”。
+输入是调研报告与用户在停顿时的回答，seam 已在那次停顿里确认。不再追问：没问到的按推荐决定，记进“代用户做出的假设”。
 
 ## seam 规则
 
 - 优先用已有的 seam，新 seam 只在已有的都测不到目标行为时提出。
 - 取能测到目标行为的最高一层。
 - 全仓库的 seam 越少越好，理想是一个。
-- `docs` 主题没有测试 seam，写“由 `docs-check` 验证”。`logs` 主题的 seam 是日志的统一出口。
+- 主题文件的验证方式另有规定时从其规定。
 
 ## 步骤
 
 1. 确定范围：命中项减去用户排除的项。范围之外的命中项记入“范围之外”，保留证据。
-2. 为每处命中写目标结构，然后做**方案自检**：目标结构过主题文件的同一张规则表，过不了就改方案。主题文件的其余修复约束同样适用。
+2. 为每处命中写目标结构，按主题文件的修复约束做**方案自检**，过不了就改方案。
 3. 按模板写 spec，全文用项目 `GLOSSARY.md` 的词汇，遵守涉及区域的 ADR。
 4. 按 `docs/agents/issue-tracker.md` 发布到 tracker：标签 `optimize-<主题>`，另加 `docs/agents/triage-labels.md` 中对应 `ready-for-agent` 的标签。
 5. 出口：spec 编号存在，且“调研结果”里每条规则都有一行。

@@ -1,52 +1,42 @@
 # dotagents
 
-集中维护个人用户级 `AGENTS.md` 和 skills。源文件保存在本仓库，通过软链接加载到用户目录。
+集中维护个人用户级 `AGENTS.md` 和 skills。源文件保存在本仓库，通过软链接加载到用户目录。仓库的分层与维护规则见 [AGENTS.md](AGENTS.md)。
 
 ## clone 后怎么用
 
 1. 将本仓库 clone 到准备长期保留的位置，进入仓库目录。
-2. 确保 `python3` 为 3.14+；setup 仅使用标准库。系统自带版本通常不满足：用系统包管理器安装 mise（macOS：`brew install mise`；Ubuntu：添加 mise 官方 apt 源后 `sudo apt install mise`），由 mise 提供 uv（`mise use -g uv@0.13`），再运行 `uv python install 3.14 --default`。
-3. 在本仓库中打开 agent harness，调用（安装器放在 `.agents/skills/`，`.claude/skills` 是指向它的软链接；harness 发现不了时直接用下面的脚本）：
-
-   ```text
-   /setup-dotagents
-   ```
-
-   也可以直接在仓库目录的终端执行：
+2. 确保 `python3` 为 3.14+（setup 只用标准库）。系统自带版本通常不满足：用系统包管理器安装 mise（macOS：`brew install mise`；Ubuntu：添加 mise 官方 apt 源后 `sudo apt install mise`），由 mise 提供 uv（`mise use -g uv@0.13`），再运行 `uv python install 3.14 --default`。
+3. 在本仓库中打开 agent harness，调用 `/setup-dotagents`；harness 发现不了该 skill 时，直接执行脚本（可从任意目录用绝对路径调用）：
 
    ```sh
    python3 .agents/skills/setup-dotagents/scripts/setup.py
    ```
 
-4. 完成后开启新的 Claude Code、Antigravity CLI 或 Grok 会话（Antigravity CLI 中也可先执行 `/skills reload`），验证个人规则和 skills 已加载。
-5. 切换到目标项目，先执行 `/setup-matt-pocock-skills`，再调用 `/setup-project` 初始化该项目；之后在各项目中按需使用 `/commit`、`/prune-tests`、`/acceptance`、`/docs-audit`、`/optimize`、`/dedupe-images` 等。有 web 界面的项目要用 `/acceptance` 验收时，需要 Chrome 已打开且当前 harness 的原生浏览器方案已连接（Claude Code 为 Claude in Chrome 扩展），验收复用你自己的登录态。
+4. 开启新的 Claude Code、Antigravity CLI 或 Grok 会话（Antigravity CLI 中也可执行 `/skills reload`），验证个人规则和 skills 已加载。
+5. 切换到目标项目，先执行 `/setup-matt-pocock-skills`，再执行 `/setup-project`；之后按需使用下表中的 skills。用 `/acceptance` 验收有 web 界面的项目时，需要 Chrome 已打开且当前 harness 的原生浏览器方案已连接（Claude Code 为 Claude in Chrome 扩展）。
 
-调用链为 `/setup-dotagents` → Python 链接脚本。脚本根据自身位置定位 checkout，也可从其他目录通过脚本绝对路径调用。日常应用配置不依赖 mise、uv、第三方 Python 包或项目 `.venv`。
+setup 先检查全部入口：已有正确链接跳过，可以重复执行；遇到已有文件、目录或指向其他位置的链接时报告冲突并退出，不创建任何链接、不覆盖。创建中途出现权限或 I/O 错误时，已创建的链接会保留，解决后重新执行即可。`/setup-dotagents` 还会检查当前会话是否提供 `setup-matt-pocock-skills`，未发现时建议安装 Matt Pocock 的 skill 套件；该检查不影响 setup 结果，直接运行脚本时不执行。
 
-setup 会自动定位当前 checkout，建立并核验软链接。已有正确链接会跳过，可以重复执行；遇到已有文件、目录或指向其他位置的链接时，会在创建前报告冲突，不自动覆盖。创建过程中若发生权限或 I/O 错误，可能保留已创建的链接，解决问题后重新执行即可。
-
-以后在原位置更新仓库内容，已有链接会直接指向更新后的文件；新增 skill 后再执行一次 setup。请保留 checkout：移动或删除它会使链接失效；移动后需先处理旧链接冲突，再执行 setup。
+之后在原位置更新仓库，链接直接指向更新后的文件；新增 skill 后再执行一次 setup。移动或删除 checkout 会使链接失效，移动后需先处理旧链接冲突再执行 setup。
 
 ## 当前 skills
 
 | 调用 | 作用 | 使用范围 |
 | --- | --- | --- |
-| [`/setup-dotagents`](.agents/skills/setup-dotagents/SKILL.md) | 将当前仓库的个人规则和 skills 应用到用户环境，检查并补齐加载入口。 | 仅本仓库 |
-| [`/commit`](skills/commit/SKILL.md) | 将当前仓库的现有变更提交为一个本地 commit；默认包含全部未忽略变更，不附署名行，不自动测试或 push。 | setup 后用户级可用 |
-| [`/docs-audit`](skills/docs-audit/SKILL.md) | 文档漂移审计：默认随机抽页，对照源码核对顺序与数值类陈述并复核调研与 ADR 索引；传基准时核对改动命中 `covers` 的页面。文档错就地修正，代码注释错、需产品判断与正文冲突转票据。 | setup 后用户级可用 |
-| [`/optimize`](skills/optimize/SKILL.md) | 项目优化流水线：`/optimize arch`、`docs`、`logs` 分别按封闭的规则表调研框架结构与代码分层、文档结构、日志缺失与冗余，零命中时以“无需优化”结束；命中项经 spec、拆票、worktree 子 agent 实施、review、门禁后合入默认分支并清理，只在建 spec 前停一次，带 spec 编号可续跑。要求目标项目有 Beads 与 `gate-core`、`gate-full` 契约；不推送。 | setup 后用户级可用 |
-| [`/prune-tests`](skills/prune-tests/SKILL.md) | 大幅精简测试：按项目的 core/full 分层，core 只留核心规则的代表性单元测试，full 只留 `docs/behaviors/` 主流程与必须真实接线的核心规则；删除边缘与重复用例、校正归属，跑无筛选门禁验证并把保留范围写回 `docs/development/test-layers.md`，最后建一张已关闭的票留痕。 | setup 后用户级可用 |
-| [`/dedupe-images`](skills/dedupe-images/SKILL.md) | 图片库去重：先清理非图片杂项（残缺下载、广告链接、元数据、`Thumbs.db` 等，不含 txt），再按内容哈希找出重复的图片与目录（同名副本、损坏副本、两套编号整套相同、被另一目录完整包含的目录等）；有把握的由 agent 抽查后移入系统回收站并把副本改回原名，拿不准的整理成案例，由 agent 给出移走、合并或保留的建议，用户确认后由脚本按哈希校验执行。不做相似图片识别。脚本也可独立使用。需要 macOS 15+ 或 Linux。 | setup 后用户级可用 |
-| [`/setup-project`](skills/setup-project/SKILL.md) | 检查 Matt skills 设置后，用 Python 脚本初始化 Beads、按模板建立标准化文档结构、按 stack 组合（uv、Node、Swift）初始化工具链与 gate-core / gate-full 门禁；再由 agent 收敛已有文档、从代码补写模块页，最后统一运行文档检查与门禁。 | setup 后用户级可用 |
-| [`/acceptance`](skills/acceptance/SKILL.md) | 在本机真实环境按项目行为文档完整验收功能：按项目的环境契约启动服务，逐项操作并观察界面、日志、数据与文件，偏差就地修复并重跑，直到零修复全量通过后写验收记录。推荐配合 `/goal /acceptance 直到打印"验收完成"，最多 80 轮` 运行。 | setup 后用户级可用 |
+| [`/setup-dotagents`](.agents/skills/setup-dotagents/SKILL.md) | 把本仓库的个人规则和 skills 链接到用户环境，检查并补齐加载入口。 | 仅本仓库 |
+| [`/commit`](skills/commit/SKILL.md) | 把现有变更提交为一个本地 commit；默认包含全部未忽略变更，不附署名行，不测试、不 push。 | 用户级 |
+| [`/docs-audit`](skills/docs-audit/SKILL.md) | 文档漂移审计：对照源码核对正文（默认随机抽页，传基准时核对改动命中的页面），文档错就地修正，其余转票据。 | 用户级 |
+| [`/optimize`](skills/optimize/SKILL.md) | 项目优化流水线：`arch`、`docs`、`logs` 三个主题按规则表调研，命中项经 spec、拆票、实施、review、门禁后合入，只在建 spec 前停一次。要求目标项目有 Beads 与 `gate-core`、`gate-full`。 | 用户级 |
+| [`/prune-tests`](skills/prune-tests/SKILL.md) | 按项目的 core/full 分层大幅精简测试，跑无筛选门禁验证并写回保留范围。 | 用户级 |
+| [`/dedupe-images`](skills/dedupe-images/SKILL.md) | 图片库去重：清理非图片杂项，按内容哈希找出重复的图片与目录；有把握的移入回收站，拿不准的整理成案例由用户确认。不做相似图片识别；需要 macOS 15+ 或 Linux。 | 用户级 |
+| [`/setup-project`](skills/setup-project/SKILL.md) | 初始化或补齐目标项目的 Beads、标准化文档结构与工具链（uv、Node、Swift 任意组合）及 `gate-core` / `gate-full` 门禁，并收敛已有文档。 | 用户级 |
+| [`/acceptance`](skills/acceptance/SKILL.md) | 在本机真实环境按行为文档完整验收功能，偏差就地修复并重跑，直到零修复全量通过后写验收记录。推荐配合 `/goal /acceptance 直到打印"验收完成"，最多 80 轮` 运行。 | 用户级 |
 
-第三方 skills 由原安装工具管理，不纳入本仓库，也不由 setup 安装。
-
-`/setup-dotagents` 完成链接后，还会检查当前会话是否提供 `setup-matt-pocock-skills`。未发现时会建议安装 Matt Pocock 的 skill 套件，因为 dotagents 后续很多能力会围绕该套件构建。此检查不影响 setup 成功，也不自动安装；仅检查会话可用列表，不代表系统安装清单。直接运行 `setup.py` 只处理软链接，不执行这项会话检查。
+“用户级”指 setup 后在任意项目可用。第三方 skills 由原安装工具管理，不纳入本仓库，也不由 setup 安装。
 
 ## 加载关系
 
-以下源文件路径相对于当前 checkout；实际建立的软链接使用绝对路径。
+源文件路径相对于当前 checkout；实际建立的软链接使用绝对路径。设置了 `CLAUDE_CONFIG_DIR` 时，表中的 `~/.claude` 改用该路径。
 
 | 用户目录入口 | 软链接目标 |
 | --- | --- |
@@ -58,17 +48,17 @@ setup 会自动定位当前 checkout，建立并核验软链接。已有正确�
 | `~/.claude/skills/<name>` | `~/.agents/skills/<name>` |
 | `~/.gemini/skills/<name>` | `~/.agents/skills/<name>` |
 
-`~/.agents/AGENTS.md` 是通用的用户级规则入口；Grok 只读 `~/.grok/` 下的规则、不读 `~/.agents/AGENTS.md`，因此单独链接（Grok 默认也会读 `~/.claude/CLAUDE.md`，但按真实路径去重，同一源文件只加载一次）。Linux 上文件名区分大小写，入口名须保持 `AGENTS.md`、`CLAUDE.md` 原样。设置了 `CLAUDE_CONFIG_DIR` 时，表中的 `~/.claude` 改用该绝对路径。`skills/` 下每个含 `SKILL.md` 的目录都按 `<name>` 建立上述两级链接（经 `~/.agents/skills` 中转后分别链入 `~/.claude/skills` 与 Antigravity CLI 的 `~/.gemini/skills`，与 `npx skills` 等工具的安装位置保持一致；Grok 直接读取 `~/.agents/skills`，不另建链接）。
-
-skill 逐个链接，用户级 skills 父目录保持为普通目录，已有第三方 skills、系统 skills 和插件缓存保留。项目级 `setup-dotagents` 不安装到用户目录。
+- `~/.agents/AGENTS.md` 是通用规则入口。Grok 只读 `~/.grok/` 下的规则，因此单独链接；它也读 `~/.claude/CLAUDE.md`，但按真实路径去重，只加载一次。Grok 直接读 `~/.agents/skills`，不另建 skill 链接。
+- `skills/` 下每个含 `SKILL.md` 的目录逐个链接，经 `~/.agents/skills` 中转（与 `npx skills` 等工具的安装位置一致）。用户级 skills 父目录保持普通目录，已有的第三方 skills、系统 skills 和插件缓存不受影响。
+- Linux 上文件名区分大小写，入口名须保持 `AGENTS.md`、`CLAUDE.md` 原样。
 
 ## 仓库结构
 
 ```text
 dotagents/
-├── AGENTS.md                       # 本仓库的维护规则
+├── AGENTS.md                       # 本仓库的维护规则（不安装为全局规则）
 ├── README.md                       # 使用说明、加载入口和链接关系
-├── global/AGENTS.md                # 跨项目生效的个人规则，安装为 ~/.agents、~/.gemini、~/.grok 下的 AGENTS.md 与 ~/.claude/CLAUDE.md
+├── global/AGENTS.md                # 跨项目生效的个人规则，按上表安装
 ├── .agents/skills/setup-dotagents/ # 项目级安装 skill 与链接脚本
 ├── .claude/skills -> ../.agents/skills # 软链接，供 Claude Code 发现项目级 skill
 ├── skills/                         # 用户级个人 skills，按目录软链接，只含运行时内容
@@ -82,26 +72,25 @@ dotagents/
 ├── docs/testing.md                 # 本仓库测试的保留范围，删改测试前阅读
 ├── docs/skills/<name>/             # 各 skill 的设计说明与调研，维护者阅读
 ├── tests/                          # 安装器测试与各 skill 脚本测试（tests/<name>/）
-├── mise.toml / mise.lock           # uv 版本 line 与精确版本，以及安装、检查和测试任务
+├── mise.toml / mise.lock           # uv 版本 line 与精确版本，以及开发任务
 ├── mise-tasks/                     # 需要转发多段参数的 mise 文件任务（fmt）
-├── .python-version                 # uv 管理的开发 Python 版本 line
+├── .python-version                 # 开发 Python 版本 line
 ├── pyproject.toml                  # 开发依赖与检查配置
 └── uv.lock                         # 开发依赖锁文件
 ```
 
-在本仓库修改源文件并通过 Git 管理；根目录 `AGENTS.md` 不安装为全局规则。仓库维护、安装器、用户级内容三层的职责划分及维护约束见 [AGENTS.md](AGENTS.md)。仓库不保存认证信息、会话数据或运行缓存。
+仓库不保存认证信息、会话数据或运行缓存。
 
 ## 开发与验证
 
-仅在维护脚本或运行检查时准备开发环境：
+仅在维护脚本或运行检查时需要开发环境（应用个人配置不需要）。用系统包管理器装好 mise 后：
 
 ```sh
-# 系统包管理器安装 mise：macOS 用 brew install mise；Ubuntu 添加 mise 官方 apt 源后 sudo apt install mise
 mise run install
 mise run gate-full
 ```
 
-支持 macOS 与 Linux。mise 由系统包管理器维护；uv 对版本敏感，由本仓库 `mise.toml` 钉到 0.13 line、`mise.lock` 锁定精确版本，`mise run` 会按需自动安装并放上 PATH。Python 版本 line 由 `.python-version` 固定为 3.14，开发依赖由 `uv.lock` 锁定。`mise run install` 安装开发环境；应用个人配置直接运行 setup skill 的 Python 脚本。
+`mise run` 会按需安装 `mise.toml` 钉定的 uv 并放上 PATH。
 
 | 命令 | 用途 |
 | --- | --- |
@@ -113,4 +102,4 @@ mise run gate-full
 | `mise run gate-full` | 并行执行工具链、diff 格式、lint、类型检查及全部测试，忽略筛选参数 |
 | `mise run e2e-setup-project` | 在临时项目上用 headless Claude Code 真实执行 `/setup-project` 并检查产物；不属于门禁，见 [docs/skills/setup-project/e2e.md](docs/skills/setup-project/e2e.md) |
 
-测试自动发现 `tests/` 中的 `test_*.py`、`*_test.py`；`skills/` 只含运行时内容，不放测试。自动检查不代表真实 agent 工作流已完成验收。
+测试与验证规则见 [AGENTS.md](AGENTS.md) 的“测试与验证”。

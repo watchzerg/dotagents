@@ -1,200 +1,125 @@
 # setup-project 设计说明
 
-维护 [`skills/setup-project`](../../../skills/setup-project/SKILL.md) 前先读本文。记录目标、阶段状态、关键决策和演进，只写代码与 git 历史看不出的意图；结构细节见 [docs-structure.md](../../../skills/setup-project/references/docs-structure.md)，Beads 依据见 [beads-init-research.md](beads-init-research.md)。
+维护 [`skills/setup-project`](../../../skills/setup-project/SKILL.md) 前先读本文。本文只记代码与 git 历史看不出的意图：现行决策及其理由、明确不做的事、待验收项。运行时规则以 SKILL.md 与 `references/` 为准，本文不复述；变更流水见 `git log`。Beads 参数依据见 [beads-init-research.md](beads-init-research.md)，真实 agent 验收做法见 [e2e.md](e2e.md)。
 
 ## 目标与边界
 
-把个人新项目的初始化固化为可重复的步骤：Beads、Matt Pocock skills 前置检查、标准化文档结构、开发环境。安装在用户级，对调用时的当前工作目录生效。只服务个人项目，不做多版本兼容、不迁移已有项目的旧文档。
-
-## 阶段状态
-
-| 阶段 | 状态 | 实现方式 |
-| --- | --- | --- |
-| Beads 初始化（阶段 1 第 1 步） | 已确定 | `scripts/init_beads.py` |
-| Matt setup 检查（阶段 0） | 已确定 | 检查 `docs/agents/issue-tracker.md` 与 `domain.md` 存在；`init_docs.py` 重复检查 |
-| 文档结构（阶段 1 第 2 步 + 阶段 2） | 已确定，未经真实 agent 验收 | `templates/` + `scripts/init_docs.py` + SKILL.md 的合并与待填规则 |
-| 工具链与门禁（阶段 1 第 3、5 步 + 阶段 3） | 已确定，uv、swift 新项目已在临时项目真实跑通 gate-core（重排前由脚本运行，重排后由流程末尾运行，未重新真实验收）；node 于 2026-11-11 替换 bun，单 stack 新项目手工跑通 gate-core 与 gate-full | `toolchain/stacks/` + `scripts/init_toolchain.py`；规范见 toolchain.md |
-| 流程编排 | 2026-10-12 重排为脚本先行、agent 后置、末尾统一验证；未经真实 agent 验收 | SKILL.md 四个阶段 |
+把个人新项目的初始化固化为可重复的步骤：Beads、Matt Pocock skills 前置检查、标准化文档结构、开发工具链与门禁。安装在用户级，对调用时的当前工作目录生效。只服务个人项目，不做多版本兼容；已有项目的旧文档收敛进标准结构，而不是迁移其历史。
 
 ## 关键决策
 
-- **脚本与提示混合**：确定性的事（检查前置、复制文件、不覆盖）交给标准库脚本并测试；需要读项目现状判断的事（合并已有 AGENTS.md、填 `<待填>`）交给 agent，规则写在 SKILL.md。放弃纯提示驱动，因为结构会漂移且无法测试。
-- **缺失才创建，不用软链接**：文档进入目标项目后随项目持续改写，软链接会让所有项目共享一份。已有文件一律不碰，所以脚本可重复运行。
-- **Matt setup 是前置而非内置**：`docs/agents/` 的三个文件由 Matt 的 setup 交互产生，本 skill 不复制也不模板化，只检查存在。原因是 tracker 选择和标签映射需要用户回答，且 Matt 的 skill 会自行更新这些文件。
-- **根目录四个硬约束路径**：`GLOSSARY.md`、`docs/adr/`、`docs/agents/` 是 Matt skills 直接按路径读写的位置，`CODING_STANDARDS.md` 是 code-review 按名查找的；其余目录可按项目调整。
-- **`## Agent skills` 块压缩进触发表**：Matt 的 setup 是本 skill 的前置，之后不再重跑，其三个指针并入触发表后该块被脚本移除。若有人重跑 Matt setup 追加了新块，再跑本 skill 会再次移除。
-- **已有 `.beads` 时执行 `bd bootstrap`**（2026-11-22）：数据库是 embedded Dolt、不进 git，新 clone 只有 `.beads/` 配置，`bd` 一律报 `no beads database found`。原先脚本见到 `.beads` 就跳过，重跑本 skill 修不好，问题拖到某个 skill 建票时才暴露；grok-media-saver 的 `/prune-tests` 留痕票因此没建成，而 bd 自带提示只指向 `bd init`，会在本地另起一个与远端分叉的空库。`bd bootstrap` 按 `sync.remote` 等来源恢复，数据库已在时只校验，符合只补缺。顺带把 `.beads` 设为 0700，消掉 bd 每次调用都打印的权限提示。模板 AGENTS.md 的票据行同步写恢复命令，随项目进 git，以后的新 clone 也能看到；已初始化项目的该行不会被按节合并更新，靠重跑本 skill 的 bootstrap 覆盖。
-- **AGENTS.md 按节合并而非整文件跳过**：它与 Matt setup、用户共用，所以以二级标题为单位，缺的节追加、已有的节不动、标题外内容保留，重复运行无变更。其他模板文件只属于本 skill，整文件缺失才创建即可。
-- **不设 `archive/`、`plans/`**：参考项目里的归档层来自 Beads 之前的遗留文档；新项目用 tracker 承载增量，git 承载历史。ADR 索引原先也不设，2026-11-11 改为初始化即建，见下文“三个项目重构后的回收”。
-- **`<待填 时机：说明>` 协议**：初始化不编造项目内容，留显式标记并注明可填时机（初始化、阶段3、首个模块、按需；`阶段3` 沿用为"工具链落地后"的标记名，不随 SKILL.md 的阶段编号变动）；AGENTS.md 常驻约束要求每次交付前搜索并按时机填写，全部消失后该条自删。不另建待填清单文件：grep 即清单，独立文件会漂移。这是空项目里让文档"逐步长出来"的机制，也是因为用户在初始化时同样答不出架构类问题，所以不向用户询问。
-- **AGENTS.md 只放指针**：触发表唯一，细则进正文；retro 产出的规则落 `CODING_STANDARDS.md`。已有项目的 `AGENTS.md` 里用户自写的细则节（如发布流程）也按此原则在收敛步迁入正文（2026-10-12 e2e 后定）：否则模板的防膨胀约束第一天就破例，且正文里"有发布流程时填"这类按需标记会因内容在别处而永远填不上。约束类节留下并入常驻约束；迁移整段原文不改写，触发表加行，报告逐条列出。放弃"原样保留不迁移"，因为搬运机制与收敛旧文档完全相同，不增加流程。
+### 流程编排
 
-- **已有文档全自动收敛**：非空项目上，标准结构之外的文档由只读子 agent 分类、主 agent 执行合并或迁移，无法归类的保留原位并在 `docs/INDEX.md` 登记，使重跑幂等。不做执行前确认：本 skill 不 commit，工作区就是审阅点；删除可由 git 恢复。放弃"把删除改为移入 `docs/changes/`"，因为会污染增量目录。
-- **旧版初始化项目重跑只给提示，不加流程**：这类重跑很少，不为它扩写 SKILL.md。`scripts/check_docs.py` 缺失才复制，旧版或项目改写版没有 `--affected` 时，`init_toolchain.py` 在缺少 `docs-affected` 的提示后直接写出做法（非零退出、列票据候选、模板实现路径），agent 照做即可。项目已有约定（如 ADR）与标准结构冲突时同理不加专门规则，报告规则里一句话统一处理：列为裁决项、两边不动，默认推荐标准结构。来源是 kototoki 重跑（2026-11-22）：agent 自行设计 `--affected` 并开票却没参照模板实现；又按项目 ADR-0031 删掉模板建的 `docs/research/INDEX.md` 并列为已决，用户的意见是以标准结构为准。
+- **脚本与提示混合**：确定性的事（检查前置、复制文件、不覆盖、拼合工具链）交给标准库脚本并测试；需要读项目现状判断的事（同义节合并、填 `<待填>`、收敛旧文档、补写模块页）交给 agent。纯提示驱动会让结构漂移且无法测试。
+- **脚本先行、agent 后置、问题一次问完**：三个脚本连续运行，之后才做 agent 工作，最后统一跑文档检查与 `gate-core`。原先 agent 步骤夹在两个脚本之间：空项目（主用例）的判定必然退出码 3，加上项目描述就要打断用户两次；补写子 agent 会先填掉 `阶段3` 标记，脚本随后找不到标记而跳过依赖偏好。为此 `init_toolchain.py` 有 `--detect-only`，`init_docs.py` 末尾打印仍含 `初始化` 标记的文件，提问条件直接读它；脚本不跑门禁，门禁放在流程末尾才能覆盖 agent 对文档的改动。
+- **全自动、不 commit**：收敛等 agent 工作不做执行前确认，工作区就是唯一审阅点，删除可由 git 恢复。x-media-saver 真实运行时 agent 曾在执行前问“成熟文档体系要不要全量收敛”并推荐轻量合并，所以 converge-docs.md 写明候选多少、文档多完善都不改变做法。
+- **报告只把无法推荐的事项列为裁决**：media-glance 与 x-media-saver 两次运行都把 agent 自己已有推荐的事项交给用户裁决。现在有推荐的直接执行并列为已决。例外是项目已有约定（如 ADR）与标准结构冲突：一律列为裁决项、两边不动、默认推荐标准结构。来源是 kototoki 重跑时 agent 按项目 ADR 删掉了模板建的 `docs/research/INDEX.md` 并列为已决，而用户的意见是以标准结构为准。
+- **旧版初始化项目重跑只给提示，不加流程**：这类重跑很少，不为它扩写 SKILL.md。`check_docs.py` 缺失才复制，旧版没有 `--affected` 时，`init_toolchain.py` 在缺少 `docs-affected` 的提示后直接写出做法；kototoki 重跑时 agent 曾自行设计 `--affected` 而没参照模板实现。
 
-- **从代码补写文档单独成步并派子 agent**：范围限于 `首个模块` 类标记、按模板的模块页，以及已有工具链时的 `阶段3` 类标记；只写代码可证实的内容，冲突记为已知差异，术语只报告不写。子 agent 直接写文件，因为模块页经主 agent 转写没有意义；主 agent 复核一致性与链接。
+### Beads
 
-- **工具链按文件证据判定，已有工具链不改动**：lockfile、工程文件或 mise 配置文件存在即视为已有，只补依赖偏好进文档；判定不出时退出码 3 交用户多选。新项目才创建工具链文件并运行安装。仅有的例外是 `scripts/check_docs.py` 与 `scripts/with_lock.py` 在 existing 模式也补缺（前者 2026-10-12 e2e 后加，后者同日 media-glance 真实运行后加）：两者只用标准库、与 stack 无关；不补 check_docs 的话 `docs-check` 只能是空壳，不补 with_lock 的话已有项目的 full 测试入口永远拿不到主机锁，报告只能把"无主机锁"列为差异问用户。配套允许对已有 task 做两种最小改动：`gate-core` 的 `depends` 追加 `check-toolchain`、`docs-check`，full 测试入口包进锁；命令不改。随之约束被 existing 模式复制的"依赖政策"节只写对任何项目都成立的偏好，模板配置事实放"运行时与工具链"节。
-- **项目名与空开头的 AGENTS.md 由脚本兜底**：项目名取 `--name`、`AGENTS.md` 一级标题、目录名，两个脚本同一规则，agent 不必记得传参；`AGENTS.md` 二级标题前没有内容（Matt setup 在空项目上的常态）时脚本补模板开头，保证总有标题与 `初始化` 标记；只有空白的文件（如 `uv init` 的空 README）视为缺失。都是 e2e 首轮暴露的、能用脚本确定性解决的问题。
-- **工具链按 stack 模块化，不按组合枚举**：项目是 stack 的集合（uv、node、swift），每个 stack 在 `toolchain/stacks/<name>/` 自包含（manifest、file task、文件、文档片段），脚本负责拼合：根 `mise.toml` 的公开契约 task 经 `depends` 聚合各 stack 的 `<stack>:*` file task（2026-11-23 前为根 justfile 聚合私有 `<stack>-*` recipe）；文档由公共正文加占位符与各 stack 片段拼成，多 stack 时片段加三级标题。放弃按 uv-node 这类组合各写一份，因为偏好改一处要同步多处，且加 swift 后组合数爆炸。新增 stack 只需加一个目录并登记名字。
-- **前端 stack 由 Bun 换为 Node + pnpm，只落工具链**（2026-11-11）：stack 名 `node`，直接替换 `bun` 而不并存，避免维护两套前端偏好。mise 同时管理 Node 与 pnpm 的版本 line，不写 `packageManager` 字段，版本来源只有 `mise.toml`。落地的只有 TypeScript、Biome、Vitest 与版本自检；React、Vite、Tailwind CSS、shadcn/ui、React Testing Library 作为固定选型写进文档片段的依赖政策，不落应用骨架，因为空项目里的页面骨架是编造内容，且 shadcn 的初始化依赖项目自己的别名与样式入口。Node 没有内置 TOML 解析，版本自检用正则读 `mise.toml`。full 测试文件的判定收窄为 Vitest 默认收集的 `*.test.*`、`*.spec.*`，不再认 `_test`、`_spec`。`bun.lock` 不再是判定证据：只有它和 `package.json` 的项目按无法判定处理。
-- **门禁契约固定，实现可换**：所有项目共用同一组公开 task 名；没有预置 stack 的项目 task 非零退出而非留空，沿用 Beadwork 的"验证未实现必须失败"。core/full 的定义写进目标项目文档正文，不只放 `mise.toml` 注释。
-- **swift 新项目只落 SwiftPM package，不生成 Xcode 工程**：`.xcodeproj` 无法可靠模板化；core 测试用 Swift Testing 的 `CoreTests` target，应用壳由用户在 Xcode 创建后把 package 作本地依赖，再把 `swift:*` task 切到 `xcodebuild`。`swift test` 零匹配退出 0，所以 task 自己检查零匹配；`tests/full/` 需要同步在 Package.swift 声明 target，否则 SwiftPM 对空目录 target 每次构建都告警。
-- **swift 仅支持 macOS**（2026-11-19）：swift stack 依赖 Xcode，新项目选 swift 时脚本以 PATH 上有无 `xcodebuild` 作为前提检查，缺失则不写文件、退出码 1；检查的是 task 实际依赖的命令而非平台名，测试可用替身覆盖。existing 模式不检查，因为不碰工具链文件，Linux 上用 swift.org 工具链的已有项目仍可补文档。
-- **工具链分层：系统包管理器 → mise → 其余工具，项目只钉版本敏感的工具**（2026-11-22，取代 2026-11-19 的“宿主工具不假设来源”）：按用户统一的依赖管理规范，mise 由 Homebrew/APT 安装，uv、node、pnpm 等由 mise 提供；项目根 `mise.toml` 只钉对版本敏感的工具（uv 0.13、node 26、pnpm 12），`mise.lock` 锁精确版本；Python 由 uv 按 `.python-version` 的 3.14 line 管理。各 stack 在 `stack.json` 的 `mise` 字段声明要钉的工具，脚本合并生成根 `mise.toml`，`mise trust/install/lock` 从 node 的安装步骤提到所有 stack 之前统一执行一次，避免 uv+node 时两份 `mise.toml` 冲突。task 直接调用 uv、node、pnpm（node 原先一律经 `mise exec --`，同日一并改掉；当日的 recipe 靠 mise activate 或 shims 切换 PATH、由 `check-toolchain` 核对版本 line，2026-11-23 改为 mise task 后由 `mise run` 提供 PATH，见下条）；只有脚本里紧跟 `mise install` 的安装命令经 `mise exec --` 调用，因为脚本进程的 PATH 没有新装的工具（与 x-media-saver 一致）。缺 mise 的提示只给系统包管理器的装法，不再给官方安装脚本。已有工具链的项目（existing 模式）仍不碰工具链文件，缺 `mise.toml` 由用户或后续任务补。
-- **命令契约从 justfile 改为 mise task**（2026-11-23，取代 2026-10-11 起的 justfile 契约）：用户决定工具、环境变量与 task 都经 mise 管理，目标项目不再依赖 just；不兼容也不迁移已由 justfile 初始化的项目，`justfile` 不再作为已有工具链的证据。拥抱 mise 的设计与默认行为，不在其上再包一层：
-  - 各 stack 的实现改为 `mise-tasks/<stack>/` 下的 file task，名称空间 `<stack>:<name>` 取代私有 `<stack>-*` recipe 与多 stack 时 `fmt`/`test` 的 scope 分派；file task 直接拿到 `$@`，参数原样传给 runner。
-  - 公开 task 只用 `depends` 聚合，`depends` 默认并行执行，用户接受门禁子任务并行（core 本就要求可并行；full 由主机锁排队）。只有 `depends` 的 task 静默忽略参数，所以定向一律调用 stack task（`mise run uv:test -k 名称`），公开 task 不承担定向。
-  - `check-toolchain` 不再核对 mise 管理的工具版本：`mise run` 会按 `mise.toml` 与 `mise.lock` 自动安装缺失工具并放进 PATH，用户接受这种自动安装；只核对 mise 之外的声明（`.python-version`、`.xcode-version`）。
-  - `<stack>:test-full` 确认有 full 测试后经 `with_lock.py` 重新执行自身，以环境变量 `GATE_LOCK_HELD` 防重入；锁落在 stack task 而不是公开 task，因为公开 task 只有 `depends`、没有命令可包，这样公开 `test-full`、`gate-full` 与定向运行都持锁。
-  - 任何新项目都生成根 `mise.toml`，包括 swift 单 stack 与 none（`[tools]` 可为空），契约入口在所有项目一致，不因没有要钉的工具而缺 task。
-  - existing 模式用 `tomllib` 读 mise 配置的 `[tasks]` 与 file task 目录判断缺少的契约 task，不调用 mise：只读文件即可，也不会触发项目配置里需要 trust 才能执行的代码；读不到的引入方式由阶段 2 第 5 步用 `mise tasks` 复核，配置因模板、`_.source` 或 hooks 需要 trust 时 agent 不替用户 trust，以脚本结果为准并在报告注明。
-  - 不运行也不要求 `mise trust`（2026-11-23 同日更正）：mise 2026.11.12 默认（非 paranoid）下只含普通 `[tools]`、`[tasks]` 的配置不需要 trust，`mise run`、`mise install`、`mise exec` 还会自动 trust 当前配置；需要 trust 的只有模板、`_.source`、hooks 等会执行代码的写法。最初迁移版本在落地后总是运行 `mise trust` 并在文档写“新环境先 `mise trust`”，是多余步骤，已删；“修改 `mise.toml` 后需重新 trust”只在 paranoid 模式成立。
-- **full 目录出现即收录**：`tests/full/` 不存在时 gate-full 打印提示而非失败，存在而无测试则失败。避免新项目的 gate-full 因零收集长期红灯，同时不给 skip 留口子。
-- **模板目录从本仓库的 pytest 与 Ruff 中排除**：`toolchain/` 下的 `pyproject.toml` 与测试文件是复制到目标项目的模板，不是本仓库的配置与测试。
-- **implement-spec 门禁靠触发词、审查项与主机锁，不加常驻约束**：目标是并行 worktree 的 ticket 只跑 `gate-core`，最终集成跑 `gate-full`，新测试持续遵守分层。规则正文在 testing.md，由触发表“执行 `implement-spec`”命中；分层归属的把关写进 CODING_STANDARDS，让 implement-spec 末尾的 code-review 检查。不复制 x-media-saver 的 6 条长版（通用流程常识）与收录表（和分层表重复）。x-media-saver 的做法是 full 测试在 ticket 阶段只写不跑，代价是 red → green 对 full 缺失、问题堆到最后才发现、implementer 有动机绕过规则；本 skill 改为给 `test-full` 与 `gate-full` 加主机级 `flock`，implementer 可定向跑自己的 full 测试并自动排队。选主机级而非仓库级，因为桌面与端口是主机资源，且各 worktree 的编译产物都在自己目录内。
-- **测试分层保持 core 与 full 两道门禁，不按测试种类加层**（2026-11-11）：评估过“单元、集成、系统、真实环境验收”四层方案后未采纳。门禁数量跟触发时机走，流程里只有单 ticket、最终集成、发布前三个时机，对应 `gate-core`、`gate-full` 与 `/acceptance`；集成测试与针对部署形态的系统测试都进 full。系统层（镜像启动、空库初始化、停止信号）是有部署镜像的项目才有的内容，不进模板；某个项目的镜像构建让 `gate-full` 慢到影响最终集成时，在该项目内单加 task。full 不因“已隔离”而放开并行，主机锁保留：是否真的隔离是容易判断错的事。同时统一用词：模板里“验收”只指 `/acceptance`，`testing.md` 标题改为“测试设计与门禁”，`gate-full` 注释改为“完整门禁”；“最终集成”（合并含义）与 `docs/research/acceptance/` 收交付记录两处保持原样，改动牵连大于收益。
-- **技术偏好只进 stack 片段，项目特有内容不进模板**：x-media-saver 与 media-glance 的 structlog 接线、Chrome 扩展、libmpv、Docker、CI 不搬；搬的是工具链路线、依赖政策与新增依赖偏好清单。
-- **脚本先行，agent 后置，问题一次问完**：三个脚本（Beads、文档结构、工具链）连续运行，之后才做收敛旧文档、补写模块页等 agent 工作，最后统一跑文档检查与 `gate-core`。原先 agent 步骤夹在 `init_docs.py` 与 `init_toolchain.py` 之间，有三个问题：空项目是主用例，判定必然退出码 3，加上项目描述就要在两个时点打断用户两次；补写文档的子 agent 在 existing 模式会先填 `阶段3` 标记，脚本随后找不到标记而跳过依赖偏好；子 agent 看到的工具链正文还是标记。为此 `init_toolchain.py` 加 `--detect-only`，在落地前把 stack 问题和项目描述合成一次提问；脚本内的 `gate-core` 运行移除，门禁只有流程末尾一个入口，覆盖 agent 对文档的改动。
-- **收敛旧文档的执行也交子 agent**：原先只读子 agent 分类、主 agent 执行合并，但合并才是重活，要通读旧文档并以标准正文为骨架改写；与第 4 步"模块页经主 agent 转写没有意义"的理由相同，改为分类表返回后由可写子 agent 执行合并、迁移、移动、删除，主 agent 只做链接修正、索引登记、建票据与复核。分批时每批一个执行子 agent 并行，同一目标文件串行。
-- **existing 模式也做机械文档检查**：已有工具链项目不复制 `check_docs.py`，但收敛与补写恰是这类项目的主要产出，原先链接正确性只靠主 agent 复核。`check_docs.py` 加可选的根目录参数，流程末尾直接调用 skill 自带副本检查目标项目。不运行这类项目自身的门禁：本次没改代码，其红绿与初始化无关，补过 task 时只验证 `mise tasks` 可解析。
-- **缺少 task 的实现建议并入补写文档的子 agent**：它本来就要读 `pyproject.toml`、`package.json`、`mise.toml` 等配置，顺带返回建议，主 agent 落到 mise 配置，省一次独立分派。
-- **2026-10-12 全面探查后的修正**（四个只读子 agent 分别审脚本、模板、工具链、指令文本，主 agent 核实后保留 25 条）。有取舍的几条：
-  - full 测试按各 stack 自己的测试文件判定，不按目录存在：uv+swift 共用 `tests/full/` 时，按目录判定会让任一方加 full 测试就令另一方失败。`Package.swift` 的 `exclude` 改为按实际存在的非 Swift 文件动态计算，因为静态列表在文件不存在时 SwiftPM 会告警 Invalid Exclude；配套 `--manifest-cache none` 让新文件即时生效。
-  - 去掉 `bun test --fail-on-empty`：bun 没有这个 flag 且静默忽略未知 flag，零匹配非零是 bun 的默认行为；禁用 `--pass-with-no-tests`。
-  - 定向语义统一为"名字筛选在默认目录内筛，路径参数替换默认目录"：uv 用 `-o testpaths`，bun 因位置参数是并集，参数中有已存在路径时不再追加默认目录。
-  - Biome 排除 `.beads/` 并启用 `vcs.useIgnoreFile`：`bd init` 写出的 `metadata.json` 无末尾换行，bun 单 stack 时 `just lint` 初始化完即红。`vcs.root` 用 `{{ROOT}}`，否则 `frontend/` 布局找不到 `.gitignore`。
-  - `with_lock.py` 改为父进程持锁、子进程运行命令：原先锁 fd 可继承且 `execvp`，测试留下的后台进程会一直占住主机锁。终端前台时不重复转发 SIGINT，避免 pytest 类 runner 收到两次 Ctrl-C 硬中止。
-  - `check_docs.py` 标题锚点从原始行计算、只去反引号：原先先删行内代码再算 slug，含代码的标题全部误报。
-  - 安装失败固定返回 1 并提示 `just install`：new 模式先落地再安装，失败后重跑会被判为 existing 而静默跳过安装；安装失败是唯一不中止流程的脚本失败。
-  - 一句话描述的提问条件改为三个文件任一含 `初始化` 标记：`AGENTS.md` 已存在时合并会丢弃模板开头，标记只剩 README 与 GLOSSARY，原条件在主用例下永不触发。
-  - 收敛执行改为全部分类后再执行、tracker 类源文件建票后才删、按批预分配 ADR 编号段、目标文件重叠的批串行。
-  - `阶段3` 标记在 none 模式由 none overlay 改写为 `按需`，不再残留"时机已到"的标记诱导编造。
-  - `<待填` 清单改用带时机前缀的精确 pattern，规则正文里的 `<待填` 字样不再自命中，"全部消失后自删"才可能触发。
-- **运行时 Python 下限为 3.14**：skill 脚本与复制到目标项目的 `check_docs.py`、`with_lock.py` 都按 3.14+ 标准库编写，可直接使用最新语法，不再为 macOS 自带的 3.9 加 `from __future__` 之类的兼容；宿主 `python3` 由 uv `--default` 提供。代价是缺少 3.14 的机器会在解析阶段报语法错误，而非给出友好提示。
+- **`bd init` 参数**：`--non-interactive --init-if-missing --role maintainer --skip-agents --skip-hooks`。不装 Beads 的 agent 集成（`AGENTS.md` 由本 skill 管）与 hooks（不用 JSONL 工作流）。首次 `bd init` 无 pathspec 的自动 commit 没有开关，作为已确认行为接受。
+- **已有 `.beads` 时执行 `bd bootstrap --yes`**：数据库是 embedded Dolt、不进 git，新 clone 只有 `.beads/` 配置，`bd` 一律报 `no beads database found`。原先见到 `.beads` 就跳过，问题拖到某个 skill 建票时才暴露（grok-media-saver 的 `/prune-tests` 留痕票因此没建成），而 bd 自带提示只指向 `bd init`，会在本地另起一个与远端分叉的空库。`bootstrap` 按 `sync.remote` 等来源恢复，数据库已在时只校验，符合只补缺。顺带把 `.beads` 设为 0700，消掉 bd 每次调用都打印的权限提示。模板 AGENTS.md 的票据行写有恢复命令，随项目进 git。
 
-- **2026-10-12 media-glance 真实 existing 运行（session 2495c23b）后的修正**。该项目自带七篇模块页、双语词汇表、`docs/plans/` 与一套 justfile，是首个非 fixture 的 existing 用例。运行本身通畅，摩擦来自一个模板缺陷和六个本可预先决定却推给用户裁决的问题，其中"7 个现有模块页仍是旧栏目"用户没看懂。据此：
-  - `docs/agents/testing.md` 改为与 `AGENTS.md` 一样按节合并：模板 `CODING_STANDARDS.md` 链接它的 `#分层`，项目自带 testing.md 时整文件跳过会让 docs-check 第一条就红，任何有自己 testing.md 的旧项目都复现。同义节（如 `## 测试编写与变更`）由阶段 2 第 1 步按 AGENTS.md 同一规则并入。
-  - 已有模块页章节与模板不一致时按模板重排，原有小标题降为三级保留锚点，每页一个子 agent 并行；用户选择迁移，且这正是第二轮实际做的事。
-  - `docs/research/` 直接子级的验收与交付记录纳入候选，移入 `acceptance/<主题>-<日期>.md`：原候选规则把 `research/` 整体排除，8 份 `*-integration.md` 没被分类，分类子 agent 已点出结构不一致。
-  - 术语合并只迁入项目特有条目，通用界面与编程词条列入报告删除清单：模板早有"只收项目特有概念"，但执行子 agent 把 86 条全部迁入，用户选择删减 47 条。
-  - `AGENTS.md` 已有描述时不再提问，直接展开 README 与 GLOSSARY 的标记；existing 模式在多数项目上因此零提问。
-  - 报告列出阶段 2 各步的执行或跳过及依据，裁决项写清文件、备选与推荐；references 在所在步骤读取而不预读。
-  - 全局规则改为明确用 Agent 工具的 `model`、`effort` 参数：该次运行把 effort 写进了 prompt 文本。
-- **2026-10-13 x-media-saver 真实 existing 运行（session 8b7d9721）后的修正**。该项目是首个超过 30 个候选的真实用例：根目录 `ARCHITECTURE.md`、10 篇模块页、26 篇 `docs/archive/`、受 Git 管理的 `output/` 验收附件，约 45 个候选分两批、6 个子 agent，主流程 16 分钟，`docs-check` 一次通过。运行顺畅，摩擦来自 agent 在三处绕开了规则，而规则没写理由：
-  - 执行前用 AskUserQuestion 问"成熟文档体系要不要全量收敛"并推荐轻量合并，与"全自动执行、工作区即审阅点"相反。converge-docs.md 补一句"候选数量与文档完善程度不改变做法"并带理由。
-  - 第二个分类子 agent 未返回就派出第一个执行子 agent，分类子 agent 随后遇到文件已被移走、回报的行号失效。分批规则补上理由：执行会移动文件，未完成的分类里的引用位置随即失效。
-  - 分类与执行子 agent 用裸 `grep -r` 查引用，被忽略目录 `.worktrees/`（完整仓库副本）与 `output/` 的 jsonl、日志灌满，四条结果各 33 万到 55 万字节。引用查找改为 `git grep -nF`，与候选清单的 `git ls-files` 对齐。
-  - 报告列了 5 个裁决项，3 个 agent 自己已有推荐（可选 ADR 不建、增量规则改动只需说明、scratchpad 副本不必留）。报告规则改为有推荐的直接执行并列为已决，只有无法推荐的才裁决；被删源文件用 `git show HEAD:<path>` 对照。media-glance 已出现同一模式。
-  - 顺手写明两处 agent 自行判断的做法：第 4 步在标记填完、模块页齐全且无缺 recipe 时跳过；full 入口包锁后用 `--collect-only` 之类确认测试集不变。
-  - 用户事后删掉了迁入 `docs/research/acceptance/assets/` 的全部截图、日志与 jsonl（约 1.9MB），只留链接文字并注明删除日期。是否把"验收记录的二进制附件不迁入、删除并注明"写成通用规则，只有一个样本，留待下一个项目再定。
-- **文档同步只加提示词层面的三道规则，不加机械检查与 hook**（2026-10-16 评估后定）：整条"随交付同步"链路是软约束，`docs-check` 查不出正文过时；最可能的断点是空项目里建页条件"有了可描述的行为和测试"是判断题，agent 会一直推迟，其次是 code-review 的标准轴没有文档项、implement-spec 的子 agent 简报不传同步链接。据此把建页条件改为"行为首次被测试覆盖"（第五轮 e2e review 时搁置的"模块页门槛"由此定案）、`CODING_STANDARDS.md` 加漏改模块页的判断项、`testing.md` 的 implement-spec 规则传递同步链接并写明文档冲突由 merger 处理。暂缓两项：`check_docs.py` 核对反引号路径只抓改名且进门禁后误报会逼 agent 删反引号，等真实项目出现路径腐烂再做；Stop hook 比较 diff 是唯一硬约束候选，但只对 Claude Code 生效且多轮任务里每次停下都被挡，等三道规则在真实项目仍漏改时再考虑。
-- **三个项目重构后的回收（2026-11-11）**。x-media-saver、media-glance、bangou 由本模板初始化后，同一天各自重构了文档架构，诊断一致：问题在粒度与路由，不在规则本身；重构后文档总量都没减少，降的是每个任务必须读入的量。派 15 个子 agent 按“规则层、架构与行为文档、文档工具、开发测试调研文档、重构历史”五个切面提炼，只回收至少两个项目独立做出、且对单项目新仓库成立的部分：
-  - `check_docs.py` 从查链接升级为查结构：全部文档须从 `AGENTS.md` 可达（取代只查模块页）、`docs/adr/` 与 `docs/research/` 逐文件登记索引、体量预算（单页 16 KB，单行或表格单元格 400 字符，research 与 adr 豁免）、模块页六节与行为规格四节的二级标题骨架。预算数值取 bangou 的；不设单节预算，因为模板自己的权威归属表就接近 x-media-saver 的 4 KB 单节上限。
-  - 不设逐页豁免名单：x-media-saver 建了又删，bangou 一开始就拒绝，media-glance 的“只许减小”名单在并行分支上会产生合并冲突。也不设只报告不失败的模式开关，bangou 迁移完就删了它，新项目没有迁移期。
-  - 标题骨架由“章节可按内容合并”改为全部必备且按序、无内容写一句白话（用户裁决）：x-media-saver 先上检查器后发现两条措辞与它矛盾，由用户裁决改掉；不强制就无法校验。行为规格取 x-media-saver 的严格四节，不取 media-glance 的“首尾固定、中间每项能力一个二级标题”，后者让检查器只能查首尾。
-  - ADR 索引初始化即建（用户裁决）：三个项目都自己建了，因为取代关系从文件名看不出。骨架随模板落地，检查器对 `adr/` 与 `research/` 用同一条“逐文件登记”规则，不必区分索引是否存在。frontmatter 取代关系的双向一致检查不做：ADR 格式由 Matt 的 domain-modeling 决定，本模板不解析它。
-  - 路由只留 `AGENTS.md` 触发表：删掉架构总览的“按任务阅读”，它与 docs-structure.md 的取舍自相矛盾，三个项目也都删了；触发表每行只指一个入口页，ADR 与调研声明为仅追溯时读，冷启动路径不再必经模块边界。
-  - 正文取舍原则与模块页瘦身：只写读代码得不到的内容，“代码与验证入口”不列源文件清单与测试用例名，“定位与阅读”开头固定负责、不负责、何时读三项；配预算的拆页规则（枢纽页加同名子目录子页，不留重定向页）。
-  - 历史证据：调研索引每条带状态、结论与去向、何时读；“永不改写”加唯一例外，被链接页面移动或拆分时只改链接目标，否则第一次拆页就与链接检查冲突。
-  - 测试与工作流补丁：以实际收集结果证明测试已接入；“已集成、core 通过”与“完整门禁通过”分开记录，最终门禁期间工作树不变；workflow 写明每道门禁证明与不证明什么、有无 CI。
-  - 模板自清理：待填标记清空后连同 `documentation.md` 的该节一起删；写进目标项目的“阶段 3 填入”“Matt setup”改为白话。`阶段3` 作为标记名不动。
-  - 未回收：bangou 的按子系统分区（monorepo 特有，它删模块边界页是因为各子系统被迫互读对方内容）、media-glance 的页头元数据加生成索引与整文件源码认领（依赖 893 行 Swift 专用脚本且无测试）、x-media-saver 的命令表与 justfile 双向核对和环境变量核对。功能地图保留：三个项目没有它只是因为分叉早于模板加它。
-  - 未做，留给后续：源码到文档的映射（已于同日补做，见下条“源码到文档的映射”）；文档漂移审计 skill（x-media-saver 的 `doc-audit` 与 media-glance 的 `docs-drift-audit` 是同一件事，适合做成用户级 skill）。workflow 命令表改为“只写注释看不出的约定”也未做：该表由各 stack 的 `stack.json` 单元拼出并有测试覆盖，初始化时与 justfile 一致，本次只补了“改 recipe 时同步上表”一句。
-  - 代价：模板的 `documentation.md` 增到约 13.8 KB，离自己的 16 KB 预算不远；项目往里加规则时需要拆页（media-glance 把随交付同步拆成了 `doc-sync.md`），本次不预先拆。
-- **源码到文档的映射取 bangou 的 `covers` 加只提示的 `docs-affected`，不做反向覆盖**（2026-11-11）：要解决的是“改了某个源文件，该看哪几页”，原先只靠随交付同步的文字规则让 agent 自己回忆。三个项目各做了一套：x-media-saver 让模块页逐个链接源文件并要求全覆盖，与模板“不写源文件清单”相反；media-glance 页头 `sources` 到符号粒度、每文件恰好一页认领，配套 894 行 Swift 专用脚本；bangou 是模块页 frontmatter 的 `covers` glob 加 67 行的 `docs-affected`。业界调研（子 agent，未逐一读源码）的结论是显式的代码到文档页映射不是主流：主流是就近放置或生成参考文档、CODEOWNERS 类路径到人的映射，以及 Cursor、Copilot、Kiro、Claude Code 规则文件用 frontmatter glob 按路径加载指令；做到“glob 认领加按 diff 检查”的只找到个人项目 codocia 与商业的 Swimm（片段粒度）。采纳 bangou 的形状，因为它最轻、与 stack 无关，glob 写在 frontmatter 的形式已被各 agent 工具普及。取舍：
-  - `--affected` 并进 `check_docs.py` 而不是另起脚本：existing 模式补缺的脚本仍只有一个，`docs-affected` 进命令契约，recipe 用 `--affected "$1"` 传基准。
-  - 默认基准 `HEAD`，只看未提交改动与未跟踪文件；改动已提交时由调用者传基准。不猜默认分支名。
-  - `docs-check` 只查每项 `covers` 至少匹配一个现存文件，防止代码移动后映射悄悄失效；不检查模块页必须声明 `covers`，由模板与补写规则引导填写。
-  - 不做反向覆盖（源码根下每个文件都须被认领）：唯一做了的 codocia 没有采用者，它还会与“首次被测试覆盖才建页”冲突，新项目一开始就红；源码根放进 `stack.json` 也要给三个 stack 各定一套布局约定。
-  - 不进门禁，退出码恒为 0：命中不等于必须改，强制会逼出“碰一下页面”的无效改动。主要成本是被标出却没读过的页要读一遍，这正是它要拦下的漏读；宽泛的 glob 会让提示变成噪声，所以正文写明只认领本页真正描述的范围。
-  - 这部分改变了 2026-10-16“不加机械检查”的结论：那次拒绝的是进门禁、会误报的检查与只对 Claude Code 生效的 hook，`docs-affected` 两者都不是。
-  - 验证范围：pytest 覆盖 covers 校验、`--affected` 在临时 git 仓库上的命中与标记、none 与 uv 两种 justfile 的 recipe 传参；未跑 e2e，真实 agent 是否按随交付同步运行它、模块页是否写出合适的 `covers` 待验收。
-- **2026-11-11 `uv-existing` e2e reviewer 指出的五处修正**（为验 `covers` 跑的那一轮，硬检查全过，问题都是 SKILL 原有的）：
-  - existing 模式已有 `test` recipe 不带路径会收集到 full 测试目录时，按“已有 recipe 正文不动”仍不改，但报告写明 `gate-core` 会不经主机锁跑 full 测试并列为票据候选；不改正文是因为收窄收集范围可能改变项目原有测试集。
-  - 展开描述时不把用户答案与代码事实拼成代码没有的能力：该轮 README 写出“可命令行录入”，再把这个自造的差异交用户裁决。
-  - 旧文档“冲突”限定为两者不能同时成立：手动 `uv build` 与 CI 构建可以并存，却被列为裁决项，与“有推荐就直接执行”相反。
-  - 迁入 tracker 的票据正文照录原句加来源，不扩写，优先级用默认值：该轮把“导出 CSV”扩写成一句需求并自定 P3、P4。
-  - 模板 `docs/INDEX.md` 的“按需创建的目录”清单改写为创建规则，不再是会随建目录过时的状态清单；原先建了 `operations/` 后该句就错了，与其让收敛步骤记得改它，不如让句子本身不过时。
-  - 未改 e2e harness：reviewer 还提到预置答案与 `AGENTS.md` 已有描述并存时以谁为准，这只在 harness 的非交互提示里出现，真实运行中 `AGENTS.md` 有描述时不会提问。改动后重跑 `uv-existing` 加 reviewer，硬检查全过，五处都按新规则执行（报告列出 full 收集风险、模块页写明“不能由用户记录条目”、两种构建方式并列判为已决、票据照录原句加来源、INDEX 句子不再列为过时）。该轮 reviewer 的新问题见下条。
-- **2026-11-11 第二轮 `uv-existing` reviewer 指出的七处修正**：
-  - existing 模式补 `test-full` 时，项目还没有 full 测试就照各 stack `recipes.just` 的做法（目录不存在提示并以 0 退出，存在而无测试失败），与“full 目录出现即收录”一致；“非零退出”只留给项目缺少对应工具的 recipe。“参考 `recipes.just`”从只管 `check-toolchain` 扩大到全部补写的 recipe。
-  - `docs-affected` 的基准参数改用 `{{base}}` 插值而不是 `"$1"`：后者依赖文件级 `set positional-arguments`，existing 项目的 justfile 不一定有，加上又会改变已有 recipe 的行为。补 recipe 时明确不加文件级设置。
-  - existing 模式不运行项目门禁，报告直接写“未运行”，不预测失败点：该轮报告推测“必然在 typecheck 失败”，而 lint 排在前面。
-  - 分类子 agent 的简报只给候选与规则，不附主 agent 的预判：该轮 prompt 里已写好“这些是约束类”“能并存”，分类失去独立性。
-  - 从代码补写时，推得出但没有测试覆盖的行为标“未验证”，类型标注不写成“必须”；模块边界只写观察到的依赖现状，不新增“不得……”规范。
-  - `CLAUDE.md` 的非 Agent-skills 节直接作为收敛候选，不先并入 `AGENTS.md` 再搬第二次。
-  - 源文档标了暂缓的待办，建票时用 tracker 的延后状态体现。
-  - 改动后第三轮 `uv-existing` 加 reviewer：硬检查全过，七处都按新规则执行（无 full 测试时提示并通过、`{{base}}` 且无文件级 `set`、报告写“未运行”、票据用延后状态、`CLAUDE.md` 一步分流）。该轮新提出的问题里只修了一条：第 4 步子 agent 在第 5 步补 recipe 前就填 `workflow.md` 命令表，按契约写出了已有 `test` 并不支持的参数。改为该节由主 agent 在第 5 步之后按 `just --summary` 与实际签名填写，签名与契约不一致时写实际用法、差异列为票据候选；未重跑 e2e。仍未处理：描述与代码的差距该不该记为模块页的已知差异，第 2 步与 document-code.md 说法不一；阶段 3 多跑了 `test-full`、`docs-affected`。
-- **功能地图是行为规格之上的索引层，不取代它**（2026-11-11）：起因是觉得 behavior 粒度太细，考虑改用社区的 feature-map。调研结论是两者分属两层：feature-map 类做法（`FEATURE-MAP.yaml`、`CODEMAP.md`）回答"有什么功能、落在哪"，没有统一标准；spec-driven 工具（OpenSpec 的 Requirement 加 Scenario、Kiro 的 EARS）的活规格粒度与行为规格相当或更细。只留地图时 agent 找得到位置却无法判断行为对错，`/acceptance` 也失去预期来源，所以行为规格不动。缺口是模块地图只有工程视角，"有哪些功能、行为写在哪"没有单一入口，因此在架构总览加一张功能地图表，每个功能一行并链接到行为规格。不建独立文件：只做索引的表放进已有总览不增加入口；登记时机沿用"首次被测试覆盖"，与模块页建页条件一致。`/acceptance` 仍直接扫描行为文档，不依赖这张表。
-- **skill 读写的项目合同独占一页**（2026-11-11）：`/prune-tests` 的测试分层合同与保留范围、`/acceptance` 的环境契约原先是 `workflow.md` 里的三节，skill 按节名读写。media-glance 实测改代码路径的共有必读量 16702 字符，其中这三节占 5632，而一般改代码任务用不上它们；存量项目还各自把某节移到了别处，skill 按节名找不到就在 `workflow.md` 重建，内容分叉。模板改为两张独占页 `docs/development/test-layers.md` 与 `local-acceptance.md`，skill 只认路径；`workflow.md` 只留命令与门禁。分层合同与保留范围合成一页而不是各占一页，因为它们是 `/prune-tests` 同一次运行的读和写。新页必须进文档图谱，不能只被 skill 读到：`test-layers.md` 由 `agents/testing.md` 入链，`local-acceptance.md` 由 `workflow.md` 开头的指路句入链，两页都登记在 `docs/INDEX.md` 入口分工表（模板没有 development 目录索引）与权威归属表。overlay 按节名替换的机制不变，分层正文从 `workflow.md` 的 overlay 移到同目录的 `test-layers.md` overlay；节名只是模板与 overlay 之间的内部约定，skill 不依赖它。
-- **真实 agent 验收用 headless harness，而不是再写一个测试 skill**：`tests/setup_project/e2e/` 在临时 Git 项目上造 fixture、起 `claude -p "/setup-project"`、做确定性检查并派 reviewer 会话，入口 `mise run e2e-setup-project`，做法见 [e2e.md](e2e.md)。`setup-matt-pocock-skills` 标了 `disable-model-invocation`，agent 无法调用，所以其产物用 fixture 模拟；阶段 1 第 4 步的提问在非交互下由预置答案代替，agent 在报告里列出"本应提问"供 reviewer 核对。它属于仓库维护层，不进门禁、不被 pytest 收集，因为需要模型额度且结果有判断成分。
+### 文档结构
+
+- **Matt setup 是前置而非内置**：`docs/agents/` 的三个文件由 Matt 的 setup 交互产生（tracker 选择与标签映射需要用户回答，Matt 的 skill 也会自行更新它们），本 skill 只检查存在。其 `## Agent skills` 块的三个指针已并入触发表，块由脚本移除。
+- **硬约束路径**（见 docs-structure.md）由其他 skill 按路径读写，其余目录可按项目调整。media-glance 把术语表放 `docs/glossary.md`、靠改写 `domain.md` 兜底，只对读过 `domain.md` 的 skill 生效，不采用。
+- **缺失才创建，不用软链接**：文档进入目标项目后随项目持续改写，软链接会让所有项目共享一份。只有空白的文件（如 `uv init` 的空 README）视为缺失。
+- **`AGENTS.md` 与 `docs/agents/testing.md` 按节合并**：`AGENTS.md` 与 Matt setup、用户共用，所以以二级标题为单位，缺的节追加、已有的节不动，重复运行无变更。`testing.md` 也合并，因为模板 `CODING_STANDARDS.md` 链接它的 `#分层`，项目自带 testing.md 时整文件跳过会让 docs-check 一开始就红（media-glance 实测）。同义节由 agent 并入模板标题，否则下次脚本会再追加模板节。
+- **项目名与空开头由脚本兜底**：项目名取 `--name`、`AGENTS.md` 一级标题、目录名，两个脚本同一规则，agent 不必记得传参；`AGENTS.md` 二级标题前没有内容（Matt setup 在空项目上的常态）时补模板开头，保证总有标题与 `初始化` 标记。
+- **`<待填 时机：说明>` 协议**：初始化不编造项目内容，留显式标记并注明可填时机（`初始化`、`阶段3`、`首个模块`、`按需`；`阶段3` 是“工具链落地后”的标记名，不随 SKILL.md 阶段编号变动）。用户在初始化时同样答不出架构类问题，所以只问一句话描述。不另建待填清单文件：grep 即清单，独立文件会漂移；grep 用带时机前缀的精确 pattern，规则正文里的 `<待填` 字样不自命中，“全部消失后自删”才可能触发。none stack 的 `阶段3` 标记由 none overlay 改写为 `按需`，不残留诱导编造的标记。
+- **`AGENTS.md` 只放指针**：触发表唯一，细则进正文，retro 产出的规则落 `CODING_STANDARDS.md`。已有项目里用户自写的细则节（如发布流程）也在收敛步迁入正文：否则防膨胀约束第一天就破例，正文里“有发布流程时填”这类标记也因内容在别处而永远填不上。约束类节并入常驻约束；能机械判定的代码规则也留在常驻约束并建议 lint 票据，因为 `CODING_STANDARDS.md` 只写工具查不出的判断类标准。
+- **目录取舍**（对比 x-media-saver、media-glance 两个项目的实践）：
+
+  | 分歧 | 选择 | 理由 |
+  | --- | --- | --- |
+  | 架构正文位置 | 全部在 `docs/architecture/`，根目录不放 `ARCHITECTURE.md` | x-media-saver 分散在三处；根目录只留生态按名查找的文件 |
+  | 产品规格与模块页 | 默认只有模块页，行为规格是其一章；`behaviors/` 按需 | 两棵“当前真相”树的交叉链接是单人项目的负担 |
+  | 用户可见行为目录名 | `behaviors/`，不用 `specs/` | Matt 的 implement-spec 与 code-review 把 spec 当增量规格；behaviors 与模块页“当前行为规格”同词 |
+  | 增量与归档 | tracker 为主，`changes/` 兜底、吸收后删除；不设 `archive/`、`plans/` | git 保留历史；归档层是 Beads 之前遗留文档的产物 |
+  | 研究与验收 | `research/` 常驻不归档，验收记录在 `research/acceptance/` | 证据自带时点，归档没有意义 |
+  | development 与 operations | 以“改代码还是跑产物”划分；无可部署产物时不建 `operations/` | Docker 的 build 归 development、run 归 operations |
+
+- **三个项目重构后的回收**：x-media-saver、media-glance、bangou 由本模板初始化后各自重构了文档架构，诊断一致：问题在粒度与路由，不在规则本身；重构后文档总量都没减少，降的是每个任务必须读入的量。只回收至少两个项目独立做出、且对单项目新仓库成立的部分：
+  - `check_docs.py` 从查链接升级为查结构：全量可达、`adr/` 与 `research/` 逐文件登记索引、体量预算、标题骨架。预算取 bangou 的数值；不设单节预算，因为模板的权威归属表本身就接近 x-media-saver 的 4 KB 单节上限。
+  - 标题骨架全部必备且按序、无内容写一句白话（用户裁决）：不强制就无法校验。行为规格取 x-media-saver 的严格四节，不取 media-glance 的“首尾固定、中间每项能力一节”，后者让检查器只能查首尾。
+  - ADR 索引初始化即建（用户裁决）：三个项目都自己建了，因为取代关系与“哪些仍有效”从文件名看不出；骨架随模板落地，检查器对 `adr/` 与 `research/` 用同一条规则。
+  - 路由只留 `AGENTS.md` 触发表：三个项目各有两到三张表且行会漂移，重构时都删掉了总览里的第二张；触发表每行只指一个入口页，ADR 与调研声明为仅追溯时读。
+  - 正文只写读代码得不到的内容，“代码与验证入口”不列源文件清单与测试用例名；配预算的拆页规则（枢纽页加同名子目录，不留重定向页）。
+  - 调研索引每条带状态与何时读；历史证据不改写，唯一例外是被链接页面移动或拆分时改链接目标，否则第一次拆页就与链接检查冲突。
+  - 写进目标项目的“阶段 3 填入”“Matt setup”等内部说法改为白话。
+- **功能地图是行为规格之上的索引层，不取代它**：feature-map 类做法回答“有什么、在哪”，行为规格回答“做了之后应观察到什么”，后者是 `/acceptance` 的预期来源；只留地图时 agent 找得到位置却判断不了行为对错。地图做成架构总览里的一张表而非独立文件，登记时机沿用“首次被测试覆盖”。
+- **skill 读写的项目合同独占一页**：`/prune-tests` 的分层合同与保留范围、`/acceptance` 的环境契约原先是 `workflow.md` 里的三节，skill 按节名读写。media-glance 实测改代码任务的共有必读量 16702 字符，这三节占 5632 而一般任务用不上；存量项目各自移动了某节，skill 按节名找不到就在 `workflow.md` 重建，内容分叉。现为 `test-layers.md` 与 `local-acceptance.md` 两页，skill 只认路径；分层合同与保留范围同页，因为它们是 `/prune-tests` 同一次运行的读和写。两页必须进文档图谱：`test-layers.md` 由 `agents/testing.md` 入链，`local-acceptance.md` 由 `workflow.md` 入链，都登记在 `docs/INDEX.md`。
+- **源码到文档的映射取 bangou 的 `covers` 加只提示的 `docs-affected`**：要解决的是“改了某个源文件，该看哪几页”。三个项目各做了一套：x-media-saver 要求模块页逐个链接源文件（与“不写源文件清单”相反），media-glance 到符号粒度且配 894 行 Swift 专用脚本，bangou 是 frontmatter 的 `covers` glob 加 67 行脚本。业界调研显示显式的代码到文档映射不是主流，frontmatter glob 按路径加载规则的形式已被各 agent 工具普及；采纳 bangou 的形状，因为最轻且与 stack 无关。
+  - `--affected` 并进 `check_docs.py`，existing 模式补缺的脚本仍只有一个。默认基准 `HEAD`（未提交改动与未跟踪文件），不猜默认分支名。
+  - `docs-check` 只查每项 `covers` 至少匹配一个现存文件，防止代码移动后映射悄悄失效；不强制模块页声明 `covers`。
+  - 不进门禁、退出码恒为 0：命中不等于必须改，强制会逼出“碰一下页面”的无效改动。
+- **文档同步靠提示词层面的规则加一个只提示的命令**：`docs-check` 查不出正文过时。最可能的断点是空项目里建页条件若是判断题（“有了可描述的行为”），agent 会一直推迟，所以改为“行为首次被测试覆盖”；另有 `CODING_STANDARDS.md` 的漏改模块页判断项供 code-review 捞出，`testing.md` 的 implement-spec 规则把同步链接传给 implementer 与 merger。已积累的正文漂移由用户级 `/docs-audit` 核对，不进模板。
+
+### 收敛已有文档与从代码补写
+
+- **两步都交子 agent，主 agent 只收尾**：分类要通读全文，所以用通用子 agent 而非只读片段的检索型；合并与补写是重活，经主 agent 转写没有意义，由可写子 agent 直接写文件。主 agent 负责链接、索引、票据与复核。
+- **分类独立**：简报只给候选与规则，不附主 agent 的预判（e2e 中 prompt 里已写好“这些是约束类”，分类失去独立性）。
+- **分批先全部分类再执行**：执行会移动文件，x-media-saver 运行时第二个分类子 agent 未返回就开始执行，回报的引用位置随即失效。目标文件重叠的批串行，各批预分配 ADR 编号段。
+- **引用查找用 `git grep -nF`**：x-media-saver 运行时裸 `grep -r` 扫进被忽略的 `.worktrees/` 与 `output/`，单次结果 33 万到 55 万字节。
+- **候选扩到标准结构内**：`docs/research/` 直接子级的验收记录（media-glance 的 8 份 `*-integration.md` 原先没被分类）、骨架不符或超预算的已有页、未登记索引的文件。已有模块页按模板重排，原小标题降为三级保留锚点（media-glance 用户选择迁移）。
+- **`CLAUDE.md` 的非 Agent-skills 节直接作为候选**，不先并入 `AGENTS.md` 再搬第二次；最后只留 `@AGENTS.md`。
+- **合并不丢内容**：只有“已被吸收”“明显过时”可删并须引用依据；“冲突”限定为两者不能同时成立（e2e 中手动 `uv build` 与 CI 构建可以并存，却被列为裁决项）。术语只迁项目特有条目（media-glance 运行时 86 条全部迁入，用户删减 47 条）。票据照录原句加来源、优先级用默认值、暂缓项用延后状态（e2e 中“导出 CSV”被扩写成需求并自定 P3、P4）。ADR 背景与后果只用原话。
+- **补写只写代码可证实的内容**：推得出但无测试覆盖的标“未验证”，类型标注不写成“必须”，模块边界只写观察到的依赖现状、不新增“不得……”规范，不补常识性环境说明、不把脚手架布局当代码事实；冲突记为已知差异，术语与 ADR 只报告。展开描述时不把用户答案与代码事实拼成代码没有的能力（e2e 中 README 写出“可命令行录入”，再把自造的差异交用户裁决）。
+- **`workflow.md` 的命令与门禁由主 agent 在补齐 task 之后按实际用法填写**：补写子 agent 早于补 task 运行，按契约写会写出已有 `test` 并不支持的参数。缺少 task 的实现建议并入补写子 agent，因为它本来就要读这些配置。
+
+### 工具链与门禁
+
+- **项目是 stack 的集合，不按组合枚举**：每个 stack 在 `toolchain/stacks/<name>/` 自包含，脚本拼合 `mise.toml` 与文档。按 uv-node 这类组合各写一份时偏好改一处要同步多处，加 swift 后组合数爆炸。
+- **按文件证据判定，已有工具链不改动**：判定不出时退出码 3 交用户多选。existing 模式只补依赖偏好，以及两个与 stack 无关的标准库脚本：不补 `check_docs.py` 的话 `docs-check` 只能是空壳，不补 `with_lock.py` 的话已有项目的 full 测试入口永远拿不到主机锁。配套只允许对已有 task 做两种最小改动（`gate-core` 追加依赖、full 入口包锁），命令不改；已有 core 命令会收集 full 测试时也不改，因为收窄收集范围可能改变项目原有测试集，改为报告风险并列票据候选。existing 模式不运行项目门禁：本次没改代码，其红绿与初始化无关；报告写“未运行”，不预测失败点。
+- **工具链分层：系统包管理器 → mise → 其余工具**：按用户统一的依赖管理规范，mise 由 Homebrew/APT 安装，uv、node、pnpm 由 mise 提供；项目只钉对版本敏感的工具，`mise.lock` 锁精确版本，Python 由 uv 按 `.python-version` 管理。各 stack 的钉版本合并成一份根 `mise.toml`，`mise install`、`mise lock` 在所有 stack 安装前统一执行一次，避免多 stack 时多份配置冲突。缺 mise 的提示只给系统包管理器的装法。
+- **命令契约是 mise task，不再是 justfile**：用户决定工具、环境变量与 task 都经 mise 管理，目标项目不依赖 just；不兼容也不迁移已由 justfile 初始化的项目，`justfile` 不再作为已有工具链的证据。拥抱 mise 的默认行为，不在其上再包一层：
+  - 各 stack 实现为 `mise-tasks/<stack>/` 下的 file task，名称空间 `<stack>:<name>`，参数直接进 `$@`。
+  - 公开 task 只用 `depends` 聚合，默认并行；用户接受门禁子任务并行（core 本就要求可并行，full 由主机锁排队）。只有 `depends` 的 task 静默忽略参数，所以定向一律调 stack task。
+  - `check-toolchain` 不核对 mise 管理的工具版本：`mise run` 会自动安装缺失工具并放进 PATH，用户接受这种自动安装。
+  - 锁落在 `<stack>:test-full` 而不是公开 task：公开 task 只有 `depends`、没有命令可包；这样公开入口与定向运行都持锁。
+  - 任何新项目都生成根 `mise.toml`（`[tools]` 可为空），契约入口在所有项目一致。
+  - existing 模式用 `tomllib` 读配置判断缺少的 task，不调用 mise，免得执行需要 trust 的配置代码；读不到的引入方式由 agent 用 `mise tasks` 复核，不替用户 trust。
+  - 不运行也不要求 `mise trust`：mise 默认（非 paranoid）下只含普通 `[tools]`、`[tasks]` 的配置不需要 trust，`mise run`、`mise install`、`mise exec` 还会自动 trust 当前配置。
+- **门禁契约固定，实现可换**：所有项目共用同一组公开 task 名；none 的 task 非零退出而非留空，沿用 Beadwork 的“验证未实现必须失败”。core/full 定义写进目标项目文档正文，不只放 `mise.toml` 注释。
+- **两道门禁，不按测试种类加层**：评估过“单元、集成、系统、真实环境验收”四层方案后未采纳。门禁数量跟触发时机走，流程里只有单 ticket、最终集成、发布前三个时机，对应 `gate-core`、`gate-full` 与 `/acceptance`；集成测试与系统测试都进 full。某个项目的镜像构建让 `gate-full` 慢到影响最终集成时，在该项目内单加 task。模板里“验收”只指 `/acceptance`。
+- **full 用主机锁而不是“ticket 阶段只写不跑”**：x-media-saver 的做法让 red → green 对 full 缺失、问题堆到最后，implementer 也有动机绕过规则；加主机级 `flock` 后 implementer 可定向跑自己的 full 测试并自动排队。选主机级而非仓库级，因为桌面与端口是主机资源，各 worktree 的编译产物都在自己目录内。full 不因“已隔离”而放开并行：是否真的隔离容易判断错。`with_lock.py` 由父进程持锁、子进程运行命令，原先锁 fd 可继承且 `execvp`，测试留下的后台进程会一直占锁；终端前台时不重复转发 SIGINT，避免 pytest 类 runner 收到两次 Ctrl-C 硬中止。
+- **implement-spec 的门禁靠触发词、审查项与主机锁，不加常驻约束**：规则正文在 `testing.md`，由触发表“执行 `implement-spec`”命中；分层归属的把关写进 `CODING_STANDARDS.md`，由 implement-spec 末尾的 code-review 检查。不复制 x-media-saver 的 6 条长版（通用流程常识）与收录表（与分层表重复）。
+- **full 按各 stack 自己的测试文件判定，出现即收录**：`tests/full/` 不存在时提示并通过，有该 stack 的测试文件而零收集则失败，既不让新项目的 gate-full 长期红灯，也不给 skip 留口子。按目录判定会让 uv+swift 共用 `tests/full/` 时任一方加测试就令另一方失败。
+- **swift 只落 SwiftPM package，仅支持 macOS**：`.xcodeproj` 无法可靠模板化。`swift test` 零匹配退出 0，所以 task 自己检查零匹配；`tests/full/` 需要在 Package.swift 声明 target，否则 SwiftPM 对空目录 target 每次构建都告警。新项目选 swift 时检查 PATH 上的 `xcodebuild`（task 实际依赖的命令，而非平台名，测试可用替身覆盖）；existing 模式不检查，Linux 上用 swift.org 工具链的已有项目仍可补文档。
+- **前端 stack 是 Node + pnpm，只落工具链**：直接替换原 Bun stack，不并存两套前端偏好。mise 管理 Node 与 pnpm 的版本 line，不写 `packageManager` 字段，版本来源只有 `mise.toml`；Node 没有内置 TOML 解析，版本自检用正则读 `mise.toml`。React、Vite、Tailwind CSS、shadcn/ui、React Testing Library 作为固定选型只写进依赖政策：空项目里的页面骨架是编造内容，且 shadcn 的初始化依赖项目自己的别名与样式入口。`bun.lock` 不是判定证据。Biome 排除 `.beads/` 并启用 `vcs.useIgnoreFile`：`bd init` 写出的 `metadata.json` 无末尾换行，否则 node 单 stack 初始化完 lint 即红。
+- **安装失败返回 1 但不中止流程**：new 模式先落地再安装，失败后重跑会被判为 existing 而静默跳过安装，所以提示用户直接 `mise run install`。
+- **运行时 Python 下限 3.14**：skill 脚本与复制到目标项目的脚本都按 3.14+ 标准库编写，不为旧版本做兼容；代价是缺少 3.14 的机器在解析阶段报语法错误。
+- **共用政策只写一次**：依赖政策的通用部分（最少依赖、需要该能力时才按优先选型、批量升级后跑完整门禁）放公共 overlay，stack 片段只写各自选型，多 stack 时不再重复 N 份；独占资源清单只登记在 `test-layers.md`，`testing.md` 的 overlay 只给各 stack 的测试位置。
+- **技术偏好只进 stack 片段，项目特有内容不进模板**：参考项目的 structlog 接线、Chrome 扩展、libmpv、Docker、CI 不搬，搬的是工具链路线、依赖政策与新增依赖偏好清单。“依赖政策”节会被 existing 模式复制，所以只写对任何项目都成立的偏好。
+- **模板目录从本仓库的 pytest 与 Ruff 中排除**：`toolchain/` 下的 `pyproject.toml` 与测试文件是复制到目标项目的模板。
+
+### 验收 harness
+
+- **真实 agent 验收用 headless harness，而不是再写一个测试 skill**：`tests/setup_project/e2e/` 在临时 Git 项目上造 fixture、起 headless 会话执行 `/setup-project`、做确定性检查并派 reviewer，做法见 [e2e.md](e2e.md)。`setup-matt-pocock-skills` 标了 `disable-model-invocation`，其产物用 fixture 模拟；提问在非交互下由预置答案代替。属于仓库维护层，不进门禁，因为需要模型额度且结果有判断成分。
 
 ## 明确不做
 
-- 不生成模块页、ADR、调研文件的实例；这些由 Matt 的 skills 或日常迭代惰性创建。
-- 不为项目创建 `CLAUDE.md`：Claude Code 直接读取 `AGENTS.md`。`CLAUDE.md` 已存在时其中 `## Agent skills` 之外的各节直接作为收敛候选分流（2026-11-11 前是先并入 `AGENTS.md` 再分流），最后只留一行 `@AGENTS.md`，不丢弃用户内容。
+- 不生成模块页、ADR、调研文件的实例；由 Matt 的 skills 或日常迭代惰性创建。
+- 不为项目创建 `CLAUDE.md`：Claude Code 直接读取 `AGENTS.md`。
+- 不设 `archive/`、`plans/`，不设逐页体量豁免名单（x-media-saver 建了又删，media-glance 的“只许减小”名单在并行分支上产生合并冲突），不设只报告不失败的检查模式（新项目没有迁移期）。
+- 不做 ADR frontmatter 取代关系的双向一致检查：ADR 格式由 Matt 的 domain-modeling 决定。
+- 不做反向覆盖（源码根下每个文件都须被 `covers` 认领）：它与“首次被测试覆盖才建页”冲突，新项目一开始就红，且要给每个 stack 定源码布局约定。
+- 未回收：bangou 的按子系统分区（monorepo 特有）、media-glance 的页头元数据加生成索引（依赖专用脚本且无测试）、x-media-saver 的命令表与 task 双向核对和环境变量核对。
+- 暂缓，等真实项目出现问题再做：`check_docs.py` 核对反引号路径（只抓改名，进门禁后误报会逼 agent 删反引号）；Stop hook 比较 diff（只对 Claude Code 生效，多轮任务每次停下都被挡）；阶段 0 校验 Matt 产物里的链接。
+- 不兼容、不迁移由 justfile 契约初始化的项目。
 
 ## 待验收
 
-验收方式见 [e2e.md](e2e.md)。2026-10-12 用 opus 跑通 `empty` 与 `uv-existing` 两个用例，硬检查全部通过，reviewer 七问无"有问题"级别的偏离；结论与发现：
+总体状态：2026-11-23 命令契约迁到 mise task 之后，没有跑过任何真实 agent 的 e2e；此前各轮 e2e（`empty`、`uv-existing` 等，最多到全部六个用例加 `--rerun`）与 media-glance、x-media-saver 两次真实 existing 运行的结论已固化进上面的决策。脚本行为由 pytest 覆盖；以下是仍未经真实 agent 或真实项目验证的部分。
 
-- 已验收：提问只发生一次且内容正确；同义节 `## 约束` 与 `CLAUDE.md` 的 `## 代码风格` 并入 `## 常驻约束` 且措辞未改，自定义节 `## 发布流程` 原样保留，`CLAUDE.md` 收口为 `@AGENTS.md`；旧文档 `old-notes.md` 拆成 ADR 与两张 `needs-triage` 票据、`setup.md` 并入 workflow 后删除；模块页与架构总览只写代码可证实的内容，AGENTS 要求的 JSON 持久化未实现被记为已知差异；缺少的 recipe 补齐且 `just --summary` 可解析；new 模式末尾 `gate-core` 真实通过。
-- 首轮发现并已修（2026-10-12，待第二轮 e2e 复验）：AGENTS.md 空开头补模板头、空文件视为缺失、项目名取 AGENTS.md 标题（脚本）；existing 模式补缺 `check_docs.py` 并由 `docs-check` 调用（脚本与 toolchain.md）；`check-toolchain` 不得触发同步、参考 `recipes.just`（toolchain.md 与 SKILL.md）；看似冲突的旧文档内容只合并不丢弃、删除须引用依据（converge-docs.md）；uv 与 bun 的依赖偏好片段去掉模板配置事实（overlay）；描述只填有标记处、AGENTS.md 已有描述保留、展开不写初始化流程、退出码 3 时直接带 `--stacks`（SKILL.md）；配置里看出的缺口进报告不进正文（document-code.md）；子 agent 简报去掉无法执行的"中等思考强度"。第二轮 `empty` 复验通过后再补三处：`init_docs.py` 末尾打印仍含 `初始化` 标记的文件（阶段 1 第 4 步的提问条件直接读它，不再让 agent grep）、"空项目"的脚手架列全、"不写初始化流程本身"改为不描述 setup-project 自己的步骤。
-- 同日定案并已改：`AGENTS.md` 的用户自写节纳入收敛候选（第二轮 e2e 发现 agent 只照 `git ls-files` 命令执行而漏掉这些节，于是补了列二级标题的第二条命令、明确迁出后删除原节、`CLAUDE.md` 并入的节同样分流、约束类再按"影响流程还是只影响代码写法"分到常驻约束或 `CODING_STANDARDS.md`、疑点只进报告、ADR 后果只写有依据的；`testing.md` 模板的"带主机锁"改为以 workflow 为准，因为 existing 模式没有 `with_lock.py`）。第三轮复验 B 通过：`## 发布流程` 迁入 `docs/operations/`、原节删除、触发表加行、workflow 发布标记填上；随后再按 review 补三点：能机械判定的代码规则留常驻约束并建议 lint 票据而不是进 `CODING_STANDARDS.md`（与该模板"只写判断类标准"一致）、existing 模式的依赖偏好要与常驻约束对照删冲突项、GLOSSARY 标记去掉"为什么存在"以免逼出编造。第四轮两个用例硬检查全过（`empty` 33/33，`uv-existing` 37/37），review 只剩 ADR 措辞推断之类的轻微项；据此再补 ADR 背景只用原话、源文件每句落地后才删、按需目录登记 INDEX 三条措辞，未再跑第五轮，约束类留下并入常驻约束，细则类整段迁入对应正文、触发表加行、"按需"标记用链接填（converge-docs.md 与 SKILL.md）；待第二轮 e2e 复验。
-- 第五轮跑剩余四个用例并加 `--rerun`：`bun-new-with-code` 31/31、`swift-existing` 24/24、`uv-bun-new` 29/29 全过且幂等复跑无变更；`none-empty` 唯一 FAIL 来自 harness 自己的 fixture（无 triage 时 tracker 文件仍引用 `triage-labels.md`），已修。随 review 补：none 没有安装步骤时脚本与报告写"无安装命令"、证据标准禁止常识性环境说明与把脚手架布局当代码事实、INDEX 模板的"标签"措辞按 triage 是否存在。未采纳的建议（模块页门槛、existing 无 justfile 时 testing.md 的 just 段落处理、阶段 0 校验 Matt 产物链接）留待真实项目出现再定。
-- 未验收：分批并行收敛时同一目标文件的串行处理（fixture 只有两篇旧文档，未触发分批）；uv+swift、node+swift 组合仍未真实跑通。
-- 已在 media-glance 上真实跑过 existing 模式（2026-10-12，session 2495c23b，opus，主流程约 15 分钟、7 个子 agent 约 72 万 token）：依赖偏好与常驻约束无冲突、缺少 recipe 的实现建议准确、`check_docs.py` 准确并暴露了 testing.md `#分层` 锚点缺陷；68 个文件的收敛结果经用户两轮裁决后提交。由此固化的七条规则见关键决策，尚未复跑 e2e 验证：testing.md 按节合并、existing 模式复制 `with_lock.py`、已有 gate 的最小改动、已有模块页重排、research 验收记录候选、术语删减、有描述不提问。x-media-saver 已于 2026-10-13 真实跑过（session 8b7d9721，见关键决策）：七条规则中 testing.md 按节合并、`with_lock.py` 补缺、已有 gate 的最小接线、有描述不提问四条在该次运行中生效且无摩擦；由该次运行新加的四条措辞（执行前确认、分批理由、`git grep`、裁决项只列无法推荐的）尚未复验，e2e 也没有超过 30 个候选、带附件与被忽略仓库副本的 fixture，无法自动复验。
-- uv+swift 的组合只经过脚本测试和子 agent 对渲染结果的 `just`、`swift build` 单项验证，没有真实跑通完整 `gate-core`/`gate-full`；node+swift 在换 stack 后未做任何真实验证；两者都在根目录时 `tests/core/` 会混放两种语言的测试文件。
-- node stack（2026-11-11）：单 stack 与 uv+node 两种新项目已在临时项目手工跑通脚本落地、真实安装与 `gate-full`（Node 26.13.0、pnpm 12.18.0、Vitest 5.1.0），并验证了路径定向、full 文件判定、零匹配非零退出与版本 line 不符时失败。未验收：e2e 用例 `node-new-with-code`、`uv-node-new` 未重跑；固定选型（React、Vite、Tailwind CSS、shadcn/ui、React Testing Library）只写在文档里，没有在真实项目中按文档加入并跑通门禁，Biome 对 Tailwind 指令与 shadcn 生成代码的兼容性未知；`vitest run -t` 零匹配时退出 0（只影响定向运行，门禁不接受筛选参数）。
-- 重写后的 `with_lock.py` 与动态 exclude 的 `Package.swift` 未在真实 full 测试场景下验收。
-- 真实开发会话里的文档同步没有任何数据：e2e 只覆盖初始化。下一个用模板初始化的空项目跑过三到五个改代码的任务后，回看是否在行为首次被测试覆盖时建了模块页、模块页是否随后续改动更新、完成报告是否列出文档影响；漏改的位置决定是否启用暂缓的 `check_docs.py` 路径核对或 Stop hook。
-- 功能地图（2026-11-11）只改了模板与规则文本，未跑 e2e：existing 模式下补写文档的子 agent 与主 agent 是否按代码填出功能地图、真实开发会话里新增功能时是否登记，都没有数据；并入上一条的真实项目回看。
-- 合同独占页（2026-11-11）：`just gate-full` 通过；e2e 跑了 `empty`、`none-empty`、`uv-existing` 三个用例（未加 `--review`、`--rerun`），硬检查全部通过，含两张新页的存在与入链。`uv-existing` 前两次只失败 `description:GLOSSARY.md`，原因在 harness：fixture 的 `AGENTS.md` 已有描述，流程不提问，GLOSSARY 由那句描述展开，而检查拿预置答案的四字片段去比，命中与否取决于措辞。`Case` 加 `existing_description`，这类用例改用 fixture 里的描述取片段，第三次运行通过。其余用例未跑；真实项目上的 `/acceptance` 与 `/prune-tests` 未在新路径下运行过。
-- 三个项目重构后的回收（2026-11-11）：`just gate-full` 通过，其中新增用例验证 none、uv、node、swift 与三 stack 组合渲染出的文档都通过新检查器。e2e 跑了 `empty`、`none-empty`（sonnet）与 `uv-existing`（opus），未加 `--review`、`--rerun`，硬检查全部通过：`uv-existing` 里迁出的 ADR 登记进了索引并填了状态与何时读，模块页六节齐全，新检查器对 21 篇文档通过。`empty` 首轮在 `gate-core` 的 lint 失败：`check_docs.py` 有一行超过 100 列，本仓库的 Ruff 忽略 E501 而 uv 模板不忽略；已拆行，并加测试用 uv 模板的 Ruff 配置检查 `toolchain/common/scripts/`。`uv-existing` 在该修复前运行，existing 模式不跑项目 lint，未重跑。未验收：fixture 太小，没有触发超预算拆页与骨架不符的旧页重排这两类新候选；400 字符的行预算在真实项目里是否过紧，真实开发会话里超预算时是否按规则拆页而不是删内容，都没有数据。已由旧模板初始化的项目不受影响，`check_docs.py` 缺失才复制。
-- `bd bootstrap`（2026-11-22）：只有替身 CLI 测试，未在真实新 clone 上跑过重跑 `/setup-project`，sync.remote 为 git 时的克隆耗时与需要的凭据未知；未跑 e2e。
-- mise 管理 uv（2026-11-22）：uv 单 stack 与 uv+node 两种新项目已在临时项目用真实 mise 跑通落地、`mise lock`、安装与 `check-toolchain`/`gate-core`；未跑 e2e，改过的 references、overlay 文本未经真实 agent 验证，macOS 上未实测。
-- mise task 契约（2026-11-23）：脚本测试通过；在临时项目用真实 mise（2026.11.12）手工跑过 uv+node 的 `gate-core` 与 `gate-full`（主机锁串行两个 stack 的 `test-full`，core 测试失败时 `gate-core` 非零）、swift 单 stack 的 `gate-core` 与 `gate-full`、none 的 `gate-core` 按设计失败。迁移后未跑真实 agent 的 `/setup-project` e2e，改过的 SKILL.md 阶段 2 第 5 步（`mise tasks` 复核、未 trust 时不替用户 trust、按文件补 task）、references、模板与 overlay 文本未经真实 agent 验证，existing 模式在真实项目补 task 没有数据。
-- Linux 适配（2026-11-19）：只在 Ubuntu 上跑过 `just gate-full`，未跑 e2e；改过的 SKILL.md 提问措辞、references 与 overlay 文本未经真实 agent 验证，swift 平台检查未在 macOS 上实测。
-
-## 演进记录
-
-| 日期 | 变更 | 依据 |
-| --- | --- | --- |
-| 2026-10-09 | 阶段 1.1 Beads 脚本 | beads-init-research.md |
-| 2026-10-11 | 阶段 2 文档结构：梳理 Matt skills 的全部读写路径，对比 x-media-saver 与 media-glance，确定目录树与渐进发现层次 | docs-structure.md |
-| 2026-10-11 | review 后补充：合并重复的路径表、`<待填>` 协议、讨论结论落点表、AGENTS.md 防膨胀约束、模块页创建时机 | docs-structure.md 持续维护机制一节 |
-| 2026-10-11 | 阶段 3：类型判定、四套工具链模板、justfile 契约、docs-check、文档正文替换；uv、bun、uv-bun 三种新项目真实跑通 gate-core | toolchain.md |
-| 2026-10-12 | 对照 x-media-saver 的 implement-spec 门禁提交：触发表加“执行 `implement-spec`”、CODING_STANDARDS 加测试分层审查项；否决其余 4 条通用行为约束进模板。新增 `test-full` 契约与 `scripts/with_lock.py` 主机锁，full 测试可在 ticket 阶段定向运行 | toolchain.md 主机锁 |
-| 2026-10-11 | 阶段 3 改为 stack 模块化：`--kind` 改 `--stacks` 多选，uv/bun 拆成独立模块并由脚本拼合 justfile 与文档，新增 swift stack（SwiftPM + swift-format + Swift Testing）；补回 x-media-saver 的通用偏好 | toolchain.md |
-| 2026-10-11 | 新增第 4 步从代码补写文档：范围、证据标准、子 agent 分派与复核 | document-code.md |
-| 2026-10-11 | 新增第 3 步收敛已有文档：候选范围、分类表、子 agent 简报与执行顺序 | converge-docs.md |
-| 2026-10-11 | 待填标记带时机前缀，常驻约束改为交付前主动扫描并自删，取消"询问用户"兜底 | 本文关键决策 |
-| 2026-10-11 | AGENTS.md 改为按节合并并移除 Matt 的 `## Agent skills` 块，triage 行随 `triage-labels.md` 存在与否 | 本文关键决策 |
-| 2026-10-12 | 运行时 Python 下限从 3.10 提到 3.14，移除 `from __future__ import annotations` | 本文关键决策 |
-| 2026-10-12 | 流程重排为脚本先行、agent 后置、末尾统一验证：`init_toolchain.py` 加 `--detect-only`、移除脚本内 `gate-core`；收敛执行交可写子 agent；`check_docs.py` 加根目录参数供 existing 模式调用；缺少 recipe 的建议并入补写子 agent；SKILL.md 删去复述脚本内部行为的段落 | 本文关键决策 |
-| 2026-10-12 | 全面探查修正 25 条：脚本（锚点、锁、安装失败、复制忽略、recipe 识别）、工具链（Biome/.beads、per-stack full 判定、bun flag、定向语义、swift lock 安装、check-toolchain 不下载、none overlay）、指令（提问条件、同义节、CLAUDE.md、已有代码定义、收敛顺序与并行、候选排除）、模板与仓库文档漂移 | 本文关键决策 |
-| 2026-10-12 | 按首轮 e2e 发现修 skill：脚本兜底项目名、空开头与空文件，existing 模式补 `check_docs.py`，契约与收敛规则补严，偏好片段去配置事实 | 本文关键决策与待验收 |
-| 2026-10-12 | 新增端到端验收 harness `tests/setup_project/e2e/`（`just e2e-setup-project`），首轮跑通 `empty` 与 `uv-existing`，发现 AGENTS.md 空开头、空 README、existing 模式 docs-check 三个缺口 | e2e.md、本文待验收 |
-| 2026-10-12 | 维护材料移出 skill 目录：测试移到 `tests/setup_project/`，本文与 beads-init-research.md 移到 `docs/skills/setup-project/`，skill 目录只保留运行时内容 | 根 AGENTS.md 三层结构 |
-| 2026-10-12 | media-glance 真实 existing 运行复盘：`init_docs.py` 按节合并 testing.md，existing 模式复制 `with_lock.py` 并允许已有 gate 的最小接线，收敛候选加入已有模块页与 research 验收记录，术语只迁项目特有条目，有描述不提问，报告列跳过步骤 | 本文关键决策 |
-| 2026-10-16 | 核对 Matt 的 to-spec、implement-spec、code-review 路径约定：增量 spec 走 tracker，code-review 兜底搜 `docs/` 整目录且按分支名匹配文件名，因此 `changes/` 不改名为 `specs/`；模板补 topic 用分支名或功能 slug | documentation.md 权威归属表 |
-| 2026-10-16 | 按需目录 `docs/specs/` 改名 `docs/behaviors/`，权威归属表补与增量 spec、`collaborations.md` 的分工 | docs-structure.md 取舍表 |
-| 2026-10-13 | x-media-saver 真实 existing 运行复盘：收敛不做执行前确认、分批先全部分类并写明理由、引用查找改 `git grep`、报告只把无法推荐的事项列为裁决、第 4 步跳过条件与包锁后的收集验证 | 本文关键决策 |
-| 2026-10-16 | 为 acceptance skill 补模板：`workflow.md` 新增环境契约节（`按需` 标记，列出启动停止、数据、可写目录、观测手段、禁区）；`documentation.md` 新增行为规格模板，behaviors 与模块页用户可见部分同骨架。existing 模式不合并 workflow.md，缺节由 acceptance 起草 | [acceptance 设计说明](../acceptance/design.md) |
-| 2026-10-16 | 评估模板能否约束项目 agent 随交付同步文档：建页条件改为行为首次被测试覆盖、`CODING_STANDARDS.md` 加漏改模块页判断项、implement-spec 规则传递同步链接；`check_docs.py` 路径核对与 Stop hook 暂缓，真实项目文档同步列入待验收 | 本文关键决策与待验收、docs-structure.md 持续维护机制 |
-| 2026-10-17 | 为 prune-tests skill 补模板：`workflow.md` 新增保留范围节（`按需` 标记，精简后记录各层保留范围与不再维护的类别）；`testing.md` 编写与变更加一条，精简测试按 `/prune-tests` 执行 | [prune-tests 设计说明](../prune-tests/design.md) |
-| 2026-11-11 | 前端 stack 由 Bun 换为 Node + pnpm：`toolchain/stacks/bun/` 改为 `node/`，mise 管理 Node 与 pnpm，Vitest 取代 `bun test`，判定证据改为 `pnpm-lock.yaml`；React、Vite、Tailwind CSS、shadcn/ui、React Testing Library 作为固定选型写入依赖政策，不落应用骨架 | 本文关键决策与待验收、toolchain.md |
-| 2026-11-11 | 测试分层用词统一：`testing.md` 标题改为“测试设计与门禁”并补层的划分标准与“验收”只指 `/acceptance`，`gate-full` 注释改为“完整门禁”，环境契约标记补验收专用数据；分层结构不变 | 本文关键决策、[acceptance 设计说明](../acceptance/design.md) |
-| 2026-11-11 | 架构总览模板新增功能地图表（功能、一句话说明、行为规格链接、涉及模块），`documentation.md` 权威归属表与随交付同步补登记规则，文档索引、docs-structure.md、document-code.md 同步；行为规格与 `behaviors/` 不变 | 本文关键决策与待验收、docs-structure.md 取舍表 |
-| 2026-11-11 | 模板新增 `docs/development/test-layers.md`（分层合同与保留范围）与 `local-acceptance.md`（环境契约），`workflow.md` 删去对应三节只留指路句；overlay 的分层正文移到 `test-layers.md`；`CODING_STANDARDS.md`、`testing.md`、文档索引、权威归属表、docs-structure.md、toolchain.md 的入链与说明同步；e2e 确定性检查加两页存在与入链 | 本文关键决策、[acceptance 设计说明](../acceptance/design.md)、[prune-tests 设计说明](../prune-tests/design.md) |
-| 2026-11-11 | 回收 x-media-saver、media-glance、bangou 重构后的通用做法：`check_docs.py` 加全量可达、索引登记、体量预算、标题骨架；模板加取舍原则、拆页规则、自动检查节、ADR 索引骨架、调研索引状态列，删架构总览的按任务阅读；收敛与补写规范同步 | 本文关键决策与待验收、docs-structure.md |
-| 2026-11-12 | 文档漂移审计做成用户级 `/docs-audit`，不进模板：`documentation.md` 自动检查节末句加一句指路，skill 读模板的 `covers`、`docs-affected`、随交付同步与拆页规则 | [docs-audit 设计说明](../docs-audit/design.md) |
-| 2026-11-12 | 模板 AGENTS.md 常驻约束与用户级规则对齐措辞：交付范围改为兼容与迁移先说明影响、获批准后纳入（原为仅在明确要求时纳入），补抽象等到第二个使用者；语言规则补代码注释等范围，保证读不到用户级规则的 agent 与协作者写出一致语言；随交付同步一行不变 | 无 |
-| 2026-11-19 | 适配 Linux：模板、报错与 references 去掉 Homebrew 专属措辞；新项目选 swift 而缺少 `xcodebuild` 时脚本拒绝落地，SKILL.md 提问时非 macOS 不提供 swift | 本文关键决策 |
-| 2026-11-20 | `test-layers.md` 模板与 toolchain.md 的 full 层说明补一句：浏览器测试以开发依赖引入 Playwright，用自带 Chromium、headless、独立 context；未跑 e2e | `global/AGENTS.md` 浏览器测试节 |
-| 2026-11-22 | kototoki 重跑复盘：`init_toolchain.py` 对不支持 `--affected` 的已有 `check_docs.py` 打印做法提示；SKILL.md 报告规则加一句，项目约定与标准结构冲突时列为裁决项；未跑 e2e | 本文关键决策 |
-| 2026-11-22 | grok-media-saver `/prune-tests` 复盘：`init_beads.py` 已有 `.beads` 时改为 `bd bootstrap --yes` 并设 0700；模板 AGENTS.md 票据行加 `no beads database found` 的恢复命令；未跑 e2e | 本文关键决策 |
-| 2026-11-22 | 按统一依赖管理规范改为 mise 管理 uv：uv stack 生成并钉 `mise.toml` 的 `uv = "0.13"`，各 stack 的钉版本合并成根 `mise.toml`，`mise trust/install/lock` 统一前置；uv、node 的 recipe 直接调用工具（mise 按目录切换），`check-toolchain` 核对版本 line，只有 `install` 在 `mise install` 后经 `mise exec --` 调用；模板、references 与报错去掉 Homebrew/官方脚本装 uv、just 的说法；未跑 e2e | 本文关键决策 |
-| 2026-11-23 | 目标项目的命令契约从 justfile 改为 mise task：根 `mise.toml` 总是生成，公开 task 以 `depends` 并行聚合各 stack 的 `mise-tasks/<stack>/` file task，定向走 `<stack>:<name>`，`<stack>:test-full` 自持主机锁，`check-toolchain` 不再核对 mise 管理的版本，existing 模式按文件读取 task；SKILL.md、references、模板与 overlay 同步；未跑 e2e | 本文关键决策与待验收、toolchain.md |
-| 2026-11-23 | harness 中立化：收敛与补写的子 agent 简报去掉“非 Fable 模型”（由用户级规则约束），Explore 改为通用描述；收敛候选排除的工具目录补 `.agent`、`.gemini`、`.grok`；e2e reviewer 读 `~/.agents/skills` 下的 skill；未跑 e2e | 用户当日确认 |
+- **mise task 契约**：在临时项目用真实 mise 手工跑过 uv+node 的 `gate-core`/`gate-full`（主机锁串行两个 stack 的 `test-full`，core 失败时 `gate-core` 非零）、swift 单 stack 的两道门禁、none 的 `gate-core` 按设计失败。未验证：SKILL.md 阶段 2 第 5 步与 toolchain.md 的补齐契约 task（`mise tasks` 复核、未 trust 时不替用户 trust、按文件补 task）在真实 agent 与真实项目上的表现；改过的模板与 overlay 文本。下次 e2e 至少跑 `empty`、`uv-existing`、`none-empty`。
+- **多 stack 组合**：uv+swift 只经过脚本测试与渲染结果的单项验证，没有真实跑通完整门禁；node+swift 没有任何真实验证；两者都在根目录时 `tests/core/` 混放两种语言。动态 exclude 的 `Package.swift` 未在真实 full 测试场景下验收。
+- **node stack**：单 stack 与 uv+node 新项目手工跑通过落地、安装与 `gate-full`；e2e 用例 `node-new-with-code`、`uv-node-new` 未在换 stack 后跑过。固定选型没有在真实项目中按文档加入并跑通门禁，Biome 对 Tailwind 指令与 shadcn 生成代码的兼容性未知。`vitest run -t` 零匹配时退出 0（只影响定向运行，门禁不接受筛选参数）。
+- **收敛的大规模分支**：分批并行时目标文件重叠的批串行处理、超预算拆页、骨架不符的旧页重排，fixture 都太小未触发。x-media-saver 运行后加的四条措辞（不做执行前确认、分批理由、`git grep`、裁决项只列无法推荐的）未复验，e2e 没有超过 30 个候选、带附件与被忽略仓库副本的 fixture。
+- **验收记录的二进制附件**：x-media-saver 用户事后删掉了迁入 `research/acceptance/assets/` 的截图、日志与 jsonl（约 1.9 MB），只留链接文字。是否写成“二进制附件不迁入、删除并注明”的通用规则，等第二个样本。
+- **描述与代码的差距**：用户描述与代码现状不一致时是否记为模块页的已知差异，SKILL.md 阶段 2 第 2 步（不拼成代码没有的能力）与 document-code.md（只记旧文档与代码的冲突）都没有明说。
+- **真实开发会话里的文档同步**：e2e 只覆盖初始化。下一个用模板初始化的空项目跑过三到五个改代码的任务后回看：是否在行为首次被测试覆盖时建了模块页并登记功能地图、模块页是否随后续改动更新、是否写出合适的 `covers` 并运行 `docs-affected`、完成报告是否列出文档影响、400 字符行预算是否过紧、超预算时是拆页还是删内容。漏改的位置决定是否启用暂缓的路径核对或 Stop hook。
+- **合同独占页**：真实项目上的 `/acceptance` 与 `/prune-tests` 未在 `test-layers.md`、`local-acceptance.md` 新路径下运行过。
+- **`bd bootstrap`**：只有替身 CLI 测试，未在真实新 clone 上重跑 `/setup-project`；`sync.remote` 为 git 时的克隆耗时与所需凭据未知。

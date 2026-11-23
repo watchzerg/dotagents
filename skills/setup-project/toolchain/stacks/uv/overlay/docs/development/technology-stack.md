@@ -1,15 +1,15 @@
 ## 运行时与工具链
 
-mise → uv → Python。uv 由根 `mise.toml` 钉到兼容版本 line、`mise.lock` 锁定精确版本，`mise run` 时由 mise 自动安装并放进 PATH。
+mise → uv → Python。根 `mise.toml` 钉 uv 的兼容版本 line，`mise.lock` 锁定精确版本；升级 uv 时更新 line 并运行 `mise lock`。
 
-uv 管理解释器版本（`.python-version` 固定 minor line）、虚拟环境、依赖与 lockfile：`uv add` / `uv remove` 是修改依赖的唯一方式，`uv sync --locked` 是标准安装步骤。Ruff 负责格式化、lint（recommended 规则起步）与 import 排序，ty 负责类型检查，pytest 是测试 runner。`pyproject.toml` 的 `[tool.uv]` 设 `prerelease = "disallow"`。优先使用这些工具已有的能力，没有等价能力时再按当前需求引入专门工具。
+uv 管理解释器版本（`.python-version` 固定 minor line）、虚拟环境、依赖与 lockfile，`pyproject.toml` 的 `[tool.uv]` 设 `prerelease = "disallow"`。Ruff 负责格式化、lint（recommended 规则起步）与 import 排序，ty 负责类型检查，pytest 是测试 runner。
 
 ## 依赖政策
 
-只在当前需求需要时引入依赖，先用标准库和已选工具。新增依赖用 `uv add`，提交更新后的 `uv.lock`，不手改 lock；不引入预发布版本。升级 uv 时更新 `mise.toml` 的版本 line 并运行 `mise lock` 刷新。升级集中进行并跑完整门禁。
+依赖只用 `uv add` / `uv remove` 修改，提交更新后的 `uv.lock`，不手改 lock，不引入预发布版本。
 
-需要相应能力时优先选用：`typer`（CLI）、`pydantic-settings`（配置）、`fastapi` + `uvicorn`（HTTP 服务）、`httpx`（HTTP 客户端）、`beautifulsoup4` + `lxml`（HTML 解析）、`sqlalchemy` 2.x + `psycopg` 3 + `alembic`（关系数据库）、`structlog`（结构化日志）。不要仅因清单存在而安装。
+优先选型：`typer`（CLI）、`pydantic-settings`（配置）、`fastapi` + `uvicorn`（HTTP 服务）、`httpx`（HTTP 客户端）、`beautifulsoup4` + `lxml`（HTML 解析）、`sqlalchemy` 2.x + `psycopg` 3 + `alembic`（关系数据库）、`structlog`（结构化日志）。
 
 ## 已选依赖
 
-开发依赖：pytest、ruff、ty。运行依赖按需添加，并在此登记选择理由或 ADR 链接。
+开发依赖：pytest、ruff、ty。

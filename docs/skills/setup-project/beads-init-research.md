@@ -38,11 +38,9 @@
 - **会自动 Git 暂存并提交**：非 stealth、Git 仓库、local storage 条件下，暂存 `.beads/`、已有 agent 文件、`.claude/settings.json`、`CLAUDE.md`、整个 `.agents` / `.codex` / `.cursor` 和 `.gitignore`，再执行无 pathspec 的 `git commit`，bootstrap commit 绕过 Git hooks。**`--skip-agents`、`--skip-hooks`、`--quiet`、`--non-interactive` 均不关闭它。** 由无 pathspec 推断：先前已暂存的其他变更也可能进入该提交；源码并未隔离 index。[完整暂存与提交分支](https://github.com/gastownhall/beads/blob/c1c4b642ac1c08d8c828007a1c2f96e47e43ef7c/cmd/bd/init.go#L2150-L2205)
 - 稳定版本没有单独的 `--no-commit` / `--skip-commit` 初始化参数。`--stealth` 会抑制上述 Git 提交，但同时隐藏 `.beads/`、改用 `.git/info/exclude`、跳过 hooks/agent 生成并持久化 `no-git-ops: true`；这不是单纯关闭提交，不宜为避开提交擅自选用。[参数集合](https://github.com/gastownhall/beads/blob/c1c4b642ac1c08d8c828007a1c2f96e47e43ef7c/cmd/bd/init.go#L2307-L2373)、[stealth 行为](https://github.com/gastownhall/beads/blob/c1c4b642ac1c08d8c828007a1c2f96e47e43ef7c/cmd/bd/init_stealth.go#L16-L61)、[no-git-ops 持久化](https://github.com/gastownhall/beads/blob/c1c4b642ac1c08d8c828007a1c2f96e47e43ef7c/cmd/bd/init.go#L1798-L1805)
 
-## 对后续方案的建议
+## 采纳结果
 
-讨论中的普通个人项目初始化，可把 `--non-interactive`、`--init-if-missing`、`--role maintainer`、`--skip-agents` 作为候选参数；Git hooks 是否安装需单独确定，关闭时追加 `--skip-hooks`。保留输出可观察非致命 warning。这个组合仍会自动 Git commit，因此在确认提交策略前，不能把它描述为“仅初始化配置，保持未提交”。JSONL export 若没有具体 viewer 需求，保持默认关闭即可。
-
-自动 Git commit、任何已有 `.beads/` 是否直接跳过、Git hooks 安装与 Beads agent 集成 ownership，仍需在阶段 1 讨论后确定；本快照未将这些选择写入 `SKILL.md`。
+`init_beads.py` 采用 `--non-interactive --init-if-missing --role maintainer --skip-agents --skip-hooks`，首次初始化的自动 Git commit 作为已确认行为接受；已有 `.beads` 时改为 `bd bootstrap`。决策理由见 [design.md](design.md#beads)。JSONL export 保持默认关闭。
 
 ## 补充：Git 忽略规则与 hooks
 
@@ -62,4 +60,4 @@
 
 `export.auto` 默认 false，但 `import.auto` 默认 true；JSONL interaction audit 与 events export 默认也关闭。若初始化约定为“不自动读写 JSONL”，可在新项目明确设置 `export.auto=false`、`import.auto=false`，并保持 `audit.enabled=false`、`events-export=false`。跳过 hooks 本身不能关闭写命令后的自动导出；反过来，安装 hooks 也不会强制开启导出。[配置默认值](https://github.com/gastownhall/beads/blob/v1.3.1/internal/config/config.go#L217-L338)、[导出说明](https://github.com/gastownhall/beads/blob/v1.3.1/cmd/bd/init_templates.go#L63-L101)
 
-针对不使用 JSONL 工作流、也不需要 Beads commit trailer 的新项目，建议初始化追加 `--skip-hooks`。这是待确认方案，不卸载任何现有项目 hooks，也不改变上述首次初始化自动 Git commit 的行为。
+因此不使用 JSONL 工作流、也不需要 Beads commit trailer 的新项目追加 `--skip-hooks`；它不卸载已有 hooks，也不改变首次初始化的自动 Git commit。
