@@ -78,8 +78,10 @@ def test_install_is_idempotent_and_preserves_third_party(checkout: Path, tmp_pat
     result = run_setup(checkout, home)
     assert result.returncode == 0, result.stdout + result.stderr
     links = {
+        home / ".agents/AGENTS.md": checkout / "global/AGENTS.md",
         claude / "CLAUDE.md": checkout / "global/AGENTS.md",
         gemini / "AGENTS.md": checkout / "global/AGENTS.md",
+        home / ".grok/AGENTS.md": checkout / "global/AGENTS.md",
     }
     for name in ("commit", "prune-tests", "another skill"):
         links[home / ".agents/skills" / name] = checkout / "skills" / name
@@ -95,10 +97,10 @@ def test_install_is_idempotent_and_preserves_third_party(checkout: Path, tmp_pat
         claude / "skills",
         gemini,
         gemini / "skills",
+        home / ".grok",
     ):
         assert parent.is_dir() and not parent.is_symlink()
     assert not (home / ".agents/skills/not-a-skill").exists()
-    assert not (home / ".agents/AGENTS.md").exists()
     assert (third_party / "SKILL.md").read_text() == "原有第三方内容\n"
     assert (claude_third_party / "SKILL.md").read_text() == "原有 Claude 内容\n"
     assert (gemini_third_party / "SKILL.md").read_text() == "原有 Gemini 内容\n"
