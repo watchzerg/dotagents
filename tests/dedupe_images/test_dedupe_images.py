@@ -1,4 +1,8 @@
-"""在临时目录中验证 dedupe_images.py 的命名解析、分组判定、计划与执行，回收站指向临时 XDG_DATA_HOME。"""
+"""在临时目录中验证 dedupe_images.py 的命名解析、分组判定、计划与执行。
+
+回收站指向临时目录：Linux 用临时 XDG_DATA_HOME；macOS 把 /usr/bin/trash 换成替身脚本，
+把文件移进同一个 `<xdg>/Trash/files`，不动用户真实的废纸篓。
+"""
 
 import importlib.util
 import json
@@ -37,8 +41,36 @@ def write(path: Path, data: bytes) -> None:
     path.write_bytes(data)
 
 
+FAKE_MAC_TRASH = """\
+import os, sys
+files = sys.argv[1]
+os.makedirs(files, exist_ok=True)
+for path in sys.argv[2:]:
+    stem, suffix = os.path.splitext(os.path.basename(path))
+    name, index = stem + suffix, 1
+    while os.path.lexists(os.path.join(files, name)):
+        index += 1
+        name = f"{stem}.{index}{suffix}"
+    os.rename(path, os.path.join(files, name))
+"""
+
+
+def fake_mac_trash(xdg: Path) -> Path:
+    """macOS 上替代 /usr/bin/trash 的可执行脚本：把参数里的路径移进 `<xdg>/Trash/files`。"""
+    script = xdg.parent / "fake-trash.py"
+    command = xdg.parent / "fake-trash"
+    if not command.exists():
+        script.write_text(FAKE_MAC_TRASH, encoding="utf-8")
+        files = xdg / "Trash/files"
+        command.write_text(f'#!/bin/sh\nexec "{sys.executable}" "{script}" "{files}" "$@"\n')
+        command.chmod(0o755)
+    return command
+
+
 def run(*args: str, xdg: Path) -> subprocess.CompletedProcess[str]:
     env = {**os.environ, "XDG_DATA_HOME": str(xdg)}
+    if sys.platform == "darwin":
+        env["DEDUPE_IMAGES_MAC_TRASH"] = str(fake_mac_trash(xdg))
     return subprocess.run(
         [sys.executable, str(SCRIPT), *args], capture_output=True, text=True, env=env, check=False
     )
@@ -131,9 +163,10 @@ def test_plan_and_apply(library: Path, tmp_path: Path) -> None:
         "h.jpg",
         "i (1).jpg",
     ]
-    info = (trash / "info/a (1).jpg.trashinfo").read_text(encoding="utf-8")
-    assert info.startswith("[Trash Info]\nPath=/")
-    assert "/s1/a%20%281%29.jpg\nDeletionDate=" in info
+    if sys.platform.startswith("linux"):  # .trashinfo 只有 FreeDesktop 实现会写
+        info = (trash / "info/a (1).jpg.trashinfo").read_text(encoding="utf-8")
+        assert info.startswith("[Trash Info]\nPath=/")
+        assert "/s1/a%20%281%29.jpg\nDeletionDate=" in info
 
 
 def summarize(directory: Path) -> tuple[list[tuple[str, list[str], str | None]], list[list[str]]]:

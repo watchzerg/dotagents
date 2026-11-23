@@ -1181,7 +1181,9 @@ def freedesktop_trash(path: Path, mount_of: Callable[[Path], Path] = mount_point
     raise OSError(f"回收站中同名文件过多：{path.name}")
 
 
-MAC_TRASH = Path("/usr/bin/trash")
+def mac_trash() -> Path:
+    """macOS 的回收站命令；测试经 DEDUPE_IMAGES_MAC_TRASH 换成替身，不动真实回收站。"""
+    return Path(os.environ.get("DEDUPE_IMAGES_MAC_TRASH") or "/usr/bin/trash")
 
 
 def trash_files(paths: list[Path]) -> list[tuple[Path, str]]:
@@ -1193,7 +1195,10 @@ def trash_files(paths: list[Path]) -> list[tuple[Path, str]]:
             batch = paths[start : start + 200]
             try:
                 result = subprocess.run(
-                    [str(MAC_TRASH), *map(str, batch)], capture_output=True, text=True, check=False
+                    [str(mac_trash()), *map(str, batch)],
+                    capture_output=True,
+                    text=True,
+                    check=False,
                 )
                 reason = result.stderr.strip() or f"退出码 {result.returncode}"
             except OSError as exc:
@@ -1210,8 +1215,8 @@ def trash_files(paths: list[Path]) -> list[tuple[Path, str]]:
 
 def check_platform() -> str | None:
     if sys.platform == "darwin":
-        if not MAC_TRASH.exists():
-            return "未找到 /usr/bin/trash（macOS 15 起系统自带），未删除任何文件。"
+        if not mac_trash().exists():
+            return f"未找到 {mac_trash()}（macOS 15 起系统自带），未删除任何文件。"
         return None
     if sys.platform.startswith("linux"):
         return None
