@@ -39,7 +39,7 @@
 
 2026-11-22 在 grok-media-saver（Bun + TypeScript，有 core/full 分层，无 `docs/behaviors/` 与 `test-layers.md`）运行：core 36 → 10、full 388 → 33，`gate-full` 409.9s → 105s，新建 `test-layers.md`；留痕票因本机缺少 Beads 数据库未建。暴露的问题已记入关键决策的后三条。
 
-2026-11-22 在本仓库（无 `docs/agents/testing.md`、`test-layers.md`、`docs/behaviors/`，无 core/full 分层与 tracker 约定）走通用标准：主流程按各 skill 的 SKILL.md 与脚本推断，7 个测试文件 120 → 40 个用例，无筛选 `gate-full` 通过；本仓库明确不套用 setup-project 模板结构，因此没有新建 `docs/development/test-layers.md`，保留范围写进根 `AGENTS.md` 的测试节，留痕票跳过。说明“文件不存在就新建”对刻意不用模板结构的仓库不适用，需由项目约定判断落点。
+2026-11-22 在本仓库（无 `docs/agents/testing.md`、`test-layers.md`、`docs/behaviors/`，无 core/full 分层与 tracker 约定）走通用标准：主流程按各 skill 的 SKILL.md 与脚本推断，7 个测试文件 120 → 40 个用例，无筛选 `gate-full` 通过；本仓库明确不套用 setup-project 模板结构，因此没有新建 `docs/development/test-layers.md`，保留范围写进根 `AGENTS.md` 的测试节，留痕票跳过。说明“文件不存在就新建”对刻意不用模板结构的仓库不适用，需由项目约定判断落点。2026-11-23 为减少每个会话的常驻上下文，本仓库的保留范围从根 `AGENTS.md` 移到 `docs/testing.md`，`AGENTS.md` 只留一句指路。
 
 ## 待验收
 

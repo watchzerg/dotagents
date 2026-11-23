@@ -24,6 +24,7 @@ allowed-tools: Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git a
    - 优先依据当前 session 中已完成的修改概括；包含其他 session 的修改时无需补齐其摘要。
    - session 信息不足时先看 `git diff HEAD --stat`；仍无法概括再读必要的 diff，不追查实现。
    - 遵循项目约定；无约定时使用简体中文。不把计划写成已完成，不虚构验证结果。
+   - 标题一行概括改了什么，约 50 字以内；细节空一行后写进正文。不照搬最近提交里过长的标题。
    - 不附加 `Co-Authored-By` 等署名行，即使宿主默认要求添加。
 4. 直接 commit，不再确认；回读结果，简短报告 commit hash、摘要及是否有剩余变更。
 

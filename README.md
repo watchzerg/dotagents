@@ -79,6 +79,7 @@ dotagents/
 │   ├── optimize/                   # 项目优化流水线（主题规则表与 spec、拆票、实施的参考文件）
 │   ├── prune-tests/                # 测试精简
 │   └── setup-project/              # 项目初始化（Beads、文档结构模板、工具链模板）
+├── docs/testing.md                 # 本仓库测试的保留范围，删改测试前阅读
 ├── docs/skills/<name>/             # 各 skill 的设计说明与调研，维护者阅读
 ├── tests/                          # 安装器测试与各 skill 脚本测试（tests/<name>/）
 ├── mise.toml / mise.lock           # uv 版本 line 与精确版本，以及安装、检查和测试任务
