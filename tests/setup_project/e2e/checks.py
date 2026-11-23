@@ -8,7 +8,14 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
-from .cases import CONTRACT_TASKS, Case
+from .cases import (
+    BEADS_SENTINEL,
+    CONTRACT_TASKS,
+    FIXTURES,
+    LARGE_DOCS_ATTACHMENTS,
+    LARGE_DOCS_SENTINELS,
+    Case,
+)
 
 # 与模板 docs/agents/documentation.md 里给出的清单命令同一个 pattern，规则正文不会自命中。
 MARKER = re.compile(r"<待填 (初始化|阶段3|首个模块|按需)：")
@@ -85,7 +92,8 @@ def check_project(case: Case, project: Path, baseline: dict[str, str]) -> list[C
     checks.extend(_check_description(case, project))
     checks.extend(_check_toolchain(case, project))
     checks.append(Check("beads-initialised", (project / ".beads").is_dir()))
-    checks.append(_check_git_clean_of_commits(project, baseline))
+    checks.append(_check_git_clean_of_commits(project))
+    checks.extend(EXTRA_CHECKS.get(case.name, lambda _: [])(project))
     return checks
 
 
@@ -263,21 +271,26 @@ def _check_toolchain(case: Case, project: Path) -> list[Check]:
     return out
 
 
-def _check_git_clean_of_commits(project: Path, baseline: dict[str, str]) -> Check:
-    log = sh(["git", "log", "--oneline"], project).stdout.strip().splitlines()
-    # fixture 一次 commit，bd init 允许一次自动 commit；agent 本身不得 commit。
-    return Check("git:no-agent-commits", len(log) <= 2, "\n".join(log))
+def _check_git_clean_of_commits(project: Path) -> Check:
+    """fixture 提交之后只允许 bd init 的自动提交，即只改动 .beads/；agent 本身不得 commit。"""
+    fixture = sh(["git", "rev-list", "-1", "--grep=^fixture$", "HEAD"], project).stdout.strip()
+    changed = sh(["git", "diff", "--name-only", fixture, "HEAD"], project).stdout.split()
+    outside = [p for p in changed if not p.startswith(".beads/")]
+    log = sh(["git", "log", "--oneline"], project).stdout.strip()
+    return Check("git:no-agent-commits", not outside, ", ".join(outside) or log)
 
 
 # ---------------------------------------------------------------- transcript 指标
 
 
 def transcript_metrics(transcript: Path) -> dict[str, object]:
+    """transcript 缺失或为空（会话没起来）时返回空指标，由 transcript:completed 判失败。"""
     tool_counts: dict[str, int] = {}
     scripts: list[str] = []
     questions: list[str] = []
     result: dict[str, object] = {}
-    for line in transcript.read_text(encoding="utf-8").splitlines():
+    text = transcript.read_text(encoding="utf-8") if transcript.exists() else ""
+    for line in text.splitlines():
         try:
             event = json.loads(line)
         except json.JSONDecodeError:
@@ -345,3 +358,78 @@ def transcript_checks(metrics: dict[str, object]) -> list[Check]:
             " → ".join(order),
         ),
     ]
+
+
+# ---------------------------------------------------------------- 用例专属检查
+
+
+def _visible_files(project: Path) -> list[Path]:
+    """受 Git 管理或未被忽略的文件，即收敛应当看到的范围。"""
+    listing = sh(["git", "ls-files", "--cached", "--others", "--exclude-standard"], project)
+    return [project / rel for rel in listing.stdout.splitlines() if (project / rel).is_file()]
+
+
+def _tickets(project: Path) -> str:
+    return sh(["bd", "list", "--all", "--json"], project).stdout
+
+
+def _check_large_docs(project: Path) -> list[Check]:
+    files = _visible_files(project)
+    texts = {
+        f.relative_to(project).as_posix(): f.read_text(encoding="utf-8", errors="replace")
+        for f in files
+    }
+    everything = "\n".join(texts.values())
+    tickets = _tickets(project)
+    pools = {
+        "any": everything,
+        "ticket": everything + tickets,
+        "glossary": texts.get("GLOSSARY.md", ""),
+        "operations": "\n".join(t for p, t in texts.items() if p.startswith("docs/operations/")),
+    }
+    lost = [
+        f"{src}「{needle}」→{where}"
+        for src, needle, where in LARGE_DOCS_SENTINELS
+        if needle not in pools[where]
+    ]
+    out = [Check("large-docs:content-kept", not lost, "；".join(lost))]
+
+    # 标准结构外的源文件要么已迁走（不存在），要么原位保留并登记在 docs/INDEX.md。
+    source = FIXTURES / "large-docs"
+    standard = ("docs/research/", "docs/adr/", "docs/architecture/modules/", "docs/operations/")
+    index = texts.get("docs/INDEX.md", "")
+    stray = [
+        rel
+        for p in sorted(source.rglob("*"))
+        if p.is_file()
+        and (rel := p.relative_to(source).as_posix()) not in LARGE_DOCS_ATTACHMENTS
+        and not rel.startswith(standard)
+        and (project / rel).exists()
+        and rel not in index
+    ]
+    out.append(
+        Check("large-docs:sources-resolved", not stray, "既未迁走也未登记：" + ", ".join(stray))
+    )
+
+    hashes = {hashlib.sha256(f.read_bytes()).hexdigest() for f in files}
+    missing = [
+        rel
+        for rel in LARGE_DOCS_ATTACHMENTS
+        if hashlib.sha256((source / rel).read_bytes()).hexdigest() not in hashes
+    ]
+    out.append(Check("large-docs:attachments-kept", not missing, "丢失：" + ", ".join(missing)))
+    return out
+
+
+def _check_beads_clone(project: Path) -> list[Check]:
+    tickets = _tickets(project)
+    return [
+        Check(
+            "beads:restored-from-origin",
+            BEADS_SENTINEL in tickets,
+            "bd list 未包含 origin 上的票据" if BEADS_SENTINEL not in tickets else "",
+        )
+    ]
+
+
+EXTRA_CHECKS = {"uv-large-docs": _check_large_docs, "beads-clone": _check_beads_clone}

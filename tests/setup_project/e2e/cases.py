@@ -45,7 +45,13 @@ class Case:
     description_targets: tuple[str, ...] = ("AGENTS.md", "README.md", "GLOSSARY.md")
     # fixture 的 AGENTS.md 已有描述时流程不提问，其余文件由这句展开；描述检查改用它取片段。
     existing_description: str | None = None
+    # 除 run.COMMON_TOOLS 外，构造 fixture 或跑门禁还需要的命令。
+    tools: tuple[str, ...] = ()
     notes: str = ""
+
+
+GIT_AS_E2E = ("git", "-c", "user.name=e2e", "-c", "user.email=e2e@example.invalid")
+BEADS_SENTINEL = "修复导出时标签含逗号的转义 BEADS-CLONE-SENTINEL"
 
 
 def run(args: list[str], cwd: Path) -> None:
@@ -92,8 +98,8 @@ def build_empty(project: Path) -> None:
     """空项目：只有 Matt 产物。"""
 
 
-def build_uv_existing(project: Path) -> None:
-    """已有 uv 工程、旧文档、同义节 AGENTS.md、有内容的 CLAUDE.md、缺契约 task 的 mise.toml。"""
+def _ledger_package(project: Path) -> None:
+    """uv 包 demo_uv：账本模块、入口与一个测试。"""
     run(["uv", "init", "--package", "--name", "demo_uv", "--no-workspace", "-q", "."], project)
     write(
         project / "src/demo_uv/ledger.py",
@@ -146,6 +152,11 @@ def test_balance() -> None:
     assert ledger.balance() == Decimal("1.0")
 """,
     )
+
+
+def build_uv_existing(project: Path) -> None:
+    """已有 uv 工程、旧文档、同义节 AGENTS.md、有内容的 CLAUDE.md、缺契约 task 的 mise.toml。"""
+    _ledger_package(project)
     write(
         project / "docs/old-notes.md",
         """# 设计笔记
@@ -245,6 +256,49 @@ def build_swift_existing(project: Path) -> None:
     run(["swift", "package", "init", "--type", "library", "--name", "DemoSwift"], project)
 
 
+def build_uv_large_docs(project: Path) -> None:
+    """uv 工程加 30 多份散落在多个顶层目录的旧文档、附件、超预算页、骨架不符的模块页与被忽略的仓库副本。"""
+    _ledger_package(project)
+    shutil.copytree(FIXTURES / "large-docs", project, dirs_exist_ok=True)
+    write(project / "AGENTS.md", f"# demo_uv\n\n{UV_EXISTING_DESCRIPTION}。\n")
+    # 被忽略的仓库副本与原始输出：收敛不得扫描或改动它们（git grep 而不是 grep -r）。
+    with (project / ".gitignore").open("a", encoding="utf-8") as f:
+        f.write(".worktrees/\noutput/\n")
+    shutil.copytree(FIXTURES / "large-docs/docs", project / ".worktrees/old/docs")
+    write(project / "output/raw-notes.md", "# 原始输出\n\n" + "debug line\n" * 2000)
+    run(["uv", "sync", "-q"], project)
+
+
+def build_beads_clone(project: Path) -> None:
+    """另一台机器上已初始化 Beads 并推送了票据的仓库，在这里重新 clone：只有 .beads/ 配置，没有本地数据库。"""
+    origin = (project.parent / "origin.git").resolve()
+    seed = project.parent / "seed" / project.name
+    seed.mkdir(parents=True)
+    run(["git", "init", "-q", "--bare", str(origin)], project.parent)
+    run(["git", "init", "-q", "-b", "main"], seed)
+    run(["git", "remote", "add", "origin", str(origin)], seed)
+    run([*GIT_AS_E2E, "commit", "-q", "--allow-empty", "-m", "base"], seed)
+    run(
+        [
+            "bd",
+            "init",
+            "--non-interactive",
+            "--init-if-missing",
+            "--role",
+            "maintainer",
+            "--skip-agents",
+            "--skip-hooks",
+        ],
+        seed,
+    )
+    run(["bd", "create", BEADS_SENTINEL, "-t", "task", "-p", "2"], seed)
+    run(["git", "push", "-q", "origin", "main"], seed)
+    run(["bd", "dolt", "push"], seed)
+    run(["git", "remote", "add", "origin", str(origin)], project)
+    run(["git", "fetch", "-q", "origin"], project)
+    run(["git", "reset", "-q", "--hard", "origin/main"], project)
+
+
 def build_uv_node_new(project: Path) -> None:
     """空项目选 uv+node 两个 stack。"""
 
@@ -258,6 +312,51 @@ def build_none_empty(project: Path) -> None:
 DESCRIPTION = "一个给个人用的命令行记账工具，记录收支并计算余额"
 # build_uv_existing 写进 AGENTS.md 的已有描述，两处保持一致。
 UV_EXISTING_DESCRIPTION = "个人记账小工具，命令行使用"
+
+# uv-large-docs 的内容哨兵：(源文件, 片段, 应在哪里)。where 取 any（任一未被忽略的文件）、
+# ticket（票据或任一文件）、glossary（GLOSSARY.md）、operations（docs/operations/ 下）。
+LARGE_DOCS_SENTINELS: tuple[tuple[str, str, str], ...] = (
+    ("ARCHITECTURE.md", "LEDGER_HOME", "any"),
+    ("HACKING.md", "LEDGER_DEBUG", "any"),
+    ("TODO.md", "--by-label", "ticket"),
+    ("TODO.md", "--currency", "ticket"),
+    ("docs/overview.md", "--reverse-of", "any"),
+    ("docs/data-model.md", "amount_str", "any"),
+    ("docs/decision-json-storage.md", "ledger.json.tmp", "any"),
+    ("docs/decision-no-orm.md", "迁移成本", "any"),
+    ("docs/terms.md", "影子余额", "glossary"),
+    ("docs/terms.md", "冻结段", "glossary"),
+    ("docs/glossary.md", "结转点", "glossary"),
+    ("docs/testing-notes.md", "pytest.mark.slow", "any"),
+    ("docs/release.md", "check_version.sh", "any"),
+    ("docs/deploy-config.md", "com.demo.ledger.backup", "any"),
+    ("docs/style.md", "_parse_amount", "any"),
+    ("docs/benchmark-2025.md", "balance_bench.py", "any"),
+    ("docs/import-csv-plan.md", "--csv", "ticket"),
+    ("docs/faq.md", "(-)", "any"),
+    ("docs/research/m1-integration.md", "m1-sample.json", "any"),
+    ("docs/research/float-vs-decimal.md", "float_drift.py", "any"),
+    ("docs/adr/0001-use-decimal.md", "prec=28", "any"),
+    ("docs/architecture/modules/ledger.md", 'Decimal("0")', "any"),
+    ("design/modules.md", "load_ledger", "any"),
+    ("design/import-flow.md", "validate_rows", "any"),
+    ("design/currency.md", "人民币", "any"),
+    ("design/glossary-notes.md", "回拨单", "glossary"),
+    ("design/error-handling.md", "InvalidAmountError", "any"),
+    ("design/cli-ux.md", "--raw", "any"),
+    ("design/perf-experiment.md", "orjson", "any"),
+    ("design/persistence.md", ".bak3", "any"),
+    ("notes/roadmap.md", "--format csv", "ticket"),
+    ("notes/roadmap.md", "--until", "ticket"),
+    ("notes/terms-more.md", "期初条目", "glossary"),
+    ("notes/dev-setup.txt", "demo_uv --help", "any"),
+    ("notes/meeting-2025-03.md", "LEDGER_LANG", "any"),
+    ("notes/ci.md", "workflows/ci.yml", "any"),
+    ("notes/review-checklist.md", "负数金额", "any"),
+    ("notes/backup.rst", "demo_uv verify", "any"),
+    *(("docs/operations/runbook.md", f"--step {i:02d}", "operations") for i in range(1, 37)),
+)
+LARGE_DOCS_ATTACHMENTS = ("design/import-flow.png", "design/sample-import.json")
 
 CASES: dict[str, Case] = {
     "empty": Case(
@@ -364,6 +463,7 @@ CASES: dict[str, Case] = {
         absent=("mise.toml", "mise-tasks", ".swift-format", "tests/core/ToolchainTests.swift"),
         untouched=("Package.swift",),
         description_targets=("GLOSSARY.md",),
+        tools=("swift", "xcodebuild"),
         notes="existing 模式且无 mise 配置：只补依赖偏好与两个公共脚本，报告写明没有 mise task。",
     ),
     "uv-node-new": Case(
@@ -398,5 +498,45 @@ CASES: dict[str, Case] = {
         present=(".beads", "mise.toml", "AGENTS.md", "docs/INDEX.md"),
         absent=("pyproject.toml", "package.json", "mise-tasks", "docs/agents/triage-labels.md"),
         notes="none stack：契约 task 非零退出；Matt 产物不含 triage，触发表不应有分诊行。",
+    ),
+    "uv-large-docs": Case(
+        name="uv-large-docs",
+        build=build_uv_large_docs,
+        description=DESCRIPTION,
+        existing_description=UV_EXISTING_DESCRIPTION,
+        stacks=None,
+        expect_mode="existing",
+        expect_stacks=("uv",),
+        present=(
+            ".beads",
+            "GLOSSARY.md",
+            "docs/INDEX.md",
+            "docs/adr/INDEX.md",
+            "docs/research/INDEX.md",
+        ),
+        absent=("ARCHITECTURE.md", "docs/glossary.md"),
+        untouched=(
+            "pyproject.toml",
+            "src/demo_uv/ledger.py",
+            ".worktrees/old/docs/overview.md",
+            "output/raw-notes.md",
+        ),
+        description_targets=("GLOSSARY.md",),
+        notes=(
+            "大批量收敛：docs/、design/、notes/ 与根目录共 30 多个候选，应按顶层目录分批、全部分类完再执行，"
+            "目标重叠的批（GLOSSARY.md、architecture/INDEX.md）串行；附件随文档迁移；超 16 KiB 的运维手册按拆页规则原样拆分；"
+            "骨架不符的模块页按模板重排；未登记的 ADR 与调研登记索引；验收记录迁入 research/acceptance/；计划项建票；"
+            "被忽略的 .worktrees/ 与 output/ 不得扫描或改动。reviewer 重点看分批与串行是否按规则执行、拆页与重排是否删减内容。"
+        ),
+    ),
+    "beads-clone": Case(
+        name="beads-clone",
+        build=build_beads_clone,
+        description="一个已在别的机器上初始化过 Beads 的仓库，重新 clone 后补齐初始化",
+        stacks=("none",),
+        expect_mode="new",
+        expect_stacks=("none",),
+        present=(".beads", "AGENTS.md", "docs/INDEX.md"),
+        notes="新 clone 只有 .beads 配置、没有本地数据库：应走 bd bootstrap 从 origin 的 Dolt 数据恢复原有票据，而不是另起空库。",
     ),
 }

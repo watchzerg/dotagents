@@ -7,7 +7,7 @@
 
 不传用例名时运行全部。每个用例在 `<out>/<case>/` 下留下 `<case>/`（目标项目，目录名即项目名）、
 `transcript.jsonl`、`report.md`（agent 写的汇总报告）、`checks.json`、`summary.md`，
-`--review` 时还有 `review.md`。退出码：全部用例硬检查通过为 0，否则为 1。
+`--review` 时还有 `review.md`；`<out>/summary.md` 汇总所有用例。退出码：全部用例硬检查通过为 0，否则为 1。
 """
 
 import argparse
@@ -19,11 +19,11 @@ import sys
 import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 
-from .cases import CASES, E2E_DIR, Case, apply_matt
+from .cases import CASES, E2E_DIR, SKILL_DIR, Case, apply_matt
 from .checks import Check, check_project, snapshot, transcript_checks, transcript_metrics
 
 RUN_TIMEOUT = 60 * 60
@@ -34,6 +34,23 @@ SCRUB_ENV_PREFIXES = (
     "CLAUDE_PID",
     "CLAUDE_EFFORT",
 )
+
+
+COMMON_TOOLS = ("claude", "git", "mise", "uv", "bd")
+
+
+def preflight(cases: list[Case]) -> list[str]:
+    """跑之前确认被测的是本 checkout 的 skill、所需命令都在 PATH 上；返回问题列表。"""
+    problems: list[str] = []
+    config = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
+    installed = config / "skills" / "setup-project"
+    if installed.resolve() != SKILL_DIR:
+        problems.append(
+            f"{installed} 未指向本 checkout 的 {SKILL_DIR}，headless 会话会测到别的版本；先执行 setup-dotagents"
+        )
+    needed = set(COMMON_TOOLS).union(*(c.tools for c in cases))
+    problems += [f"PATH 上缺少 {tool}" for tool in sorted(needed) if shutil.which(tool) is None]
+    return problems
 
 
 def harness_prompt(case: Case, report_path: Path) -> str:
@@ -48,7 +65,6 @@ Non-interactive rules:
   - 项目一句话描述: {description}
   - stack 选择 (only relevant if init_toolchain.py --detect-only exits 3): {stacks}
 - In the final report add a section titled "本应提问" quoting verbatim the question(s) and options you would have asked, or stating that no question was needed and why.
-- Otherwise follow SKILL.md exactly: run every phase in order, do not skip phases, do not commit.
 - Write the phase-3 汇总报告 (Simplified Chinese) to this absolute path outside the project: {report_path}
   and also print it as your final message."""
 
@@ -81,6 +97,7 @@ def build_case(case: Case, case_dir: Path) -> Path:
 
 
 def run_claude(case: Case, project: Path, case_dir: Path, model: str, tag: str) -> Path:
+    """运行一次 headless 会话；超时视为未完成，由 transcript:completed 判失败。"""
     transcript = case_dir / f"transcript{tag}.jsonl"
     report = case_dir / f"report{tag}.md"
     env = {k: v for k, v in os.environ.items() if not k.startswith(SCRUB_ENV_PREFIXES)}
@@ -102,7 +119,10 @@ def run_claude(case: Case, project: Path, case_dir: Path, model: str, tag: str) 
         transcript.open("w", encoding="utf-8") as out,
         (case_dir / f"stderr{tag}.log").open("w") as err,
     ):
-        subprocess.run(args, cwd=project, env=env, stdout=out, stderr=err, timeout=RUN_TIMEOUT)
+        try:
+            subprocess.run(args, cwd=project, env=env, stdout=out, stderr=err, timeout=RUN_TIMEOUT)
+        except subprocess.TimeoutExpired:
+            err.write(f"\n[harness] 超过 {RUN_TIMEOUT} 秒被终止\n")
     return transcript
 
 
@@ -112,6 +132,7 @@ def run_review(case: Case, case_dir: Path, model: str) -> None:
         brief.replace("{{CASE_DIR}}", str(case_dir))
         .replace("{{PROJECT_DIR}}", case.name)
         .replace("{{CASE_NOTES}}", case.notes)
+        .replace("{{SKILL_DIR}}", str(SKILL_DIR))
     )
     env = {k: v for k, v in os.environ.items() if not k.startswith(SCRUB_ENV_PREFIXES)}
     args = [
@@ -139,7 +160,8 @@ def run_review(case: Case, case_dir: Path, model: str) -> None:
 
 def write_summary(
     case: Case, case_dir: Path, checks: list[Check], metrics: dict[str, object]
-) -> bool:
+) -> list[Check]:
+    """写 summary.md 与 checks.json，返回失败的硬检查。"""
     hard = [c for c in checks if c.ok is not None]
     failed = [c for c in hard if not c.ok]
     lines = [
@@ -172,48 +194,97 @@ def write_summary(
     (case_dir / "checks.json").write_text(
         json.dumps([asdict(c) for c in checks], ensure_ascii=False, indent=2), encoding="utf-8"
     )
-    return not failed
+    return failed
 
 
-def run_case(case: Case, out: Path, args: argparse.Namespace) -> bool:
-    case_dir = out / case.name
+@dataclass
+class Outcome:
+    case: str
+    failed: list[str]
+    minutes: float = 0.0
+    cost_usd: object = ""
+    review: str = ""
+
+
+def run_case(case: Case, out: Path, args: argparse.Namespace) -> Outcome:
+    """单个用例出任何异常都只让本用例失败，不中断其他用例。"""
     started = time.monotonic()
-    if args.check_only:
-        project = case_dir / case.name
-        baseline = json.loads((case_dir / "baseline.json").read_text(encoding="utf-8"))
-        metrics = transcript_metrics(case_dir / "transcript.jsonl")
-        checks = transcript_checks(metrics) + check_project(case, project, baseline)
-        passed = write_summary(case, case_dir, checks, metrics)
-        print(
-            f"[{case.name}] {'PASS' if passed else 'FAIL'} (check-only) → {case_dir / 'summary.md'}"
-        )
-        return passed
-    project = build_case(case, case_dir)
-    baseline = snapshot(project)
-    (case_dir / "baseline.json").write_text(json.dumps(baseline, indent=1), encoding="utf-8")
-    if args.build_only:
-        print(f"[{case.name}] built at {project}")
-        return True
+    try:
+        outcome = _run_case(case, out / case.name, args)
+    except Exception as exc:  # noqa: BLE001 — 记录后继续其他用例
+        outcome = Outcome(case.name, [f"harness 异常：{type(exc).__name__}: {exc}"])
+    outcome.minutes = round((time.monotonic() - started) / 60, 1)
+    print(f"[{case.name}] {'FAIL' if outcome.failed else 'PASS'} in {outcome.minutes} min")
+    return outcome
 
-    transcript = run_claude(case, project, case_dir, args.model, "")
-    metrics = transcript_metrics(transcript)
+
+def _run_case(case: Case, case_dir: Path, args: argparse.Namespace) -> Outcome:
+    project = case_dir / case.name
+    if args.check_only:
+        baseline = json.loads((case_dir / "baseline.json").read_text(encoding="utf-8"))
+    else:
+        project = build_case(case, case_dir)
+        baseline = snapshot(project)
+        (case_dir / "baseline.json").write_text(json.dumps(baseline, indent=1), encoding="utf-8")
+        if args.build_only:
+            print(f"[{case.name}] built at {project}")
+            return Outcome(case.name, [])
+        run_claude(case, project, case_dir, args.model, "")
+
+    metrics = transcript_metrics(case_dir / "transcript.jsonl")
     checks = transcript_checks(metrics) + check_project(case, project, baseline)
 
-    if args.rerun:
+    if args.rerun and not args.check_only:
         before = snapshot(project)
         run_claude(case, project, case_dir, args.model, "-rerun")
         after = snapshot(project)
+        rerun = transcript_checks(transcript_metrics(case_dir / "transcript-rerun.jsonl"))
+        checks += [Check(f"rerun:{c.name}", c.ok, c.detail) for c in rerun]
         changed = sorted(k for k in before.keys() | after.keys() if before.get(k) != after.get(k))
         checks.append(Check("rerun:idempotent", not changed, ", ".join(changed)))
 
-    passed = write_summary(case, case_dir, checks, metrics)
-    if args.review:
+    failed = write_summary(case, case_dir, checks, metrics)
+    if args.review and not args.check_only:
         run_review(case, case_dir, args.model)
-    minutes = (time.monotonic() - started) / 60
-    print(
-        f"[{case.name}] {'PASS' if passed else 'FAIL'} in {minutes:.1f} min → {case_dir / 'summary.md'}"
+    result = metrics.get("result")
+    assert isinstance(result, dict)
+    return Outcome(
+        case.name,
+        [c.name for c in failed],
+        cost_usd=result.get("total_cost_usd", ""),
+        review=review_verdicts(case_dir / "review.md"),
     )
-    return passed
+
+
+def review_verdicts(path: Path) -> str:
+    """从 review.md 的 VERDICTS 行取各结论计数；没有 review 时为空。"""
+    if not path.exists():
+        return ""
+    found = [
+        line
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.startswith("VERDICTS:")
+    ]
+    return found[-1].removeprefix("VERDICTS:").strip() if found else "（未给出 VERDICTS 行）"
+
+
+def write_index(out: Path, outcomes: list[Outcome]) -> None:
+    lines = [
+        "# e2e 总览",
+        "",
+        "| 用例 | 硬检查 | 失败项 | 分钟 | 美元 | reviewer |",
+        "| --- | --- | --- | --- | --- | --- |",
+    ]
+    for o in outcomes:
+        shown = [f"`{n}`" for n in o.failed[:5]]
+        if len(o.failed) > 5:
+            shown.append(f"等 {len(o.failed)} 项")
+        failed = "<br>".join(shown) or "—"
+        lines.append(
+            f"| [{o.case}]({o.case}/summary.md) | {'FAIL' if o.failed else 'PASS'} "
+            f"| {failed} | {o.minutes} | {o.cost_usd} | {o.review} |"
+        )
+    (out / "summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def main() -> int:
@@ -242,12 +313,16 @@ def main() -> int:
         "%Y%m%d-%H%M%S"
     )
     out.mkdir(parents=True, exist_ok=True)
-    names = args.cases or list(CASES)
+    cases = [CASES[n] for n in args.cases or CASES]
+    if not (args.check_only or args.build_only) and (problems := preflight(cases)):
+        parser.error("；".join(problems))
     print(f"输出目录：{out}")
     with ThreadPoolExecutor(max_workers=args.jobs) as pool:
-        results = list(pool.map(lambda n: run_case(CASES[n], out, args), names))
-    print(f"\n{sum(results)}/{len(results)} 用例硬检查通过；详情见 {out}/<case>/summary.md")
-    return 0 if all(results) else 1
+        outcomes = list(pool.map(lambda c: run_case(c, out, args), cases))
+    write_index(out, outcomes)
+    passed = sum(not o.failed for o in outcomes)
+    print(f"\n{passed}/{len(outcomes)} 用例硬检查通过；总览见 {out / 'summary.md'}")
+    return 0 if passed == len(outcomes) else 1
 
 
 if __name__ == "__main__":

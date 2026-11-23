@@ -8,7 +8,7 @@ Inputs:
 - `transcript.jsonl` — the full headless transcript (stream-json). Tool calls are in `assistant` events as `tool_use` blocks.
 - `report.md` — the summary report the agent wrote at the end.
 - `summary.md` / `checks.json` — deterministic checks already run by the harness. Do not repeat them; focus on what needs judgement.
-- The skill itself: `~/.agents/skills/setup-project/SKILL.md` and its `references/`.
+- The skill itself: `{{SKILL_DIR}}/SKILL.md` and its `references/`.
 
 Answer each question with a verdict (通过 / 有问题 / 不确定) and one or two sentences of evidence (quote the file and line or the tool call). Write in Simplified Chinese.
 
@@ -20,4 +20,4 @@ Answer each question with a verdict (通过 / 有问题 / 不确定) and one or 
 6. 报告诚实：`report.md` 声称的结果（安装、docs-check、gate-core）与 transcript 里实际的命令退出情况是否一致？
 7. 其他偏离 SKILL.md 的地方，以及你认为 SKILL.md 本身写得不清、导致 agent 犹豫或走偏的段落（引用原文）。
 
-End with a short list titled "建议改进 SKILL.md 的点"（may be empty）.
+End with a short list titled "建议改进 SKILL.md 的点"（may be empty）, then a final line exactly in the form `VERDICTS: 通过=<n> 有问题=<n> 不确定=<n>` counting your seven verdicts.

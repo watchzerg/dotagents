@@ -117,9 +117,9 @@
 - **mise task 契约**：在临时项目用真实 mise 手工跑过 uv+node 的 `gate-core`/`gate-full`（主机锁串行两个 stack 的 `test-full`，core 失败时 `gate-core` 非零）、swift 单 stack 的两道门禁、none 的 `gate-core` 按设计失败。未验证：SKILL.md 阶段 2 第 5 步与 toolchain.md 的补齐契约 task（`mise tasks` 复核、未 trust 时不替用户 trust、按文件补 task）在真实 agent 与真实项目上的表现；改过的模板与 overlay 文本。下次 e2e 至少跑 `empty`、`uv-existing`、`none-empty`。
 - **多 stack 组合**：uv+swift 只经过脚本测试与渲染结果的单项验证，没有真实跑通完整门禁；node+swift 没有任何真实验证；两者都在根目录时 `tests/core/` 混放两种语言。动态 exclude 的 `Package.swift` 未在真实 full 测试场景下验收。
 - **node stack**：单 stack 与 uv+node 新项目手工跑通过落地、安装与 `gate-full`；e2e 用例 `node-new-with-code`、`uv-node-new` 未在换 stack 后跑过。固定选型没有在真实项目中按文档加入并跑通门禁，Biome 对 Tailwind 指令与 shadcn 生成代码的兼容性未知。`vitest run -t` 零匹配时退出 0（只影响定向运行，门禁不接受筛选参数）。
-- **收敛的大规模分支**：分批并行时目标文件重叠的批串行处理、超预算拆页、骨架不符的旧页重排，fixture 都太小未触发。x-media-saver 运行后加的四条措辞（不做执行前确认、分批理由、`git grep`、裁决项只列无法推荐的）未复验，e2e 没有超过 30 个候选、带附件与被忽略仓库副本的 fixture。
+- **收敛的大规模分支**：分批并行时目标文件重叠的批串行处理、超预算拆页、骨架不符的旧页重排，fixture 都太小未触发。x-media-saver 运行后加的四条措辞（不做执行前确认、分批理由、`git grep`、裁决项只列无法推荐的）未复验，已补 e2e 用例 `uv-large-docs`（30 多个候选、附件、超预算页、骨架不符模块页、被忽略的仓库副本），尚未真实运行。
 - **验收记录的二进制附件**：x-media-saver 用户事后删掉了迁入 `research/acceptance/assets/` 的截图、日志与 jsonl（约 1.9 MB），只留链接文字。是否写成“二进制附件不迁入、删除并注明”的通用规则，等第二个样本。
 - **描述与代码的差距**：用户描述与代码现状不一致时是否记为模块页的已知差异，SKILL.md 阶段 2 第 2 步（不拼成代码没有的能力）与 document-code.md（只记旧文档与代码的冲突）都没有明说。
 - **真实开发会话里的文档同步**：e2e 只覆盖初始化。下一个用模板初始化的空项目跑过三到五个改代码的任务后回看：是否在行为首次被测试覆盖时建了模块页并登记功能地图、模块页是否随后续改动更新、是否写出合适的 `covers` 并运行 `docs-affected`、完成报告是否列出文档影响、400 字符行预算是否过紧、超预算时是拆页还是删内容。漏改的位置决定是否启用暂缓的路径核对或 Stop hook。
 - **合同独占页**：真实项目上的 `/acceptance` 与 `/prune-tests` 未在 `test-layers.md`、`local-acceptance.md` 新路径下运行过。
-- **`bd bootstrap`**：只有替身 CLI 测试，未在真实新 clone 上重跑 `/setup-project`；`sync.remote` 为 git 时的克隆耗时与所需凭据未知。
+- **`bd bootstrap`**：2026-11-23 在临时 bare origin（本地路径）上手工验证过：新 clone 运行 `init_beads.py` 走 bootstrap，原有票据恢复且不产生新提交；已补 e2e 用例 `beads-clone`，尚未在真实 agent 下运行。远端为需要凭据的 git 托管时的克隆耗时与凭据交互未知。
