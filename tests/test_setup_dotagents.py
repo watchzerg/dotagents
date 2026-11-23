@@ -8,13 +8,13 @@ from pathlib import Path
 
 import pytest
 
-SCRIPT = Path(__file__).resolve().parents[1] / ".claude/skills/setup-dotagents/scripts/setup.py"
+SCRIPT = Path(__file__).resolve().parents[1] / ".agents/skills/setup-dotagents/scripts/setup.py"
 
 
 @pytest.fixture
 def checkout(tmp_path: Path) -> Path:
     root = tmp_path / "checkout with spaces"
-    script = root / ".claude/skills/setup-dotagents/scripts/setup.py"
+    script = root / ".agents/skills/setup-dotagents/scripts/setup.py"
     script.parent.mkdir(parents=True)
     shutil.copyfile(SCRIPT, script)
     (root / "global").mkdir()
@@ -38,7 +38,7 @@ def run_setup(
     if claude_dir is not None:
         env["CLAUDE_CONFIG_DIR"] = str(claude_dir)
     return subprocess.run(
-        [sys.executable, "-I", "-S", str(root / ".claude/skills/setup-dotagents/scripts/setup.py")],
+        [sys.executable, "-I", "-S", str(root / ".agents/skills/setup-dotagents/scripts/setup.py")],
         cwd=root.parent,
         env=env,
         capture_output=True,

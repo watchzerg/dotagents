@@ -6,7 +6,7 @@
 
 1. 将本仓库 clone 到准备长期保留的位置，进入仓库目录。
 2. 确保 `python3` 为 3.14+；setup 仅使用标准库。系统自带版本通常不满足：用系统包管理器安装 mise（macOS：`brew install mise`；Ubuntu：添加 mise 官方 apt 源后 `sudo apt install mise`），由 mise 提供 uv（`mise use -g uv@0.13`），再运行 `uv python install 3.14 --default`。
-3. 在本仓库中打开 Claude Code（安装器目前放在 `.claude/skills/`，其他 harness 不一定能发现它，可直接用下面的脚本），调用：
+3. 在本仓库中打开 agent harness，调用（安装器放在 `.agents/skills/`，`.claude/skills` 是指向它的软链接；harness 发现不了时直接用下面的脚本）：
 
    ```text
    /setup-dotagents
@@ -15,7 +15,7 @@
    也可以直接在仓库目录的终端执行：
 
    ```sh
-   python3 .claude/skills/setup-dotagents/scripts/setup.py
+   python3 .agents/skills/setup-dotagents/scripts/setup.py
    ```
 
 4. 完成后开启新的 Claude Code、Antigravity CLI 或 Grok 会话（Antigravity CLI 中也可先执行 `/skills reload`），验证个人规则和 skills 已加载。
@@ -31,7 +31,7 @@ setup 会自动定位当前 checkout，建立并核验软链接。已有正确�
 
 | 调用 | 作用 | 使用范围 |
 | --- | --- | --- |
-| [`/setup-dotagents`](.claude/skills/setup-dotagents/SKILL.md) | 将当前仓库的个人规则和 skills 应用到用户环境，检查并补齐加载入口。 | 仅本仓库 |
+| [`/setup-dotagents`](.agents/skills/setup-dotagents/SKILL.md) | 将当前仓库的个人规则和 skills 应用到用户环境，检查并补齐加载入口。 | 仅本仓库 |
 | [`/commit`](skills/commit/SKILL.md) | 将当前仓库的现有变更提交为一个本地 commit；默认包含全部未忽略变更，不附署名行，不自动测试或 push。 | setup 后用户级可用 |
 | [`/docs-audit`](skills/docs-audit/SKILL.md) | 文档漂移审计：默认随机抽页，对照源码核对顺序与数值类陈述并复核调研与 ADR 索引；传基准时核对改动命中 `covers` 的页面。文档错就地修正，代码注释错、需产品判断与正文冲突转票据。 | setup 后用户级可用 |
 | [`/optimize`](skills/optimize/SKILL.md) | 项目优化流水线：`/optimize arch`、`docs`、`logs` 分别按封闭的规则表调研框架结构与代码分层、文档结构、日志缺失与冗余，零命中时以“无需优化”结束；命中项经 spec、拆票、worktree 子 agent 实施、review、门禁后合入默认分支并清理，只在建 spec 前停一次，带 spec 编号可续跑。要求目标项目有 Beads 与 `gate-core`、`gate-full` 契约；不推送。 | setup 后用户级可用 |
@@ -69,7 +69,8 @@ dotagents/
 ├── AGENTS.md                       # 本仓库的维护规则
 ├── README.md                       # 使用说明、加载入口和链接关系
 ├── global/AGENTS.md                # 跨项目生效的个人规则，安装为 ~/.agents、~/.gemini、~/.grok 下的 AGENTS.md 与 ~/.claude/CLAUDE.md
-├── .claude/skills/setup-dotagents/ # 项目级安装 skill 与链接脚本
+├── .agents/skills/setup-dotagents/ # 项目级安装 skill 与链接脚本
+├── .claude/skills -> ../.agents/skills # 软链接，供 Claude Code 发现项目级 skill
 ├── skills/                         # 用户级个人 skills，按目录软链接，只含运行时内容
 │   ├── acceptance/                 # 真实环境验收（清单与账本规则、环境契约规则、报告模板）
 │   ├── commit/                     # 本地提交
