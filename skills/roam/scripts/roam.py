@@ -198,6 +198,9 @@ def hints(path: Path, files: list[str]) -> list[str]:
         f.startswith("skills/") and f.endswith("/SKILL.md") for f in files
     ):
         found.append("skills/ 有 SKILL.md 变化；如有新增 skill，需重新执行 setup-dotagents")
+    harness_installer = ".agents/skills/setup-harness/scripts/setup_harness.py"
+    if harness_installer in files:
+        found.append("harness 配置安装器有变化；需重新执行 setup-harness")
     return found
 
 

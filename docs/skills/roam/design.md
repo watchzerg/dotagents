@@ -14,7 +14,7 @@
 - **总目录查找顺序**：参数 → 当前路径里名为 `projects` 的最近祖先目录 → `~/projects` → `/data/projects`。只扫第一层子目录。
 - **不处理新机器缺少的项目**：clone 哪些项目由调用者自己保证。
 - **只允许用户调用**：会推送到外部，设 `disable-model-invocation: true`。
-- **pull 后只提醒、不安装**：依赖或工具链文件有变化时提醒重新安装；dotagents 的 `skills/*/SKILL.md` 有变化时提醒重跑 setup-dotagents。
+- **pull 后只提醒、不安装**：依赖或工具链文件有变化时提醒重新安装；dotagents 的 `skills/*/SKILL.md` 有变化时提醒重跑 setup-dotagents；`setup_harness.py` 有变化时提醒重跑 setup-harness（statusline 脚本本身是软链接，改动随 pull 直接生效，不需要提醒）。
 
 ## 待验收
 

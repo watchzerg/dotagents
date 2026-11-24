@@ -11,8 +11,8 @@
 | 层 | 内容 | 运行位置 | 作用 |
 | --- | --- | --- | --- |
 | 仓库维护 | 根目录 `AGENTS.md`、`docs/`、`tests/`、`mise.toml`、`mise-tasks/`、`pyproject.toml` | 仅本 checkout，需要开发环境 | 约束并验证本仓库自身的开发 |
-| 安装器 | `.agents/skills/setup-dotagents/`（`.claude/skills` 是指向 `.agents/skills` 的软链接） | 仅本 checkout，只需 Python 3.14+ 标准库 | 把用户级内容软链接到当前用户环境 |
-| 用户级内容 | `global/AGENTS.md`、`skills/` | 安装后，在目标机器的任意项目中 | 跨项目生效的个人规则与 skills |
+| 安装器 | `.agents/skills/setup-dotagents/`、`.agents/skills/setup-harness/`（`.claude/skills` 是指向 `.agents/skills` 的软链接） | 仅本 checkout，只需 Python 3.14+ 标准库 | 把用户级内容软链接到当前用户环境，并写入 harness 配置项 |
+| 用户级内容 | `global/AGENTS.md`、`skills/`、`harness/` | 安装后，在目标机器的任意项目中 | 跨项目生效的个人规则、skills 与 harness 配置（如 statusline 脚本） |
 
 用户级 skills 中，`setup-project` 是可重复运行的项目初始化器，向调用时所在的目标项目写入模板与 overlay；其余（`commit`、`prune-tests` 等）是日常调用的常规 skill，不产出项目结构。
 

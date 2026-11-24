@@ -12,8 +12,9 @@
    python3 .agents/skills/setup-dotagents/scripts/setup.py
    ```
 
-4. 开启新的 Claude Code、Antigravity CLI 或 Grok 会话（Antigravity CLI 中也可执行 `/skills reload`），验证个人规则和 skills 已加载。
-5. 切换到目标项目，先执行 `/setup-matt-pocock-skills`，再执行 `/setup-project`；之后按需使用下表中的 skills。用 `/acceptance` 验收有 web 界面的项目时，需要 Chrome 已打开且当前 harness 的原生浏览器方案已连接（Claude Code 为 Claude in Chrome 扩展）。
+4. 需要还原 statusline 等 harness 配置时，再调用 `/setup-harness`（或执行 `python3 .agents/skills/setup-harness/scripts/setup_harness.py`），见[harness 配置](#harness-配置)。
+5. 开启新的 Claude Code、Antigravity CLI 或 Grok 会话（Antigravity CLI 中也可执行 `/skills reload`），验证个人规则和 skills 已加载。
+6. 切换到目标项目，先执行 `/setup-matt-pocock-skills`，再执行 `/setup-project`；之后按需使用下表中的 skills。用 `/acceptance` 验收有 web 界面的项目时，需要 Chrome 已打开且当前 harness 的原生浏览器方案已连接（Claude Code 为 Claude in Chrome 扩展）。
 
 setup 先检查全部入口：已有正确链接跳过，可以重复执行；遇到已有文件、目录或指向其他位置的链接时报告冲突并退出，不创建任何链接、不覆盖。创建中途出现权限或 I/O 错误时，已创建的链接会保留，解决后重新执行即可。`/setup-dotagents` 还会检查当前会话是否提供 `setup-matt-pocock-skills`，未发现时建议安装 Matt Pocock 的 skill 套件；该检查不影响 setup 结果，直接运行脚本时不执行。
 
@@ -24,6 +25,7 @@ setup 先检查全部入口：已有正确链接跳过，可以重复执行；�
 | 调用 | 作用 | 使用范围 |
 | --- | --- | --- |
 | [`/setup-dotagents`](.agents/skills/setup-dotagents/SKILL.md) | 把本仓库的个人规则和 skills 链接到用户环境，检查并补齐加载入口。 | 仅本仓库 |
+| [`/setup-harness`](.agents/skills/setup-harness/SKILL.md) | 把 `harness/` 下的 statusline 脚本链接到 PATH 上检测到的 harness，并写入对应配置项；冲突时零改动，确认后用 `--force` 覆盖。 | 仅本仓库 |
 | [`/commit`](skills/commit/SKILL.md) | 把现有变更提交为一个本地 commit；默认包含全部未忽略变更，不附署名行，不测试、不 push。 | 用户级 |
 | [`/docs-audit`](skills/docs-audit/SKILL.md) | 文档漂移审计：对照源码核对正文（默认随机抽页，传基准时核对改动命中的页面），文档错就地修正，其余转票据。 | 用户级 |
 | [`/optimize`](skills/optimize/SKILL.md) | 项目优化流水线：`arch`、`docs`、`logs` 三个主题按规则表调研，命中项经 spec、拆票、实施、review、门禁后合入，只在建 spec 前停一次。要求目标项目有 Beads 与 `gate-core`、`gate-full`。 | 用户级 |
@@ -53,6 +55,18 @@ setup 先检查全部入口：已有正确链接跳过，可以重复执行；�
 - `skills/` 下每个含 `SKILL.md` 的目录逐个链接，经 `~/.agents/skills` 中转（与 `npx skills` 等工具的安装位置一致）。用户级 skills 父目录保持普通目录，已有的第三方 skills、系统 skills 和插件缓存不受影响。
 - Linux 上文件名区分大小写，入口名须保持 `AGENTS.md`、`CLAUDE.md` 原样。
 
+## harness 配置
+
+`/setup-harness` 只处理 PATH 上能找到 CLI 的 harness。它把脚本链接到下表位置，并在配置文件中合并 statusline 配置项，其他设置不动。设置了 `CLAUDE_CONFIG_DIR` 时，`~/.claude` 改用该路径。
+
+| harness（CLI） | 链接 → 源文件 | 配置项 |
+| --- | --- | --- |
+| Claude Code（`claude`） | `~/.claude/statusline.sh` → `harness/claude/statusline.sh` | `~/.claude/settings.json` 的 `statusLine` |
+| Antigravity CLI（`agy`） | `~/.gemini/antigravity-cli/statusline.sh` → `harness/antigravity/statusline.sh` | `~/.gemini/antigravity-cli/settings.json` 的 `statusLine` |
+| Grok Build（`grok`） | `~/.grok/statusline.sh` → `harness/grok/statusline.sh` | `~/.grok/config.toml` 的 `[ui.status_line]` |
+
+脚本依赖 `jq` 和 `git`（macOS：`brew install jq`；Ubuntu：`sudo apt install jq`），图标需要终端使用 Nerd Font。修改脚本后 pull 即生效；修改配置项的期望值后，需要重新运行 `/setup-harness`。
+
 ## 仓库结构
 
 ```text
@@ -61,6 +75,8 @@ dotagents/
 ├── README.md                       # 使用说明、加载入口和链接关系
 ├── global/AGENTS.md                # 跨项目生效的个人规则，按上表安装
 ├── .agents/skills/setup-dotagents/ # 项目级安装 skill 与链接脚本
+├── .agents/skills/setup-harness/   # 项目级 harness 配置安装 skill
+├── harness/<harness>/statusline.sh # 各 harness 的 statusline 脚本，按上表链接
 ├── .claude/skills -> ../.agents/skills # 软链接，供 Claude Code 发现项目级 skill
 ├── skills/                         # 用户级个人 skills，按目录软链接，只含运行时内容
 │   ├── acceptance/                 # 真实环境验收（清单与账本规则、环境契约规则、报告模板）

@@ -28,7 +28,7 @@ disable-model-invocation: true
 
 - `result` 为 `problem` 的项目：逐条转述 `problems`。冲突和分叉只报告，不动手合并。
 - 已完成的项目：push 报告 `pushed`，pull 报告 `done`，以及 Dolt 结果；没有任何变化的项目合并成一行。
-- `hints`（pull 的依赖变化、dotagents 的 skill 变化）：只提醒，不自动执行安装或 setup。
+- `hints`（pull 的依赖变化、dotagents 的 skill 或 harness 配置安装器变化）：只提醒，不自动执行安装或 setup。
 - `other_branches` 中 `ahead` 大于 0 或 `upstream` 为空的分支：列出来提醒用户，这些分支不由本 skill 处理。
 - 跳过的项目（未被 git 管理）：合并成一行。
 
