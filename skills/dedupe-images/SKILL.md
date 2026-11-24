@@ -1,6 +1,7 @@
 ---
 name: dedupe-images
-description: "Deduplicate an image library by content hash: clear non-image junk, find duplicate images and folders, trash the confident ones after spot checks, and propose trash/merge/keep for ambiguous cases for user confirmation; a script verifies every trashed file survives elsewhere. Use for /dedupe-images or requests to dedupe an image library. Exact duplicates only, not visual similarity."
+description: "Deduplicate an image library by content hash, trashing duplicates with a survival check."
+disable-model-invocation: true
 ---
 
 # 图片库去重

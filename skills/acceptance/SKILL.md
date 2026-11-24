@@ -1,6 +1,7 @@
 ---
 name: acceptance
-description: "QA-style acceptance run in the real local environment against the project's behavior docs: start the real app, exercise every documented behavior while observing UI, logs, data and files, fix deviations in place and rerun until one full pass needs zero fixes, then write a report. Use for /acceptance or requests to fully acceptance- or regression-test features. Not unit/integration tests or CI gates."
+description: "Real-environment acceptance run against the project's behavior docs, fixing deviations until one clean pass, then a report."
+disable-model-invocation: true
 ---
 
 # 真实环境验收

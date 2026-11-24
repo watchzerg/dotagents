@@ -1,6 +1,7 @@
 ---
 name: setup-harness
-description: "Install this dotagents checkout's harness configs (statusline for Claude Code, Antigravity CLI, Grok Build) into the current user environment. Use on a new machine after setup-dotagents, or to restore drifted harness configs. Not for linking rules or skills; that is setup-dotagents."
+description: "Install this checkout's harness configs (statusline) into the current user environment."
+disable-model-invocation: true
 ---
 
 # 应用 harness 配置

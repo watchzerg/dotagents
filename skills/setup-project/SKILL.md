@@ -1,6 +1,7 @@
 ---
 name: setup-project
-description: "Initialize a project from personal templates: Beads, standard docs structure, and a dev toolchain (any mix of uv, Node, Swift, or none) with gate-core and gate-full gates. Rerunnable: fills gaps, never overwrites. Use for /setup-project or requests to bootstrap a project or fill in its missing setup."
+description: "Initialize or fill in a project from personal templates: Beads, docs structure, toolchain and gates."
+disable-model-invocation: true
 ---
 
 # 项目初始化

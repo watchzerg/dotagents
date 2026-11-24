@@ -15,6 +15,7 @@
 - **JSON 整文件重写**：保留键的顺序，缩进 2 格。只有配置项需要变化时才写文件。
 - **不自动安装 jq**：脚本依赖 jq 与 git，缺 jq 时只提醒 macOS 和 Ubuntu 各自的安装命令。
 - **首次导入不写迁移逻辑**：本机原有的脚本已复制进仓库，原文件由冲突检查加 `--force` 替换为链接。Claude Code 原来的 `statusline-command.sh` 改名为 `statusline.sh`，旧文件手动删除。
+- **只允许用户调用**（2026-11-25）：设 `disable-model-invocation: true`，description 只作给人看的一行摘要。会改写用户目录下的 harness 配置，只在换机或还原时由用户发起；setup-dotagents 同样设置。
 
 ## 待验收
 

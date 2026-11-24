@@ -102,6 +102,10 @@
 - 不选 `osascript` 驱动 Finder（需要自动化授权，逐个文件很慢），不选 `ctypes` 调 `NSFileManager`（复杂、难测）。
 - 测试不调用真实命令（2026-11-23）：它移到用户真实的废纸篓，无法指向临时目录。脚本读 `DEDUPE_IMAGES_MAC_TRASH` 换命令路径，测试在 macOS 上指向替身脚本，把文件移进与 Linux 相同的临时 `<xdg>/Trash/files`，两平台共用断言，只有 `.trashinfo` 断言限 Linux。
 
+## 调用方式
+
+- **只允许用户调用**（2026-11-25）：设 `disable-model-invocation: true`，description 只作给人看的一行摘要。会把文件移入废纸篓，且只由用户主动发起；没有其他 skill 调用本 skill，不必在所有项目常驻上下文。
+
 ## 运行时
 
 只依赖 Python 3.14+ 标准库，沿用本仓库用户级 skill 的约定。不为系统自带 Python 降低下限：macOS Command Line Tools 附带 3.9，Ubuntu 各版本不一，测试只在 3.14 上运行。

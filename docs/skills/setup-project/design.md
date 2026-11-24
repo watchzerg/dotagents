@@ -99,6 +99,10 @@
 
 - **真实 agent 验收用 headless harness，而不是再写一个测试 skill**：`tests/setup_project/e2e/` 在临时 Git 项目上造 fixture、起 headless 会话执行 `/setup-project`、做确定性检查并派 reviewer，做法见 [e2e.md](e2e.md)。`setup-matt-pocock-skills` 标了 `disable-model-invocation`，其产物用 fixture 模拟；提问在非交互下由预置答案代替。属于仓库维护层，不进门禁，因为需要模型额度且结果有判断成分。
 
+### 调用方式
+
+- **只允许用户调用**（2026-11-25）：设 `disable-model-invocation: true`，description 只作给人看的一行摘要。会向项目写入大量模板与配置，属低频、有明确意图的操作；没有其他 skill 调用本 skill。e2e 由 headless 会话输入 `/setup-project`，属于用户输入，不受影响（见待验收）。
+
 ## 明确不做
 
 - 不生成模块页、ADR、调研文件的实例；由 Matt 的 skills 或日常迭代惰性创建。
@@ -122,4 +126,5 @@
 - **描述与代码的差距**：用户描述与代码现状不一致时是否记为模块页的已知差异，SKILL.md 阶段 2 第 2 步（不拼成代码没有的能力）与 document-code.md（只记旧文档与代码的冲突）都没有明说。
 - **真实开发会话里的文档同步**：e2e 只覆盖初始化。下一个用模板初始化的空项目跑过三到五个改代码的任务后回看：是否在行为首次被测试覆盖时建了模块页并登记功能地图、模块页是否随后续改动更新、是否写出合适的 `covers` 并运行 `docs-affected`、完成报告是否列出文档影响、400 字符行预算是否过紧、超预算时是拆页还是删内容。漏改的位置决定是否启用暂缓的路径核对或 Stop hook。
 - **合同独占页**：真实项目上的 `/acceptance` 与 `/prune-tests` 未在 `test-layers.md`、`local-acceptance.md` 新路径下运行过。
+- **仅用户调用后的 e2e 触发**：设 `disable-model-invocation` 后尚未跑过 `mise run e2e-setup-project`，需确认 headless 输入 `/setup-project` 仍能触发。
 - **`bd bootstrap`**：2026-11-23 在临时 bare origin（本地路径）上手工验证过：新 clone 运行 `init_beads.py` 走 bootstrap，原有票据恢复且不产生新提交；已补 e2e 用例 `beads-clone`，尚未在真实 agent 下运行。远端为需要凭据的 git 托管时的克隆耗时与凭据交互未知。

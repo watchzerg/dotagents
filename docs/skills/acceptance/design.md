@@ -22,7 +22,7 @@
 - **浏览器用用户自己的 Chrome**：最接近真实使用，复用登录态，能读 console 与 network。首版曾选 Playwright MCP headless（独立实例），用户改为真实浏览器，理由是真实环境与登录态复用更不容易出错。代价是操作真实浏览器与账号，所以 browser.md 写死范围：只访问契约地址、只用自建标签页、不登出、不动其他标签页，禁区由契约声明；原生对话框会阻塞扩展，列为硬阻塞。未连接时不回退：悄悄换成无登录态的独立浏览器会让环境偏离真实使用。只有 harness 没有原生方案时才用 Playwright skill + CLI。总规则在 `global/AGENTS.md` 浏览器测试节，skill 只写验收特有的部分。
 - **harness 中立**：用户同时使用多个 harness。SKILL.md 只写能力要求与操作边界，不写工具名；各 harness 的浏览器做法集中在 `references/browser.md` 的映射表，新增 harness 只改这张表。
 - **“验收”一词只指本 skill**：setup-project 模板曾把 `gate-full` 通过也叫“完整验收”。划分标准是可重复且结果确定的进 core 或 full，依赖真实账号、真实外部服务或人工判断的归本 skill。
-- **暂不设 `disable-model-invocation`**（2026-11-24）：若 `/goal` 由模型读到 `/acceptance` 后经 Skill 工具调用，设了就会失效；待验收项中 `/goal` 的触发方式确认后再定。
+- **只允许用户调用**（2026-11-25）：设 `disable-model-invocation: true`，description 只作给人看的一行摘要。一跑约一小时且会改代码、提交，误触发代价高；没有其他 skill 调用本 skill，模板也只让用户输入 `/acceptance`。已知风险：若 `/goal` 的首轮是模型读到 `/acceptance` 文字后经 Skill 工具调用，此用法会失效，见待验收。
 
 ## 与 setup-project 的耦合
 
@@ -33,7 +33,7 @@
 ## 待验收
 
 - 尚未在任何真实项目上跑过。首个目标：有 web 界面与数据库的项目各一次 all 模式、一次 topic 模式；再跑一个纯 CLI 项目验证“不假设浏览器与数据库”的措辞够用。
-- `/goal /acceptance 直到打印"验收完成"，最多 80 轮` 能否让首轮正确触发 skill、评估器是否按 `验收完成` 判定；最短形式 `/goal /acceptance` 是否可用（评估器可能拿不到判据而首轮就判完成）。
+- `/goal /acceptance 直到打印"验收完成"，最多 80 轮` 在设了 `disable-model-invocation` 后能否让首轮正确触发 skill（不能则需撤回该设置或改推荐命令）、评估器是否按 `验收完成` 判定；最短形式 `/goal /acceptance` 是否可用（评估器可能拿不到判据而首轮就判完成）。
 - 阶段 1 的结构化提问（Claude Code 的 AskUserQuestion）在 goal 激活期间是否会被评估器判为失败。
 - 契约起草的证据来源是否够用，取决于真实项目的 `mise.toml` 与 README 质量。
 - 除 Claude Code 外，其他 harness 的浏览器做法未填入映射表，也未在其他 harness 上运行过。

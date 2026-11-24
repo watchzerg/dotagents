@@ -1,6 +1,7 @@
 ---
 name: setup-dotagents
-description: "Symlink this dotagents checkout's personal rules and skills into the current user environment. Use after cloning on a new machine, or to check and restore missing load entries."
+description: "Symlink this checkout's personal rules and skills into the current user environment."
+disable-model-invocation: true
 ---
 
 # 应用 dotagents
