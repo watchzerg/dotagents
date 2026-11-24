@@ -14,6 +14,8 @@ def setup(repo_root: Path, user_home: Path, claude_dir: Path) -> None:
 
     agents_dir = user_home / ".agents"
     gemini_dir = user_home / ".gemini"
+    # Antigravity CLI 与 npx skills 的用户级 skills 目录。
+    gemini_skills_dir = gemini_dir / "config/skills"
     grok_dir = user_home / ".grok"
     if claude_dir.resolve() == agents_dir.resolve():
         raise ValueError("CLAUDE_CONFIG_DIR 与 ~/.agents 重合，无法建立 skills 两级链接。")
@@ -29,7 +31,7 @@ def setup(repo_root: Path, user_home: Path, claude_dir: Path) -> None:
         claude_dir,
         claude_dir / "skills",
         gemini_dir,
-        gemini_dir / "skills",
+        gemini_skills_dir,
         grok_dir,
     )
     for skill in sorted((repo_root / "skills").iterdir()):
@@ -37,7 +39,7 @@ def setup(repo_root: Path, user_home: Path, claude_dir: Path) -> None:
             continue
         links[agents_dir / "skills" / skill.name] = skill
         links[claude_dir / "skills" / skill.name] = agents_dir / "skills" / skill.name
-        links[gemini_dir / "skills" / skill.name] = agents_dir / "skills" / skill.name
+        links[gemini_skills_dir / skill.name] = agents_dir / "skills" / skill.name
 
     conflicts = []
     for parent in parents:

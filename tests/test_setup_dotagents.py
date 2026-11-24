@@ -72,7 +72,7 @@ def test_install_is_idempotent_and_preserves_third_party(checkout: Path, tmp_pat
     claude_third_party = claude / "skills/third-party"
     claude_third_party.mkdir(parents=True)
     (claude_third_party / "SKILL.md").write_text("原有 Claude 内容\n")
-    gemini_third_party = gemini / "skills/third-party"
+    gemini_third_party = gemini / "config/skills/third-party"
     gemini_third_party.mkdir(parents=True)
     (gemini_third_party / "SKILL.md").write_text("原有 Gemini 内容\n")
     result = run_setup(checkout, home)
@@ -86,7 +86,7 @@ def test_install_is_idempotent_and_preserves_third_party(checkout: Path, tmp_pat
     for name in ("commit", "prune-tests", "another skill"):
         links[home / ".agents/skills" / name] = checkout / "skills" / name
         links[claude / "skills" / name] = home / ".agents/skills" / name
-        links[gemini / "skills" / name] = home / ".agents/skills" / name
+        links[gemini / "config/skills" / name] = home / ".agents/skills" / name
     for target, source in links.items():
         assert target.is_symlink()
         assert os.readlink(target) == str(source)
@@ -96,7 +96,7 @@ def test_install_is_idempotent_and_preserves_third_party(checkout: Path, tmp_pat
         claude,
         claude / "skills",
         gemini,
-        gemini / "skills",
+        gemini / "config/skills",
         home / ".grok",
     ):
         assert parent.is_dir() and not parent.is_symlink()

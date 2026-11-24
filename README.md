@@ -46,7 +46,7 @@ setup 先检查全部入口：已有正确链接跳过，可以重复执行；�
 | `~/.grok/AGENTS.md` | `global/AGENTS.md` |
 | `~/.agents/skills/<name>` | `skills/<name>` |
 | `~/.claude/skills/<name>` | `~/.agents/skills/<name>` |
-| `~/.gemini/skills/<name>` | `~/.agents/skills/<name>` |
+| `~/.gemini/config/skills/<name>` | `~/.agents/skills/<name>` |
 
 - `~/.agents/AGENTS.md` 是通用规则入口。Grok 只读 `~/.grok/` 下的规则，因此单独链接；它也读 `~/.claude/CLAUDE.md`，但按真实路径去重，只加载一次。Grok 直接读 `~/.agents/skills`，不另建 skill 链接。
 - `skills/` 下每个含 `SKILL.md` 的目录逐个链接，经 `~/.agents/skills` 中转（与 `npx skills` 等工具的安装位置一致）。用户级 skills 父目录保持普通目录，已有的第三方 skills、系统 skills 和插件缓存不受影响。
