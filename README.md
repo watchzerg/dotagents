@@ -31,6 +31,7 @@ setup 先检查全部入口：已有正确链接跳过，可以重复执行；�
 | [`/dedupe-images`](skills/dedupe-images/SKILL.md) | 图片库去重：清理非图片杂项，按内容哈希找出重复的图片与目录；有把握的移入回收站，拿不准的整理成案例由用户确认。不做相似图片识别；需要 macOS 15+ 或 Linux。 | 用户级 |
 | [`/setup-project`](skills/setup-project/SKILL.md) | 初始化或补齐目标项目的 Beads、标准化文档结构与工具链（uv、Node、Swift 任意组合）及 `gate-core` / `gate-full` 门禁，并收敛已有文档。 | 用户级 |
 | [`/acceptance`](skills/acceptance/SKILL.md) | 在本机真实环境按行为文档完整验收功能，偏差就地修复并重跑，直到零修复全量通过后写验收记录。推荐配合 `/goal /acceptance 直到打印"验收完成"，最多 80 轮` 运行。 | 用户级 |
+| [`/roam`](skills/roam/SKILL.md) | 换机同步总目录下的全部项目：`push` 汇总确认后提交，再 git push 与 `bd dolt push`；`pull` 快进或无冲突 rebase，再 `bd dolt pull`（新 clone 用 `bd bootstrap`）。冲突时回滚并跳过，最后汇总。 | 用户级 |
 
 “用户级”指 setup 后在任意项目可用。第三方 skills 由原安装工具管理，不纳入本仓库，也不由 setup 安装。
 
@@ -68,6 +69,7 @@ dotagents/
 │   ├── docs-audit/                 # 文档漂移审计
 │   ├── optimize/                   # 项目优化流水线（主题规则表与 spec、拆票、实施的参考文件）
 │   ├── prune-tests/                # 测试精简
+│   ├── roam/                       # 换机同步（roam.py 负责检查、push、pull）
 │   └── setup-project/              # 项目初始化（Beads、文档结构模板、工具链模板）
 ├── docs/testing.md                 # 本仓库测试的保留范围，删改测试前阅读
 ├── docs/skills/<name>/             # 各 skill 的设计说明与调研，维护者阅读
