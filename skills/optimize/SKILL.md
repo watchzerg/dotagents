@@ -1,6 +1,7 @@
 ---
 name: optimize
-description: 项目优化流水线：按封闭的规则表调研，命中项经 spec、拆票、实施、合并清理一次做完，只在建 spec 前停一次。主题 arch（框架结构与代码分层）、docs（文档结构）、logs（日志缺失与冗余）；传 spec 编号续跑。用于 /optimize、“做一轮架构优化/文档结构优化/日志优化”；不做功能开发，精简测试用 /prune-tests，核对正文与代码是否一致用 /docs-audit。
+description: "One-topic optimization pipeline (arch, docs or logs): rule-table survey, spec, tickets, implementation and cleanup in one run, pausing once before the spec; pass a spec ID to resume."
+disable-model-invocation: true
 ---
 
 # 项目优化流水线

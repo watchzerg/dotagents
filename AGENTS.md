@@ -23,6 +23,7 @@
 - 三个 `AGENTS.md` 用途不同，改动前先确认目标：根目录的约束本仓库维护；`global/AGENTS.md` 安装为用户级规则；`skills/setup-project/templates/AGENTS.md` 是写入目标项目的模板。
 - 跨项目使用的 skill 放 `skills/<name>/`，重新执行 setup 建立链接；仅本仓库使用的 skill 放 `.agents/skills/`，不安装到用户目录，`.claude/skills` 中不另放文件。
 - `skills/<name>/` 整目录链接到用户环境，只放运行时内容：`SKILL.md`、脚本、模板，以及 agent 执行时按需读取的 `references/`。测试放 `tests/<name 下划线形式>/`（如 `tests/setup_project/`），设计说明与调研放 `docs/skills/<name>/`；`SKILL.md` 只写给执行 skill 的 agent。
+- `SKILL.md` frontmatter 的 `description` 常驻 agent 上下文，统一用英文：先写做什么，再写触发场景，必要时用一句话指向易混淆的相邻 skill；带 `disable-model-invocation: true` 的 skill 只写给人看的一行摘要，不列触发场景；值加双引号，因为英文冒号会破坏 YAML 解析。
 
 ## 维护边界
 

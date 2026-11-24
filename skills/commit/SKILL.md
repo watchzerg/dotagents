@@ -1,6 +1,7 @@
 ---
 name: commit
-description: 快速提交当前 Git 仓库的现有变更。用于 /commit、“提交所有变更”等本地提交请求；不承担开发、审查或交付验收。
+description: "Commit the repo's existing changes as one local commit, without review, tests or push."
+disable-model-invocation: true
 allowed-tools: Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git add:*), Bash(git commit:*)
 ---
 

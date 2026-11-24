@@ -112,6 +112,7 @@
 - **验证方式按主题分开**：架构每票用 `tdd`，集成分支跑无筛选 `gate-full`。文档只跑 `docs-check`（用户在 media-glance 手动要求过）；本轮改了检查脚本等代码时改跑 `gate-full`。日志不照搬 `tdd`：逐条测日志输出正是 `prune-tests` 会删的那类，只在统一出口留少量测试，其余由 review 核对；门禁与架构相同。
 - **主题文件优先于目标项目的 `testing.md`**：模板的 implement-spec 覆盖规则要求最终跑无筛选的完整门禁，文档主题因此要以主题文件为准。
 - **收尾顺序**：review → `docs-audit` diff 模式（仅 arch、docs）→ 最终门禁 → 合入默认分支 → 关 spec → 清理 → 出口检查。`docs-audit` 可能改文档，所以排在门禁之前。
+- **只允许用户调用**（2026-11-24）：设 `disable-model-invocation: true`，description 不再常驻上下文，只作给人看的一行摘要；一次运行要停下问一次、跨多张票，只会由用户主动发起，没有其他 skill 调用本 skill。
 
 ## 与 prune-tests、docs-audit 的分工
 

@@ -1,6 +1,6 @@
 ---
 name: setup-dotagents
-description: 将当前 dotagents checkout 的个人规则和 skills 通过软链接应用到当前用户环境。用于 clone 后初始化新机器，或检查并补齐本仓库的加载入口。
+description: "Symlink this dotagents checkout's personal rules and skills into the current user environment. Use after cloning on a new machine, or to check and restore missing load entries."
 ---
 
 # 应用 dotagents

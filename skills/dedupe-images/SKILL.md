@@ -1,6 +1,6 @@
 ---
 name: dedupe-images
-description: 图片库去重：对给定总目录先清理非图片杂项，再按内容哈希找出重复的图片与目录；有把握的由模型抽查后移入回收站，拿不准的整理成案例、给出移走、合并或保留的建议，经用户确认后由脚本校验执行，被移走的文件在保留处都有相同内容。用于 /dedupe-images、“给图片库去重”“清理重复图片”；不做相似图片识别。
+description: "Deduplicate an image library by content hash: clear non-image junk, find duplicate images and folders, trash the confident ones after spot checks, and propose trash/merge/keep for ambiguous cases for user confirmation; a script verifies every trashed file survives elsewhere. Use for /dedupe-images or requests to dedupe an image library. Exact duplicates only, not visual similarity."
 ---
 
 # 图片库去重

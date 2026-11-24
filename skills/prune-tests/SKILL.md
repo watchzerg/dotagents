@@ -1,6 +1,6 @@
 ---
 name: prune-tests
-description: 大幅精简当前项目的测试：core 层只留核心规则的代表性单元测试，full 层只留行为文档主流程与必须真实接线才能证明的核心规则，删除边缘与重复用例并校正分层归属。用于 /prune-tests、“清理/精简/大幅删减测试”；不是日常修测试或补测试。
+description: "Aggressively prune the project's tests: core keeps only representative unit tests of core rules; full keeps only behavior-doc main flows and core rules provable only with real wiring; delete edge and duplicate cases and fix layer placement. Use for /prune-tests or requests to slim down tests. Not routine test fixing or adding."
 ---
 
 # 精简测试

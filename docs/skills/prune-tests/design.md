@@ -29,6 +29,7 @@
 - **删除后的清理交给 typecheck 与 lint 定位、逐个删声明**：grok-media-saver 运行为删测试写了八个一次性脚本，接连出错（扫描器不认模板字符串 `${}`；删 `for` 包裹的测试只删了循环头；单参数 `test.each` 残留比较；Biome `--unsafe` 把未用函数改名为 `_name` 而不删；去下划线脚本截断多行签名）。这些具体坑只记在本文。
 - **结束时留一张已关闭的票**：使 `/optimize` 与精简测试都有票据留痕，可查哪天删了多少。由票据发起时（如 `/optimize arch` 拆出的票）记入原票；没有 tracker 约定的项目跳过，保持不强依赖。先拿编号再关闭：同次运行把 create、解析 ID 与 close 串成一条命令，create 失败后 close 拿到空 ID，报错掩盖了真正的 `no beads database found`。该报错的恢复（`bd bootstrap`）归 setup-project 模板与 `init_beads.py`，本 skill 不重复。
 - **报告给出删后耗时分布，只列不改**：grok-media-saver 删后 `gate-full` 仍要 105s，逐文件计时才发现约 70s 花在每个文件各启动一次 PostgreSQL 容器上（改为共用后 46s）。列为后续项以守住不扩大范围的边界。
+- **不设 `disable-model-invocation`**（2026-11-24）：`optimize` 的 `topic-arch.md` 让测试精简票按本 skill 的标准处理，实施该票的 agent 需要能调用本 skill。
 
 ## 运行参考
 

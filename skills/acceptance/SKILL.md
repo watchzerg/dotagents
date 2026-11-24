@@ -1,6 +1,6 @@
 ---
 name: acceptance
-description: 在本机真实环境按项目的行为文档完整验收功能：启动真实服务，逐项操作并观察界面、日志、数据与文件，发现偏差就地修复并重跑，直到一次零修复的全量通过，最后写验收报告。用于 /acceptance、“把功能完整验收/回归一遍”；不是单元测试、集成测试或 CI 门禁。
+description: "QA-style acceptance run in the real local environment against the project's behavior docs: start the real app, exercise every documented behavior while observing UI, logs, data and files, fix deviations in place and rerun until one full pass needs zero fixes, then write a report. Use for /acceptance or requests to fully acceptance- or regression-test features. Not unit/integration tests or CI gates."
 ---
 
 # 真实环境验收

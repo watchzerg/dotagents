@@ -22,6 +22,7 @@
 - **浏览器用用户自己的 Chrome**：最接近真实使用，复用登录态，能读 console 与 network。首版曾选 Playwright MCP headless（独立实例），用户改为真实浏览器，理由是真实环境与登录态复用更不容易出错。代价是操作真实浏览器与账号，所以 browser.md 写死范围：只访问契约地址、只用自建标签页、不登出、不动其他标签页，禁区由契约声明；原生对话框会阻塞扩展，列为硬阻塞。未连接时不回退：悄悄换成无登录态的独立浏览器会让环境偏离真实使用。只有 harness 没有原生方案时才用 Playwright skill + CLI。总规则在 `global/AGENTS.md` 浏览器测试节，skill 只写验收特有的部分。
 - **harness 中立**：用户同时使用多个 harness。SKILL.md 只写能力要求与操作边界，不写工具名；各 harness 的浏览器做法集中在 `references/browser.md` 的映射表，新增 harness 只改这张表。
 - **“验收”一词只指本 skill**：setup-project 模板曾把 `gate-full` 通过也叫“完整验收”。划分标准是可重复且结果确定的进 core 或 full，依赖真实账号、真实外部服务或人工判断的归本 skill。
+- **暂不设 `disable-model-invocation`**（2026-11-24）：若 `/goal` 由模型读到 `/acceptance` 后经 Skill 工具调用，设了就会失效；待验收项中 `/goal` 的触发方式确认后再定。
 
 ## 与 setup-project 的耦合
 

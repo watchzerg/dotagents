@@ -1,6 +1,6 @@
 ---
 name: setup-project
-description: 按个人模板初始化新项目的 Beads、标准化文档结构与开发工具链（uv、Node、Swift 的任意组合，或无预置 stack），建立 gate-core 与 gate-full 门禁。
+description: "Initialize a project from personal templates: Beads, standard docs structure, and a dev toolchain (any mix of uv, Node, Swift, or none) with gate-core and gate-full gates. Rerunnable: fills gaps, never overwrites. Use for /setup-project or requests to bootstrap a project or fill in its missing setup."
 ---
 
 # 项目初始化

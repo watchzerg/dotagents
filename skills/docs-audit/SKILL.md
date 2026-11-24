@@ -1,6 +1,6 @@
 ---
 name: docs-audit
-description: 文档漂移审计：对照源码逐条核对当前正文，产出差异清单，文档错就地修正，其余转票据。默认随机抽页核对顺序与数值类陈述并复核调研与 ADR 索引；传基准时改为核对改动命中的页面。用于 /docs-audit、“做一次文档漂移审计”“抽查文档与代码是否一致”“按这次改动核对文档”；不是 docs-check 的机械检查，也不改产品代码。
+description: "Docs drift audit against source code: verify ordering and numeric claims line by line, fix wrong docs in place, ticket the rest. Default samples random pages and rechecks research/ADR indexes; given a git ref, audits pages the diff touches. Use for /docs-audit or requests to check docs match code. Not the mechanical docs-check; never edits product code."
 ---
 
 # 文档漂移审计
