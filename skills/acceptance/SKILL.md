@@ -38,14 +38,14 @@ disable-model-invocation: true
 
 - **环境契约**是唯一的环境依据：被验对象可能是 web 服务、CLI、后台任务、库的示例程序或桌面 app，界面、数据位置与观测方式全部以契约声明为准。契约没声明的通道就是不存在，不猜数据库连接串、不另起浏览器找界面。
 - **账本**是跨轮唯一真相：每轮先读账本再行动；对话被压缩后以账本为准。
-- 契约声明 web 界面时，浏览器的连接、标签页与取证按 [references/browser.md](references/browser.md)。
+- 契约声明 web 界面时，浏览器方案的选择（按是否需要用户真实登录态）、连接、标签页与取证按 [references/browser.md](references/browser.md)。
 
 ## 阶段 0：前提与输入（只读）
 
 1. 当前目录是 Git 工作区根目录且工作树干净；有未提交改动时停下，让用户先提交或暂存（修复会逐个 commit 到当前分支）。
 2. 预期来源：`docs/behaviors/*.md`，其次 `docs/architecture/modules/*.md` 的“当前行为规格”章节。两处都没有可用内容时停下说明“没有可验收的预期”，预期只来自文档。给了 `<topic>` 时只取对应文件；找不到就停下列出可选主题。
 3. 环境契约：`docs/development/local-acceptance.md` 整页，只认这个路径，要求见 [references/environment.md](references/environment.md)。文件缺失或仍是 `<待填` 标记时按该文件起草整页，纳入阶段 1 的确认。
-4. 观测工具：web 界面按 browser.md 确认连接；其他通道逐个确认契约声明的命令可执行。
+4. 观测工具：web 界面按 browser.md 选定浏览器方案并确认可用，写入账本；其他通道逐个确认契约声明的命令可执行。
 5. 账本：在会话临时目录（有 scratchpad 用它，否则 `mktemp -d`）建 `ledger.md`，打印路径；格式见 [references/checklist.md](references/checklist.md#账本)。
 
 ## 阶段 1：清单与一次确认
@@ -59,7 +59,7 @@ disable-model-invocation: true
 1. 契约有数据重置命令就执行；没有时账本记“未重置”，断言只用本次运行产生的数据。
 2. 用 shell 前台调用契约的启动命令（它自行后台化，见 environment.md），等待契约的就绪条件。不用 harness 自带的后台执行功能：部分 harness 的多轮循环在后台任务未结束时跳过每轮评估。
 3. 记录基线：日志文件当前长度、契约数据检查命令的输出、可写目录的文件清单。之后每项证据都相对基线取增量。
-4. 有 web 界面时按 browser.md 新建验收专用标签页。
+4. 有 web 界面时按 browser.md 打开验收专用页面。
 
 ## 阶段 3：逐项验收
 
@@ -95,7 +95,7 @@ disable-model-invocation: true
 **硬阻塞**时停下问用户，附账本路径与当前摘要，用户答复后从账本继续：
 
 - 契约声明的命令不存在或运行失败；服务起不来或就绪超时。
-- 缺凭证；浏览器未连接、连接断开或缺所需工具；页面被原生对话框（alert/confirm）阻塞。
+- 缺凭证；所选浏览器方案不可用（CLI 缺失，原生方案未连接、连接断开或缺所需工具）；页面被原生对话框（alert/confirm）阻塞。
 - 需要契约未授权的破坏性操作。
 - 文档自相矛盾且影响主流程。
 - 修复需要 schema 变更或跨模块重构。

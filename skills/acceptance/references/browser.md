@@ -1,25 +1,23 @@
 # 浏览器观测
 
-契约声明 web 界面时，用 harness 原生方案操作用户自己的 Chrome：最接近真实使用，复用已有登录态，能读 console 与 network。它操作的是真实浏览器与真实账号，所以：
+契约声明 web 界面时，先按契约是否要求用户真实登录态选定方案，整次运行只用这一种：清单中有一项需要就选原生方案。契约没写清时，阶段 1 确认时让用户补。
 
-- 只访问契约声明的地址，只在自己新建的标签页里操作；用户的其他标签页、账号与浏览器设置保持原样，不登出。
-- 原生方案未连接是硬阻塞：提示用户打开 Chrome 并连接，不换成没有登录态的独立浏览器。
+- **不需要用户真实登录态**（无需登录，或用契约声明的测试账号登录）：用 Playwright 官方 skill + CLI 起独立浏览器，不碰用户的 Chrome。登录方式只按契约；需要登录而契约没写是硬阻塞。CLI 不可用是硬阻塞：提示用户安装，不改用原生方案。
+- **需要用户真实登录态**（第三方站点、SSO、已有 cookie）：用 harness 原生方案操作用户自己的 Chrome。它操作的是真实浏览器与真实账号，所以只访问契约声明的地址，只在自己新建的标签页里操作；用户的其他标签页、账号与浏览器设置保持原样，不登出。原生方案未连接或当前 harness 没有原生方案是硬阻塞：提示用户打开 Chrome 并连接，不换成没有登录态的独立浏览器。
 
 ## 步骤
 
-1. **确认连接**（阶段 0）。
-2. **新建专用标签页**（阶段 2）：记下标识，告知用户运行期间别操作它；需要多窗口的行为按需再建并记录。
-3. **取证**（阶段 3）：每项读该标签页的页面文本或截图、console 错误与失败的 network 请求。
-4. **收尾**（阶段 5）：关闭自己开的全部标签页。
+1. **确认可用**（阶段 0）：把选定的方案与理由写入账本。
+2. **打开专用页面**（阶段 2）：原生方案新建标签页，记下标识，告知用户运行期间别操作它；需要多窗口的行为按需再建并记录。
+3. **取证**（阶段 3）：每项读该页面的文本或截图、console 错误与失败的 network 请求。
+4. **收尾**（阶段 5）：关闭自己开的全部标签页或浏览器会话。
 
-## 各 harness 的做法
+## 各方案的做法
 
-| harness | 方案 | 确认连接 | 新建与关闭标签页 | 取证 |
-| --- | --- | --- | --- | --- |
-| Claude Code | Claude in Chrome 扩展（`mcp__claude-in-chrome__*`） | `tabs_context_mcp` | `tabs_create_mcp`、`tabs_close_mcp` | `get_page_text` 或 `computer` 截图、`read_console_messages`、`read_network_requests` |
-| 有其他原生方案的 harness | 该 harness 连接用户 Chrome 的原生方案 | 按其文档完成上面四步 | | |
-| 没有原生方案的 harness | Playwright 官方 skill + CLI | 确认 CLI 可执行 | 由 CLI 打开页面 | CLI 的页面文本、截图、console 与 network 输出 |
+| 方案 | 确认可用 | 打开与关闭 | 取证 |
+| --- | --- | --- | --- |
+| Playwright 官方 skill + CLI（任何 harness） | 确认 CLI 可执行 | 由 CLI 打开页面、结束会话 | CLI 的页面文本、截图、console 与 network 输出 |
+| 原生方案：Claude Code 的 Claude in Chrome 扩展（`mcp__claude-in-chrome__*`） | `tabs_context_mcp` | `tabs_create_mcp`、`tabs_close_mcp` | `get_page_text` 或 `computer` 截图、`read_console_messages`、`read_network_requests` |
+| 原生方案：其他 harness | 按其文档完成上面四步 | | |
 
-Claude Code 中这些工具延迟加载时，先用 ToolSearch 一次加载全部所需工具。
-
-走 Playwright CLI 时没有用户登录态，登录方式只按契约声明；契约没写是硬阻塞。
+Claude Code 中扩展工具延迟加载时，先用 ToolSearch 一次加载全部所需工具。

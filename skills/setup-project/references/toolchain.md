@@ -97,7 +97,7 @@ uv+node 采用“后端根目录、前端子目录”：后端是仓库主体，
 ## 门禁定义
 
 - **core**：各 stack home 下的 `tests/core/`。单元测试和轻量、结果确定的测试，秒级完成；不启动真实服务、数据库、浏览器或桌面会话，不执行 E2E；不依赖共享可变状态、固定端口、桌面焦点。因此 `gate-core` 可在多个 worktree 并行运行。
-- **full**：各 stack home 下的 `tests/full/`。重型、真实基础设施集成、E2E 与独占资源测试；需要浏览器的测试以开发依赖引入 Playwright 并归入此层。尽量隔离，无法隔离的串行，同一主机排队。各 stack 按自己的测试文件判定是否有 full 测试（uv 与 swift 同在根目录时共用 `tests/`）：uv 看 `test_*.py`、`*_test.py`，node 看 Vitest 默认收集的 `*.test.*`、`*.spec.*`（`ts`、`tsx`、`js`、`jsx`），swift 看 `*.swift`。出现该 stack 的测试文件即被 `gate-full` 收录，此时零收集或零匹配视为失败；目录不存在或只有其他 stack 的文件时打印提示并通过。swift 有测试文件时还需在 `Package.swift` 声明 `FullTests` target，task 会检查。
+- **full**：各 stack home 下的 `tests/full/`。重型、真实基础设施集成、E2E 与独占资源测试；需要浏览器的测试以开发依赖引入 Playwright 并归入此层；需要登录时测试自备身份（现建测试用户或测试生成的 storageState，外部身份提供方用替身），不依赖真实账号或外部登录服务。尽量隔离，无法隔离的串行，同一主机排队。各 stack 按自己的测试文件判定是否有 full 测试（uv 与 swift 同在根目录时共用 `tests/`）：uv 看 `test_*.py`、`*_test.py`，node 看 Vitest 默认收集的 `*.test.*`、`*.spec.*`（`ts`、`tsx`、`js`、`jsx`），swift 看 `*.swift`。出现该 stack 的测试文件即被 `gate-full` 收录，此时零收集或零匹配视为失败；目录不存在或只有其他 stack 的文件时打印提示并通过。swift 有测试文件时还需在 `Package.swift` 声明 `FullTests` target，task 会检查。
 - **主机锁**：full 测试占用端口、桌面焦点等主机级资源，所以按主机而非按仓库加锁，代价是不相关项目的 full 也会排队。`scripts/with_lock.py` 用 `fcntl.flock` 锁 `~/.cache/gate-full.lock`（`GATE_LOCK_FILE` 可覆盖）；各 stack 的 `test-full` 确认有测试后经它重新执行自身（`GATE_LOCK_HELD` 防重入），所以公开 `test-full`、`gate-full` 与定向的 `<stack>:test-full` 都持锁，多 stack 并行时各自排队。锁只由 `with_lock.py` 自身持有：命令作为子进程运行且不继承锁的文件描述符，命令退出即释放，留下的后台进程不会占锁；SIGINT/SIGTERM 转发给命令。等待时每 30 秒打印持有者，`--timeout` 超时退出码 75 表示稍后重试，等待中被中断退出码 130。直接调底层 runner 能绕过锁，这一条靠文档约束与 code-review。
 - 两个门禁不接受筛选参数；不得用 skip、收集过滤或弱化断言让门禁通过，零匹配不是通过。`swift test` 零匹配只告警，task 自行判为失败；`vitest run` 没有匹配的测试文件时本身非零退出，不得加 `--passWithNoTests`；pytest 零收集本身非零。
 

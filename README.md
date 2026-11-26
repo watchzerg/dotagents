@@ -14,7 +14,7 @@
 
 4. 需要还原 statusline 等 harness 配置时，再调用 `/setup-harness`（或执行 `python3 .agents/skills/setup-harness/scripts/setup_harness.py`），见[harness 配置](#harness-配置)。
 5. 开启新的 Claude Code、Antigravity CLI 或 Grok 会话（Antigravity CLI 中也可执行 `/skills reload`），验证个人规则和 skills 已加载。
-6. 切换到目标项目，先执行 `/setup-matt-pocock-skills`，再执行 `/setup-project`；之后按需使用下表中的 skills。用 `/acceptance` 验收有 web 界面的项目时，需要 Chrome 已打开且当前 harness 的原生浏览器方案已连接（Claude Code 为 Claude in Chrome 扩展）。
+6. 切换到目标项目，先执行 `/setup-matt-pocock-skills`，再执行 `/setup-project`；之后按需使用下表中的 skills。用 `/acceptance` 验收有 web 界面的项目时，默认需要已安装 Playwright 官方 skill 与 CLI；环境契约声明需要用户真实登录态时，改为需要 Chrome 已打开且当前 harness 的原生浏览器方案已连接（Claude Code 为 Claude in Chrome 扩展）。
 
 setup 先检查全部入口：已有正确链接跳过，可以重复执行；遇到已有文件、目录或指向其他位置的链接时报告冲突并退出，不创建任何链接、不覆盖。创建中途出现权限或 I/O 错误时，已创建的链接会保留，解决后重新执行即可。`/setup-dotagents` 还会检查当前会话是否提供 `setup-matt-pocock-skills`，未发现时建议安装 Matt Pocock 的 skill 套件；该检查不影响 setup 结果，直接运行脚本时不执行。
 

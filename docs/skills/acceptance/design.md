@@ -19,7 +19,7 @@
 - **账本在临时目录，报告进项目**：账本是跨轮唯一真相（对话会被压缩），放会话临时目录不污染仓库；报告落 `docs/research/acceptance/`，因为模板已为验收证据留了这个位置，下次运行可对比。
 - **与多轮循环的分工**：Claude Code 的 `/goal` 只能由用户输入（skill 无法设定），但 goal 条件可以引用 skill（anthropics/claude-code#58348）。所以 SKILL.md 给出推荐命令，skill 负责流程与判据，循环负责“没跑完别停”。评估器只读 transcript，因此每轮打印以 `验收进行中` 开头的摘要，`验收完成` 只在报告 commit 后打印；这套输出约定对任何循环机制都无害。未采用 skill frontmatter 自带 prompt 型 Stop hook 的自包含路线：goal 可观测、可 `/goal clear`，一跑一小时的活可观测比省一行输入重要。
 - **服务脱离 harness 启动**：goal 评估在后台任务未结束时会跳过，用 harness 的后台模式起服务等于没设 goal。所以契约要求启动命令自行后台化，agent 前台调用，修复时按契约反复启停。
-- **浏览器用用户自己的 Chrome**：最接近真实使用，复用登录态，能读 console 与 network。首版曾选 Playwright MCP headless（独立实例），用户改为真实浏览器，理由是真实环境与登录态复用更不容易出错。代价是操作真实浏览器与账号，所以 browser.md 写死范围：只访问契约地址、只用自建标签页、不登出、不动其他标签页，禁区由契约声明；原生对话框会阻塞扩展，列为硬阻塞。未连接时不回退：悄悄换成无登录态的独立浏览器会让环境偏离真实使用。只有 harness 没有原生方案时才用 Playwright skill + CLI。总规则在 `global/AGENTS.md` 浏览器测试节，skill 只写验收特有的部分。
+- **浏览器方案按是否需要用户真实登录态选择**（2026-11-26）：首版选 Playwright MCP headless，之后改为一律用用户自己的 Chrome；现在改为由契约声明决定。不需要真实登录态（无需登录或用测试账号）时用 Playwright 官方 skill + CLI 起独立浏览器：隔离、不碰用户的标签页与账号，任何 harness 都可用。只有第三方站点、SSO、已有 cookie 这类必须用真实身份的场景才用 harness 原生方案连接用户 Chrome；代价是操作真实浏览器与账号，所以 browser.md 写死范围：只访问契约地址、只用自建标签页、不登出、不动其他标签页，禁区由契约声明；原生对话框会阻塞扩展，列为硬阻塞。两条路径互不回退：需要真实登录态时换成独立浏览器会偏离真实使用，不需要时改用用户 Chrome 则平白扩大风险。整次运行只用一种方案，清单中有一项需要真实登录态即用原生方案，免得维护两套连接与取证。总规则在 `global/AGENTS.md` 浏览器测试节，skill 只写验收特有的部分。
 - **harness 中立**：用户同时使用多个 harness。SKILL.md 只写能力要求与操作边界，不写工具名；各 harness 的浏览器做法集中在 `references/browser.md` 的映射表，新增 harness 只改这张表。
 - **“验收”一词只指本 skill**：setup-project 模板曾把 `gate-full` 通过也叫“完整验收”。划分标准是可重复且结果确定的进 core 或 full，依赖真实账号、真实外部服务或人工判断的归本 skill。
 - **只允许用户调用**（2026-11-25）：设 `disable-model-invocation: true`，description 只作给人看的一行摘要。一跑约一小时且会改代码、提交，误触发代价高；没有其他 skill 调用本 skill，模板也只让用户输入 `/acceptance`。已知风险：若 `/goal` 的首轮是模型读到 `/acceptance` 文字后经 Skill 工具调用，此用法会失效，见待验收。
@@ -36,6 +36,7 @@
 - `/goal /acceptance 直到打印"验收完成"，最多 80 轮` 在设了 `disable-model-invocation` 后能否让首轮正确触发 skill（不能则需撤回该设置或改推荐命令）、评估器是否按 `验收完成` 判定；最短形式 `/goal /acceptance` 是否可用（评估器可能拿不到判据而首轮就判完成）。
 - 阶段 1 的结构化提问（Claude Code 的 AskUserQuestion）在 goal 激活期间是否会被评估器判为失败。
 - 契约起草的证据来源是否够用，取决于真实项目的 `mise.toml` 与 README 质量。
-- 除 Claude Code 外，其他 harness 的浏览器做法未填入映射表，也未在其他 harness 上运行过。
+- 除 Claude Code 外，其他 harness 的原生浏览器方案未填入映射表，也未在其他 harness 上运行过。
+- Playwright skill + CLI 路径（不需要真实登录态的默认方案）未经真实运行：取证输出是否够用、长时间运行时会话是否稳定。
 - Chrome 扩展在一小时以上的运行里是否稳定（断连、标签页被误关）。
 - `无法观测` 作为终态是本轮精简时为消除完成条件的矛盾新增的，未经真实运行。
