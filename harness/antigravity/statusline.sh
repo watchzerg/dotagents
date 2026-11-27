@@ -34,7 +34,10 @@ IFS=$'\x1f' read -r dir model effort used ctx_in ctx_size \
   (.terminal_width // ""),
   (
     (.quota // {}) | to_entries
-    | map(select((.value.disabled // false) != true))
+    | map(select(
+        (.value.disabled // false) != true
+        and (.key | test("^(3p|third[-_]?party|claude|gpt|openai|anthropic)($|[-_])"; "i") | not)
+      ))
     | sort_by(
         (.key
           | gsub("-wtu(?=-|$)"; "")
@@ -229,7 +232,7 @@ if [ -n "$cache_read" ] && [ "${cache_read%.*}" -gt 0 ]; then
   fi
 fi
 
-# Quota usage with time until reset (from Antigravity .quota buckets)
+# Quota usage with time until reset (from Antigravity .quota buckets, excluding third-party models)
 if [ -n "$quota_raw" ]; then
   # Strip leading "gemini-" when every bucket shares that prefix
   strip_gemini=1
