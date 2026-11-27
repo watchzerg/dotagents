@@ -35,6 +35,7 @@ def run_setup(
     # 只提供 Python 解释器绝对路径，验证不调用 mise、Bash、uv 等外部命令。
     env["PATH"] = ""
     env.pop("CLAUDE_CONFIG_DIR", None)
+    env.pop("CODEX_HOME", None)
     if claude_dir is not None:
         env["CLAUDE_CONFIG_DIR"] = str(claude_dir)
     return subprocess.run(
@@ -79,6 +80,7 @@ def test_install_is_idempotent_and_preserves_third_party(checkout: Path, tmp_pat
     assert result.returncode == 0, result.stdout + result.stderr
     links = {
         home / ".agents/AGENTS.md": checkout / "global/AGENTS.md",
+        home / ".codex/AGENTS.md": checkout / "global/AGENTS.md",
         claude / "CLAUDE.md": checkout / "global/AGENTS.md",
         gemini / "AGENTS.md": checkout / "global/AGENTS.md",
         home / ".grok/AGENTS.md": checkout / "global/AGENTS.md",

@@ -13,7 +13,7 @@
    ```
 
 4. 需要还原 statusline 等 harness 配置时，再调用 `/setup-harness`（或执行 `python3 .agents/skills/setup-harness/scripts/setup_harness.py`），见[harness 配置](#harness-配置)。
-5. 开启新的 Claude Code、Antigravity CLI 或 Grok 会话（Antigravity CLI 中也可执行 `/skills reload`），验证个人规则和 skills 已加载。
+5. 开启新的 Codex、Claude Code、Antigravity CLI 或 Grok 会话（Antigravity CLI 中也可执行 `/skills reload`），验证个人规则和 skills 已加载。
 6. 切换到目标项目，先执行 `/setup-matt-pocock-skills`，再执行 `/setup-project`；之后按需使用下表中的 skills。用 `/acceptance` 验收有 web 界面的项目时，默认需要已安装 Playwright 官方 skill 与 CLI；环境契约声明需要用户真实登录态时，改为需要 Chrome 已打开且当前 harness 的原生浏览器方案已连接（Claude Code 为 Claude in Chrome 扩展）。
 
 setup 先检查全部入口：已有正确链接跳过，可以重复执行；遇到已有文件、目录或指向其他位置的链接时报告冲突并退出，不创建任何链接、不覆盖。创建中途出现权限或 I/O 错误时，已创建的链接会保留，解决后重新执行即可。`/setup-dotagents` 还会检查当前会话是否提供 `setup-matt-pocock-skills`，未发现时建议安装 Matt Pocock 的 skill 套件；该检查不影响 setup 结果，直接运行脚本时不执行。
@@ -39,11 +39,12 @@ setup 先检查全部入口：已有正确链接跳过，可以重复执行；�
 
 ## 加载关系
 
-源文件路径相对于当前 checkout；实际建立的软链接使用绝对路径。设置了 `CLAUDE_CONFIG_DIR` 时，表中的 `~/.claude` 改用该路径。
+源文件路径相对于当前 checkout；实际建立的软链接使用绝对路径。设置了 `CLAUDE_CONFIG_DIR` 时，表中的 `~/.claude` 改用该路径。设置了 `CODEX_HOME` 时，表中的 `~/.codex` 改用该路径。
 
 | 用户目录入口 | 软链接目标 |
 | --- | --- |
 | `~/.agents/AGENTS.md` | `global/AGENTS.md` |
+| `~/.codex/AGENTS.md` | `global/AGENTS.md` |
 | `~/.claude/CLAUDE.md` | `global/AGENTS.md` |
 | `~/.gemini/AGENTS.md` | `global/AGENTS.md` |
 | `~/.grok/AGENTS.md` | `global/AGENTS.md` |
@@ -51,6 +52,7 @@ setup 先检查全部入口：已有正确链接跳过，可以重复执行；�
 | `~/.claude/skills/<name>` | `~/.agents/skills/<name>` |
 | `~/.gemini/config/skills/<name>` | `~/.agents/skills/<name>` |
 
+- Codex 从 Codex 主目录的 `AGENTS.md` 加载全局规则。同目录下非空的 `AGENTS.override.md` 优先。
 - `~/.agents/AGENTS.md` 是通用规则入口。Grok 只读 `~/.grok/` 下的规则，因此单独链接；它也读 `~/.claude/CLAUDE.md`，但按真实路径去重，只加载一次。Grok 直接读 `~/.agents/skills`，不另建 skill 链接。
 - `skills/` 下每个含 `SKILL.md` 的目录逐个链接，经 `~/.agents/skills` 中转（与 `npx skills` 等工具的安装位置一致）。用户级 skills 父目录保持普通目录，已有的第三方 skills、系统 skills 和插件缓存不受影响。
 - Linux 上文件名区分大小写，入口名须保持 `AGENTS.md`、`CLAUDE.md` 原样。
