@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""把 harness/ 下的 statusline 脚本链接到各 harness，并写入对应配置项。只用 Python 3.14+ 标准库。
+"""安装 harness/ 下的 statusline 配置。只用 Python 3.14+ 标准库。
 
 用法：setup_harness.py [--force]
 只处理 PATH 上能找到 CLI 的 harness。先检查全部目标：有冲突且未加 --force 时报告并退出，不做任何修改。
@@ -12,6 +12,7 @@ import shlex
 import shutil
 import sys
 import tomllib
+from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -20,10 +21,10 @@ from pathlib import Path
 class Harness:
     label: str
     executable: str
-    source: Path  # 仓库中的 statusline 脚本
-    link: Path  # 用户目录中指向 source 的软链接
+    source: Path  # 仓库中的 statusline 脚本或配置片段
+    link: Path | None  # 使用原生配置的 harness 无需软链接
     config: Path  # 写入配置项的文件
-    entry: dict[str, object]  # 期望的配置项整体
+    entry: dict[str, object] | list[str]  # 期望的配置项整体
 
 
 def display_path(path: Path, home: Path) -> str:
@@ -40,7 +41,7 @@ def harnesses(repo_root: Path, home: Path, claude_dir: Path) -> list[Harness]:
     claude_link = claude_dir / "statusline.sh"
     agy_link = agy_dir / "statusline.sh"
     grok_link = grok_dir / "statusline.sh"
-    return [
+    result = [
         Harness(
             "Claude Code",
             "claude",
@@ -66,6 +67,16 @@ def harnesses(repo_root: Path, home: Path, claude_dir: Path) -> list[Harness]:
             {"type": "command", "command": display_path(grok_link, home)},
         ),
     ]
+    if shutil.which("codex") is not None:
+        codex_dir = Path(os.environ.get("CODEX_HOME") or home / ".codex")
+        if not codex_dir.is_absolute():
+            raise ValueError("CODEX_HOME 必须为绝对路径。")
+        source = content / "codex/statusline.toml"
+        entry = tomllib.loads(source.read_text(encoding="utf-8"))["tui"]["status_line"]
+        result.append(Harness("Codex CLI", "codex", source, None, codex_dir / "config.toml", entry))
+    else:
+        print("跳过 Codex CLI：PATH 中没有 codex")
+    return result
 
 
 class Unfixable(ValueError):
@@ -79,7 +90,8 @@ def read_entry(harness: Harness) -> object | None:
     text = harness.config.read_text(encoding="utf-8")
     try:
         if harness.config.suffix == ".toml":
-            ui = tomllib.loads(text).get("ui", {})
+            table = "tui" if harness.link is None else "ui"
+            ui = tomllib.loads(text).get(table, {})
             return ui.get("status_line") if isinstance(ui, dict) else ui
         data = json.loads(text) if text.strip() else {}
     except (tomllib.TOMLDecodeError, json.JSONDecodeError) as error:
@@ -91,6 +103,54 @@ def read_entry(harness: Harness) -> object | None:
 
 TOML_HEADER = re.compile(r"^\s*\[\s*ui\s*\.\s*status_line\s*\]\s*(#.*)?$")
 TOML_ANY_HEADER = re.compile(r"^\s*\[")
+CODEX_TABLE = re.compile(r"^[ \t]*\[[ \t]*(?:tui|\"tui\"|'tui')[ \t]*\][ \t]*(?:#.*)?$", re.M)
+CODEX_ENTRY = re.compile(
+    r"^[ \t]*(?:(?:tui|\"tui\"|'tui')[ \t]*\.[ \t]*)?"
+    r"(?:status_line|\"status_line\"|'status_line')[ \t]*=[ \t]*",
+    re.M,
+)
+
+
+def merge_codex(harness: Harness, current: object | None) -> str:
+    config = harness.config
+    text = config.read_text(encoding="utf-8") if config.exists() else ""
+    expected = deepcopy(tomllib.loads(text))
+    tui = expected.setdefault("tui", {})
+    if not isinstance(tui, dict):
+        raise Unfixable(f"{config} 中的 tui 不是表")
+    tui["status_line"] = harness.entry
+    value = json.dumps(harness.entry)
+    assignment = f"status_line = {value}"
+
+    def matches(candidate: str) -> bool:
+        try:
+            return tomllib.loads(candidate) == expected
+        except tomllib.TOMLDecodeError:
+            return False
+
+    if current is None:
+        for header in CODEX_TABLE.finditer(text):
+            end = header.end()
+            candidate = text[:end] + "\n" + assignment + text[end:]
+            if matches(candidate):
+                return candidate + ("" if candidate.endswith("\n") else "\n")
+        candidate = (text.rstrip("\n") + "\n\n" if text else "") + f"[tui]\n{assignment}\n"
+        if matches(candidate):
+            return candidate
+    else:
+        for entry in CODEX_ENTRY.finditer(text):
+            end = entry.end()
+            for line in text[end:].splitlines(keepends=True):
+                end += len(line)
+                try:
+                    tomllib.loads("value = " + text[entry.end() : end])
+                except tomllib.TOMLDecodeError:
+                    continue
+                candidate = text[: entry.end()] + value + "\n" + text[end:]
+                if matches(candidate):
+                    return candidate
+                break
+    raise Unfixable(f"{config} 中的 tui.status_line 无法安全合并，请检查 TOML 写法")
 
 
 def toml_block(entry: dict[str, object]) -> list[str]:
@@ -101,6 +161,7 @@ def toml_block(entry: dict[str, object]) -> list[str]:
 def write_entry(harness: Harness, current: object | None) -> None:
     config = harness.config
     text = config.read_text(encoding="utf-8") if config.exists() else ""
+    assert isinstance(harness.entry, dict)
     if config.suffix != ".toml":
         data = json.loads(text) if text.strip() else {}
         data["statusLine"] = harness.entry
@@ -131,7 +192,8 @@ def write_entry(harness: Harness, current: object | None) -> None:
 
 
 def link_ok(harness: Harness) -> bool:
-    return harness.link.is_symlink() and os.readlink(harness.link) == str(harness.source)
+    link = harness.link
+    return link is not None and link.is_symlink() and os.readlink(link) == str(harness.source)
 
 
 def setup(repo_root: Path, home: Path, claude_dir: Path, force: bool) -> int:
@@ -143,7 +205,7 @@ def setup(repo_root: Path, home: Path, claude_dir: Path, force: bool) -> int:
         if shutil.which(harness.executable) is None:
             print(f"跳过 {harness.label}：PATH 中没有 {harness.executable}")
             continue
-        if not os.access(harness.source, os.X_OK):
+        if harness.link is not None and not os.access(harness.source, os.X_OK):
             raise ValueError(f"缺少仓库脚本或没有执行权限：{harness.source}")
         selected.append(harness)
     if not selected:
@@ -153,9 +215,10 @@ def setup(repo_root: Path, home: Path, claude_dir: Path, force: bool) -> int:
     conflicts: list[str] = []
     errors: list[str] = []
     currents: dict[str, object | None] = {}
+    codex_update: str | None = None
     for harness in selected:
         link = harness.link
-        if not link_ok(harness) and (link.exists() or link.is_symlink()):
+        if link is not None and not link_ok(harness) and (link.exists() or link.is_symlink()):
             if link.is_dir() and not link.is_symlink():
                 errors.append(f"{link} 是目录；期望链接到 {harness.source}")
             else:
@@ -163,6 +226,8 @@ def setup(repo_root: Path, home: Path, claude_dir: Path, force: bool) -> int:
                 conflicts.append(f"{link} 已存在（{target}）；期望链接到 {harness.source}")
         try:
             currents[harness.label] = current = read_entry(harness)
+            if link is None and current != harness.entry:
+                codex_update = merge_codex(harness, current)
         except Unfixable as error:
             errors.append(str(error))
             continue
@@ -185,34 +250,40 @@ def setup(repo_root: Path, home: Path, claude_dir: Path, force: bool) -> int:
         return 1
 
     for harness in selected:
-        harness.link.parent.mkdir(parents=True, exist_ok=True)
-        if link_ok(harness):
-            print(f"已存在：{harness.link} -> {harness.source}")
-        else:
-            if harness.link.exists() or harness.link.is_symlink():
-                harness.link.unlink()
-            harness.link.symlink_to(harness.source)
-            print(f"已创建：{harness.link} -> {harness.source}")
+        harness.config.parent.mkdir(parents=True, exist_ok=True)
+        link = harness.link
+        if link is not None:
+            if link_ok(harness):
+                print(f"已存在：{link} -> {harness.source}")
+            else:
+                if link.exists() or link.is_symlink():
+                    link.unlink()
+                link.symlink_to(harness.source)
+                print(f"已创建：{link} -> {harness.source}")
         current = currents[harness.label]
         if current == harness.entry:
             print(f"已存在：{harness.config} 的 statusline 配置")
         else:
-            write_entry(harness, current)
+            if link is None:
+                assert codex_update is not None
+                harness.config.write_text(codex_update, encoding="utf-8")
+            else:
+                write_entry(harness, current)
             print(f"已写入：{harness.config} 的 statusline 配置")
-        if (
-            not link_ok(harness)
-            or not harness.link.exists()
-            or read_entry(harness) != harness.entry
-        ):
+        if (link is not None and (not link_ok(harness) or not link.exists())) or read_entry(
+            harness
+        ) != harness.entry:
             raise ValueError(f"核验失败：{harness.label}")
 
-    if shutil.which("jq") is None:
+    has_scripts = any(harness.link is not None for harness in selected)
+    if has_scripts and shutil.which("jq") is None:
         print(
             "提醒：statusline 脚本依赖 jq，当前 PATH 中没有。"
             "macOS：brew install jq；Ubuntu：sudo apt install jq"
         )
     labels = "、".join(harness.label for harness in selected)
-    print(f"全部核验通过。开启新的 {labels} 会话后生效；图标需要终端使用 Nerd Font。")
+    font_note = "；脚本图标需要终端使用 Nerd Font" if has_scripts else ""
+    print(f"全部核验通过。开启新的 {labels} 会话后生效{font_note}。")
     return 0
 
 

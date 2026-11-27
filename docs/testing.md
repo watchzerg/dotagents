@@ -5,7 +5,7 @@
 ## 保留范围（2026-11-22 `/prune-tests` 后）
 
 - setup-dotagents：安装、幂等与冲突时零改动。
-- setup-harness：按 PATH 检测 harness、JSON 与 TOML 配置项合并且保留其他设置、幂等；冲突时零改动，`--force` 后覆盖。
+- setup-harness：按 PATH 检测 harness、JSON 与 TOML 配置项合并且保留其他设置、幂等；冲突时零改动，`--force` 后覆盖。Codex 用例覆盖 `CODEX_HOME`、原生数组合并及多行数组覆盖。
 - dedupe-images：clean、plan/apply、目录去重、案例与 `apply-decisions`（含 `--check`）主流程，以及命名、页序列、交叉命名的代表用例。
 - setup-project：各脚本的新建、已有文件只补缺不覆盖、AGENTS.md 合并、重跑无改动；各 stack 的新项目渲染与 existing 模式；模板 recipe 的 full 判定与 docs-affected、渲染文档通过 docs-check、门禁锁串行；check_docs 的各项规则各一例。
 - roam：push 推送领先分支、只对有 `.beads/` 的项目执行 Dolt；pull 快进、无冲突 rebase、冲突回滚、脏工作区跳过、非当前 main 快进、缺本地库时 bootstrap。

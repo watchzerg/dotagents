@@ -13,6 +13,7 @@ import pytest
 SCRIPT = (
     Path(__file__).resolve().parents[2] / ".agents/skills/setup-harness/scripts/setup_harness.py"
 )
+CODEX_SNIPPET = SCRIPT.parents[4] / "harness/codex/statusline.toml"
 GROK_CONFIG = """[ui]
 yolo = false
 
@@ -35,11 +36,14 @@ def checkout(tmp_path: Path) -> Path:
         source.parent.mkdir(parents=True)
         source.write_text("#!/bin/bash\n")
         source.chmod(0o755)
+    codex = root / "harness/codex/statusline.toml"
+    codex.parent.mkdir()
+    shutil.copyfile(CODEX_SNIPPET, codex)
     return root
 
 
 def run_setup(
-    root: Path, home: Path, executables: tuple[str, ...], *args: str
+    root: Path, home: Path, executables: tuple[str, ...], *args: str, codex_home: Path | None = None
 ) -> subprocess.CompletedProcess[str]:
     bin_dir = home.parent / "bin"
     bin_dir.mkdir(exist_ok=True)
@@ -47,6 +51,8 @@ def run_setup(
         (bin_dir / name).write_text("#!/bin/sh\n")
         (bin_dir / name).chmod(0o755)
     env = {"HOME": str(home), "PATH": str(bin_dir)}
+    if codex_home is not None:
+        env["CODEX_HOME"] = str(codex_home)
     return subprocess.run(
         [
             sys.executable,
@@ -135,3 +141,39 @@ def test_conflicts_change_nothing_until_forced(checkout: Path, tmp_path: Path) -
     grok = tomllib.loads((home / ".grok/config.toml").read_text())
     assert grok["ui"]["status_line"] == {"type": "command", "command": "~/.grok/statusline.sh"}
     assert grok["plugins"] == {"enabled": ["browser-use"]}
+
+
+def test_codex_merges_native_statusline(checkout: Path, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    codex_home = tmp_path / "custom-codex"
+    codex_home.mkdir()
+    config = codex_home / "config.toml"
+    existing = (
+        '[tui] # terminal\ntheme = "github-dark"\n[tui.keymap.global]\nopen_transcript = "ctrl-t"\n'
+    )
+    config.write_text(existing)
+    expected = tomllib.loads(CODEX_SNIPPET.read_text())["tui"]["status_line"]
+
+    result = run_setup(checkout, home, ("codex",), codex_home=codex_home)
+    assert result.returncode == 0, result.stdout + result.stderr
+    installed = config.read_text()
+    settings = tomllib.loads(installed)
+    assert settings["tui"].pop("status_line") == expected
+    assert settings == tomllib.loads(existing)
+    assert not home.exists()
+
+    result = run_setup(checkout, home, ("codex",), codex_home=codex_home)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert config.read_text() == installed
+
+    original = existing.replace("theme =", 'status_line = [\n    "model",\n]\ntheme =')
+    config.write_text(original)
+    result = run_setup(checkout, home, ("codex", "claude"), codex_home=codex_home)
+    assert result.returncode == 1
+    assert "冲突" in result.stderr
+    assert config.read_text() == original
+    assert not home.exists()
+
+    result = run_setup(checkout, home, ("codex", "claude"), "--force", codex_home=codex_home)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert config.read_text() == installed

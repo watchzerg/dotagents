@@ -25,7 +25,7 @@ setup 先检查全部入口：已有正确链接跳过，可以重复执行；�
 | 调用 | 作用 | 使用范围 |
 | --- | --- | --- |
 | [`/setup-dotagents`](.agents/skills/setup-dotagents/SKILL.md) | 把本仓库的个人规则和 skills 链接到用户环境，检查并补齐加载入口。 | 仅本仓库 |
-| [`/setup-harness`](.agents/skills/setup-harness/SKILL.md) | 把 `harness/` 下的 statusline 脚本链接到 PATH 上检测到的 harness，并写入对应配置项；冲突时零改动，确认后用 `--force` 覆盖。 | 仅本仓库 |
+| [`/setup-harness`](.agents/skills/setup-harness/SKILL.md) | 为 PATH 上检测到的 harness 安装状态栏并合并配置项；冲突时零改动，确认后用 `--force` 覆盖。 | 仅本仓库 |
 | [`/commit`](skills/commit/SKILL.md) | 把现有变更提交为一个本地 commit；默认包含全部未忽略变更，不附署名行，不测试、不 push。 | 用户级 |
 | [`/docs-audit`](skills/docs-audit/SKILL.md) | 文档漂移审计：对照源码核对正文（默认随机抽页，传基准时核对改动命中的页面），文档错就地修正，其余转票据。 | 用户级 |
 | [`/optimize`](skills/optimize/SKILL.md) | 项目优化流水线：`arch`、`docs`、`logs` 三个主题按规则表调研，命中项经 spec、拆票、实施、review、门禁后合入，只在建 spec 前停一次。要求目标项目有 Beads 与 `gate-core`、`gate-full`。 | 用户级 |
@@ -57,15 +57,18 @@ setup 先检查全部入口：已有正确链接跳过，可以重复执行；�
 
 ## harness 配置
 
-`/setup-harness` 只处理 PATH 上能找到 CLI 的 harness。它把脚本链接到下表位置，并在配置文件中合并 statusline 配置项，其他设置不动。设置了 `CLAUDE_CONFIG_DIR` 时，`~/.claude` 改用该路径。
+`/setup-harness` 只处理 PATH 上能找到 CLI 的 harness。它合并下表中的 statusline 配置项，并为使用脚本的 harness 创建软链接。设置了 `CLAUDE_CONFIG_DIR` 时，`~/.claude` 改用该路径。
 
-| harness（CLI） | 链接 → 源文件 | 配置项 |
+| harness（CLI） | 配置来源 | 配置项 |
 | --- | --- | --- |
 | Claude Code（`claude`） | `~/.claude/statusline.sh` → `harness/claude/statusline.sh` | `~/.claude/settings.json` 的 `statusLine` |
 | Antigravity CLI（`agy`） | `~/.gemini/antigravity-cli/statusline.sh` → `harness/antigravity/statusline.sh` | `~/.gemini/antigravity-cli/settings.json` 的 `statusLine` |
 | Grok Build（`grok`） | `~/.grok/statusline.sh` → `harness/grok/statusline.sh` | `~/.grok/config.toml` 的 `[ui.status_line]` |
+| Codex CLI（`codex`） | [`harness/codex/statusline.toml`](harness/codex/statusline.toml) | `$CODEX_HOME/config.toml`（默认 `~/.codex/config.toml`）的 `tui.status_line` |
 
 脚本依赖 `jq` 和 `git`（macOS：`brew install jq`；Ubuntu：`sudo apt install jq`），图标需要终端使用 Nerd Font。修改脚本后 pull 即生效；修改配置项的期望值后，需要重新运行 `/setup-harness`。
+
+Codex CLI 依次显示当前目录、Git 分支、模型与推理强度、上下文占用、5 小时和每周剩余额度。运行 `/setup-harness` 后开启新的 Codex CLI 会话。[Codex 配置参考](https://learn.chatgpt.com/docs/config-file/config-reference)
 
 ## 仓库结构
 
@@ -77,6 +80,7 @@ dotagents/
 ├── .agents/skills/setup-dotagents/ # 项目级安装 skill 与链接脚本
 ├── .agents/skills/setup-harness/   # 项目级 harness 配置安装 skill
 ├── harness/<harness>/statusline.sh # 各 harness 的 statusline 脚本，按上表链接
+├── harness/codex/statusline.toml    # Codex CLI 的原生 statusline 配置片段
 ├── .claude/skills -> ../.agents/skills # 软链接，供 Claude Code 发现项目级 skill
 ├── skills/                         # 用户级个人 skills，按目录软链接，只含运行时内容
 │   ├── acceptance/                 # 真实环境验收（清单与账本规则、环境契约规则、报告模板）

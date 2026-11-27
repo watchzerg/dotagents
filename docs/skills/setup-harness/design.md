@@ -1,6 +1,6 @@
 # setup-harness 设计说明
 
-把各 CLI agent harness 的个人配置还原到当前机器。一期只有 statusline，覆盖 Claude Code、Antigravity CLI、Grok Build。
+把各 CLI agent harness 的个人配置还原到当前机器。目前覆盖 Claude Code、Antigravity CLI、Grok Build 和 Codex CLI 的 statusline。
 
 ## 关键决策（2026-11-24）
 
@@ -17,7 +17,14 @@
 - **首次导入不写迁移逻辑**：本机原有的脚本已复制进仓库，原文件由冲突检查加 `--force` 替换为链接。Claude Code 原来的 `statusline-command.sh` 改名为 `statusline.sh`，旧文件手动删除。
 - **只允许用户调用**（2026-11-25）：设 `disable-model-invocation: true`，description 只作给人看的一行摘要。会改写用户目录下的 harness 配置，只在换机或还原时由用户发起；setup-dotagents 同样设置。
 
+## Codex CLI（2026-11-27）
+
+- 检测到 PATH 上的 `codex` 时，从 `harness/codex/statusline.toml` 读取 `tui.status_line` 数组并合并到 `$CODEX_HOME/config.toml`（默认 `~/.codex/config.toml`）。状态栏由 Codex 原生渲染。
+- 沿用整项比较与 `--force`。写入前解析候选 TOML，核对只有目标键的值变化。无法安全合并的格式（如内联 `tui` 表）在预检阶段报错。
+
 ## 待验收
+
+- Codex CLI 在交互终端中的实际渲染待验证。
 
 - Ubuntu 上三个 statusline 脚本的实际渲染未验证；只修正了 Grok 脚本中 `stat` 的调用顺序（先试 GNU `-c`，再试 BSD `-f`）。
 - 尚未在一台新机器上走完从 setup-dotagents 到 setup-harness 的完整流程。
